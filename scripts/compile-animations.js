@@ -1141,13 +1141,584 @@ function defineClips(doc, boneMap) {
       { bone:'RightArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-1.05)) },
     ])
   }
+
+  // ── v3: 38 NEW CLIPS ─────────────────────────────────────────────────────────
+
+  // ── LISTENING & AGREEMENT (6) ────────────────────────────────────────────────
+
+  // evolve_listening_micro_nod_continuous — 3s loop, slow shallow 5° nod
+  {
+    const dur=3, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_micro_nod_continuous', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*2.1)*0.045, 0, 0)) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*2.1)*0.02, 0, 0)) },
+    ])
+  }
+
+  // evolve_listening_lean_and_settle — 4s loop, torso forward 4-6°, head tilt 3°
+  {
+    const dur=4, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_lean_and_settle', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.05+Math.sin(t*1.57)*0.03, 0, 0)) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, Math.sin(t*1.57)*0.04)) },
+    ])
+  }
+
+  // evolve_listening_chin_raise_affirm — 1.5s once, chin lift then return
+  {
+    const dur=1.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_chin_raise_affirm', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const v=p<0.4?-0.12*(p/0.4):p<0.7?-0.12:0; return euler(v,0,0) }) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const v=p<0.4?-0.06*(p/0.4):p<0.7?-0.06:0; return euler(v,0,0) }) },
+    ])
+  }
+
+  // evolve_listening_mmm_body — 1.8s once, head bob + chest rise
+  {
+    const dur=1.8, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_mmm_body', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*Math.PI/dur)*0.07, 0, 0)) },
+      { bone:'Spine1', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*Math.PI/dur)*0.03, 0, 0)) },
+    ])
+  }
+
+  // evolve_listening_hold_space — 6s loop, near-motionless deliberate calm
+  {
+    const dur=6, fps=10, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_hold_space', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*0.5)*0.005, Math.sin(t*0.37)*0.005, 0)) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.04+Math.sin(t*0.3)*0.008, 0, 0)) },
+    ])
+  }
+
+  // evolve_listening_reflective_tilt — 2s once, head tilt 8-10°, hand toward chin
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_listening_reflective_tilt', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.04*p, 0, 0.14*Math.min(p/0.5,1)*(1-Math.max(0,(p-0.8)/0.2))) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.25*Math.min(p/0.5,1), -0.1, -0.55) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.6*Math.min(p/0.5,1), 0, 0) }) },
+    ])
+  }
+
+  // ── AGREEMENT SPECTRUM (5) ───────────────────────────────────────────────────
+
+  // evolve_agreement_strong_nod — 1.5s once, two firm ~20° nods
+  {
+    const dur=1.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_agreement_strong_nod', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.32*Math.sin(t*4.19), 0, 0)) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.12*Math.sin(t*4.19), 0, 0)) },
+    ])
+  }
+
+  // evolve_agreement_warm_verbal_affirm — 2s once, nod + open palm extends
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_agreement_warm_verbal_affirm', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.22*Math.sin(t*3.14), 0, 0)) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const ext=p<0.5?p*2:1-(p-0.5)*2; return euler(-0.2*ext, -0.15*ext, -0.5) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const ext=p<0.5?p*2:1-(p-0.5)*2; return euler(0.4*ext, 0, 0) }) },
+    ])
+  }
+
+  // evolve_agreement_considered_nod — 2s once, one slow deliberate nod + lean
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_agreement_considered_nod', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.18*Math.sin(t*Math.PI/dur), 0, 0)) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.03+0.04*Math.sin(t*Math.PI/dur), 0, 0)) },
+    ])
+  }
+
+  // evolve_agreement_yes_but_pause — 2.5s once, nod → still → index rise + head tilt
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_agreement_yes_but_pause', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; if(p<0.35) return euler(0.18*Math.sin(p/0.35*Math.PI),0,0); if(p<0.6) return euler(0,0,0); return euler(0,0,0.1*(p-0.6)/0.4) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const rise=p>0.6?(p-0.6)/0.4:0; return euler(-0.15*rise, -0.1*rise, -0.5) }) },
+    ])
+  }
+
+  // evolve_agreement_gentle_disagree — 1.8s once, 5-8° side-to-side head shake
+  {
+    const dur=1.8, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_agreement_gentle_disagree', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0.1*Math.sin(t*3.49), 0)) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0.04*Math.sin(t*3.49), 0)) },
+    ])
+  }
+
+  // ── COACHING & FEEDBACK (5) ──────────────────────────────────────────────────
+
+  // evolve_coaching_praise_delivery — 2s once, open palms extend at waist then retract
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_coaching_praise_delivery', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2:1-(p-0.5)*2; return euler(-0.15*e, 0.2*e, 0.9-0.25*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2:1-(p-0.5)*2; return euler(-0.15*e, -0.2*e, -(0.9-0.25*e)) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.05*Math.sin(t*Math.PI/dur), 0, 0)) },
+    ])
+  }
+
+  // evolve_coaching_constructive_frame — 2.5s once, hands form loose frame at chest
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_coaching_constructive_frame', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(-0.3*e, 0.3*e, 0.7-0.2*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(-0.3*e, -0.3*e, -(0.7-0.2*e)) }) },
+      { bone:'LeftForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0.7*e, 0, 0) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0.7*e, 0, 0) }) },
+    ])
+  }
+
+  // evolve_coaching_check_understanding — 2s once, head tilt + palm-up query hand
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_coaching_check_understanding', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.04, 0, 0.1*Math.sin(p*Math.PI)) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.2*e, -0.2*e, -0.5) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.5*Math.sin(p*Math.PI), 0, 0) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.04+0.03*Math.sin(t*Math.PI/dur), 0, 0)) },
+    ])
+  }
+
+  // evolve_coaching_summarise_gesture — 2.5s once, slow circular gather at waist + nod
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_coaching_summarise_gesture', [
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.1, Math.sin(p*Math.PI*2)*-0.2, -0.7+Math.sin(p*Math.PI)*0.2) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.4+Math.sin(p*Math.PI)*0.3, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.12*Math.max(0,Math.sin((p-0.75)*Math.PI/0.25)), 0, 0) }) },
+    ])
+  }
+
+  // evolve_coaching_invite_reflection — 2.5s once, both palms open outward, body back
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_coaching_invite_reflection', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, 0.35*e, 0.85) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, -0.35*e, -0.85) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.04*Math.sin(p*Math.PI), 0, 0) }) },
+    ])
+  }
+
+  // ── PROFESSIONAL CONVERSATION (3) ────────────────────────────────────────────
+
+  // evolve_professional_invite_to_speak — 2s once, open palm toward listener, head bow
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_professional_invite_to_speak', [
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, -0.3*e, -0.75+0.1*e) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.35*Math.sin(p*Math.PI), 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.1*Math.sin(p*Math.PI), 0, 0) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(-0.03*Math.sin(p*Math.PI), 0, 0) }) },
+    ])
+  }
+
+  // evolve_professional_topic_transition — 2s once, hands open-close at waist, reset
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_professional_topic_transition', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2*0.15:(1-(p-0.5)*2)*0.15; return euler(-e, e, 0.85) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2*0.15:(1-(p-0.5)*2)*0.15; return euler(-e, -e, -0.85) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.05, 0, 0)) },
+    ])
+  }
+
+  // evolve_professional_wrap_up_signal — 2.5s once, hands clasp, lean forward, slow nod
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_professional_wrap_up_signal', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.4,1); return euler(-0.15*e, 0.15*e, 0.9-0.1*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.4,1); return euler(-0.15*e, -0.15*e, -(0.9-0.1*e)) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.05+0.05*Math.min(p/0.5,1), 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.14*Math.max(0,Math.sin((p-0.7)/0.3*Math.PI)), 0, 0) }) },
+    ])
+  }
+
+  // ── SUBTLE IDLE VARIETY (3) ──────────────────────────────────────────────────
+
+  // evolve_idle_seated_upright — 5s loop, near-zero motion seated base idle
+  {
+    const dur=5, fps=10, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_idle_seated_upright', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.05+Math.sin(t*0.6)*0.008, Math.sin(t*0.4)*0.005, 0)) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*0.5)*0.006, Math.sin(t*0.35)*0.007, 0)) },
+    ])
+  }
+
+  // evolve_idle_look_down_notes — 2.5s once, head drops to desk, scans L-R, returns
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_idle_look_down_notes', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const drop=p<0.25?p/0.25:p<0.75?1:1-(p-0.75)/0.25; const scan=p>0.25&&p<0.75?Math.sin((p-0.25)/0.5*Math.PI)*0.12:0; return euler(0.3*drop, scan, 0) }) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const drop=p<0.25?p/0.25:p<0.75?1:1-(p-0.75)/0.25; return euler(0.12*drop, 0, 0) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const drop=p<0.25?p/0.25:p<0.75?1:1-(p-0.75)/0.25; return euler(0.06*drop, 0, 0) }) },
+    ])
+  }
+
+  // evolve_idle_micro_posture_reset — 2s once, spine extends, shoulders roll back
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_idle_micro_posture_reset', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(0.05-0.05*e, 0, 0) }) },
+      { bone:'Spine1', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(0.05-0.06*e, 0, 0) }) },
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0, 0, -0.08*Math.sin(p*Math.PI)) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0, 0, 0.08*Math.sin(p*Math.PI)) }) },
+    ])
+  }
+
+  // ── THINKING & PROCESSING (4) ────────────────────────────────────────────────
+
+  // evolve_thinking_recall_look_up — 2s once, eyes/head shift up-and-aside
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_thinking_recall_look_up', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.35?p/0.35:p<0.75?1:1-(p-0.75)/0.25; return euler(-0.18*e, 0.12*e, 0) }) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.35?p/0.35:p<0.75?1:1-(p-0.75)/0.25; return euler(-0.07*e, 0, 0) }) },
+    ])
+  }
+
+  // evolve_thinking_weigh_options — 2.5s once, both hands rock alternately like scales
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_thinking_weigh_options', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.2*e, 0.2*e, 0.7-0.15*Math.sin(t*3.77)) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.2*e, -0.2*e, -(0.7+0.15*Math.sin(t*3.77))) }) },
+      { bone:'LeftForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.55*e, 0, 0) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.55*e, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.05*Math.sin(t*3.77)*Math.min(t/dur/0.3,1))) },
+    ])
+  }
+
+  // evolve_thinking_calculate_still — 2.5s once, near-still, hand drifts toward mouth
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_thinking_calculate_still', [
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const lift=p<0.4?p/0.4:1; return euler(-0.3*lift, -0.15, -0.55) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const lift=p<0.4?p/0.4:1; return euler(0.7*lift, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(Math.sin(t*0.8)*0.008, Math.sin(t*1.1)*0.01, 0)) },
+    ])
+  }
+
+  // evolve_thinking_decide_forward — 2s once, pause then torso forward + hand outward
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_thinking_decide_forward', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(0.06*e, 0, 0) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(-0.2*e, -0.3*e, -0.7) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(0.35*e, 0, 0) }) },
+    ])
+  }
+
+  // ── EDUCATION-SPECIFIC (5) ───────────────────────────────────────────────────
+
+  // evolve_education_step_by_step — 3s once, finger counts on hand, nod per beat
+  {
+    const dur=3, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_education_step_by_step', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.25*e, 0.3*e, 0.75-0.1*e) }) },
+      { bone:'LeftForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.65*e, 0, 0) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.1*e, -0.15*e, -0.7) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.5*e, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const beat=Math.floor(t/1)*1; const phase=(t%1); return euler(0.1*Math.max(0,Math.sin(phase*Math.PI)), 0, 0) }) },
+    ])
+  }
+
+  // evolve_education_point_to_content — 3s once, arm extends to side at 45°, holds, retracts
+  {
+    const dur=3, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_education_point_to_content', [
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(-0.5*extend, -0.45*extend, -1.0*extend) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0.3*extend, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const look=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0, -0.2*look, 0) }) },
+    ])
+  }
+
+  // evolve_education_writing_gesture — 2.5s once, hand mimes writing at desk angle
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_education_writing_gesture', [
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.1*e, 0, -0.6) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.9*e, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.25*e, Math.sin(t*4)*0.05, 0) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.25,1); return euler(0.08*e, 0, 0) }) },
+    ])
+  }
+
+  // evolve_education_check_understand_question — 2s once, both hands open and rise
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_education_check_understand_question', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.2*e, 0.3*e, 0.8-0.2*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.2*e, -0.3*e, -(0.8-0.2*e)) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.04+0.04*Math.sin(t*Math.PI/dur), 0, 0)) },
+    ])
+  }
+
+  // evolve_education_encourage_student — 2s once, slow affirm nod + open warm hand toward student
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_education_encourage_student', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.18*Math.sin(t*Math.PI/dur), 0, 0)) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, -0.25*e, -0.7) }) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.sin(t/dur*Math.PI); return euler(0.3*e, 0, 0) }) },
+    ])
+  }
+
+  // ── SOCIAL & RAPPORT (4) ─────────────────────────────────────────────────────
+
+  // evolve_rapport_calm_reassurance — 2s once, slow palm-down gesture + small nod
+  {
+    const dur=2, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_rapport_calm_reassurance', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.05*e, 0.2*e, 0.8-0.1*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.05*e, -0.2*e, -(0.8-0.1*e)) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.1*Math.sin(t*Math.PI/dur), 0, 0)) },
+    ])
+  }
+
+  // evolve_rapport_mirroring_lean — 4s loop, torso angles, shoulder drop on near side
+  {
+    const dur=4, fps=15, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_rapport_mirroring_lean', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.04, Math.sin(t*1.57)*0.04, Math.sin(t*1.57)*0.03)) },
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, Math.sin(t*1.57)*-0.06)) },
+    ])
+  }
+
+  // evolve_rapport_professional_smile_hold — 3s once, lips rise, posture opens, holds then fades
+  {
+    const dur=3, fps=20, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_rapport_professional_smile_hold', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const rise=p<0.2?p/0.2:p<0.7?1:1-(p-0.7)/0.3; return euler(-0.05*rise, 0, 0) }) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const rise=p<0.2?p/0.2:p<0.7?1:1-(p-0.7)/0.3; return euler(0.04-0.04*rise, 0, 0) }) },
+    ])
+  }
+
+  // evolve_rapport_inclusive_gesture — 2.5s once, arms spread gently outward, palms up
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_rapport_inclusive_gesture', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.08*e, 0.4*e, 0.7-0.2*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.08*e, -0.4*e, -(0.7-0.2*e)) }) },
+    ])
+  }
+
+  // ── STRESS & PRESSURE (5) ────────────────────────────────────────────────────
+
+  // evolve_stress_suppressed_still — 4s loop, elevated shoulders, shallow breath
+  {
+    const dur=4, fps=15, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_stress_suppressed_still', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.12+Math.sin(t*1.57)*0.015, 0, 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.12+Math.sin(t*1.57)*0.015, 0, 0)) },
+      { bone:'Spine1', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.02+Math.sin(t*1.57)*0.008, 0, 0)) },
+    ])
+  }
+
+  // evolve_stress_contained_retreat — 1.5s once, small backward weight shift, chin drops
+  {
+    const dur=1.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_stress_contained_retreat', [
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2:1-(p-0.5)*2; return euler(-0.05*e, 0, 0) }) },
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.5?p*2:1-(p-0.5)*2; return euler(0.1*e, 0, 0) }) },
+    ])
+  }
+
+  // evolve_stress_self_anchor — 4s loop, arms cross loosely at waist (light self-soothe)
+  {
+    const dur=4, fps=15, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_stress_self_anchor', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.05, 0.15, 0.55+Math.sin(t*0.8)*0.02)) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.05, -0.15, -(0.55+Math.sin(t*0.8)*0.02))) },
+      { bone:'LeftForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.8+Math.sin(t*0.6)*0.02, 0, 0)) },
+      { bone:'RightForeArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.8+Math.sin(t*0.6)*0.02, 0, 0)) },
+    ])
+  }
+
+  // evolve_stress_brief_look_away — 2.5s once, eyes break contact, shift down-away, conscious return
+  {
+    const dur=2.5, fps=30, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_stress_brief_look_away', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.25?p/0.25:p<0.75?1:1-(p-0.75)/0.25; return euler(0.15*e, -0.2*e, 0) }) },
+      { bone:'Neck', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.25?p/0.25:p<0.75?1:1-(p-0.75)/0.25; return euler(0.06*e, -0.08*e, 0) }) },
+    ])
+  }
+
+  // evolve_stress_micro_tension — 3s loop, subtle hand tension, body slightly rigid
+  {
+    const dur=3, fps=15, n=dur*fps+1
+    const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
+    addClip(doc, boneMap, 'evolve_stress_micro_tension', [
+      { bone:'LeftArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.9+Math.sin(t*2.1)*0.015)) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -(0.9+Math.sin(t*2.1)*0.015))) },
+      { bone:'Spine', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0.04+Math.sin(t*1.4)*0.01, 0, 0)) },
+    ])
+  }
+
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🎬  Evolve Avatar Engine — Animation Dictionary Compiler v2')
-  console.log('   Building 72 procedural animation clips...\n')
+  console.log('🎬  Evolve Avatar Engine — Animation Dictionary Compiler v3')
+  console.log('   Building 110 procedural animation clips (72 existing + 38 new)...\n')
 
   const doc = new Document()
   doc.createBuffer()

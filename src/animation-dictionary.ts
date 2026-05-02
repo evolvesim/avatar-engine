@@ -155,6 +155,64 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'evolve_listening_interested_lean':           { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
   'evolve_listening_reflective_pause':          { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
   'evolve_listening_attentive_still':           { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+
+  // ── v3: LISTENING & AGREEMENT (6) ────────────────────────────────────────
+  'evolve_listening_micro_nod_continuous':      { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_listening_lean_and_settle':           { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_listening_chin_raise_affirm':         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_listening_mmm_body':                  { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_listening_hold_space':                { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_listening_reflective_tilt':           { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+
+  // ── v3: AGREEMENT SPECTRUM (5) ───────────────────────────────────────────
+  'evolve_agreement_strong_nod':                { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_agreement_warm_verbal_affirm':        { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_agreement_considered_nod':            { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_agreement_yes_but_pause':             { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_agreement_gentle_disagree':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+
+  // ── v3: COACHING & FEEDBACK (5) ──────────────────────────────────────────
+  'evolve_coaching_praise_delivery':            { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_coaching_constructive_frame':         { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_coaching_check_understanding':        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_coaching_summarise_gesture':          { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_coaching_invite_reflection':          { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.35 },
+
+  // ── v3: PROFESSIONAL CONVERSATION (3) ────────────────────────────────────
+  'evolve_professional_invite_to_speak':        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_professional_topic_transition':       { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_professional_wrap_up_signal':         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+
+  // ── v3: SUBTLE IDLE VARIETY (3) ──────────────────────────────────────────
+  'evolve_idle_seated_upright':                 { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_idle_look_down_notes':                { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+  'evolve_idle_micro_posture_reset':            { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+
+  // ── v3: THINKING & PROCESSING (4) ────────────────────────────────────────
+  'evolve_thinking_recall_look_up':             { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_thinking_weigh_options':              { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_thinking_calculate_still':            { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_thinking_decide_forward':             { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── v3: EDUCATION-SPECIFIC (5) ───────────────────────────────────────────
+  'evolve_education_step_by_step':              { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_education_point_to_content':          { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_education_writing_gesture':           { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_education_check_understand_question': { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_education_encourage_student':         { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+
+  // ── v3: SOCIAL & RAPPORT (4) ─────────────────────────────────────────────
+  'evolve_rapport_calm_reassurance':            { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_rapport_mirroring_lean':              { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_rapport_professional_smile_hold':     { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+  'evolve_rapport_inclusive_gesture':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+
+  // ── v3: STRESS & PRESSURE (5) ────────────────────────────────────────────
+  'evolve_stress_suppressed_still':             { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_stress_contained_retreat':            { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_stress_self_anchor':                  { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_stress_brief_look_away':              { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_stress_micro_tension':                { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.3  },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
