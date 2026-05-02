@@ -1,0 +1,2 @@
+# GLB files are binary — treat as such in git
+*.glb binary

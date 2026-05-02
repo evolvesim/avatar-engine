@@ -1,0 +1,16 @@
+{
+  "name": "avatar-engine-compiler",
+  "version": "1.0.0",
+  "description": "Offline build tools for the Evolve avatar engine animation dictionary",
+  "private": true,
+  "scripts": {
+    "compile": "node compile-animations.js",
+    "compile:watch": "nodemon compile-animations.js"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

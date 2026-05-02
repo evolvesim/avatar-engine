@@ -1,140 +1,63 @@
 # Animation Dictionary Compiler
 
-## Purpose
+The animation dictionary is built by the Node.js compiler in this directory.
 
-Compile animations from Quaternius, Mesh2Motion, and Mixamo into a single
-`animations.glb` binary dictionary loaded asynchronously at app start.
-
-This avoids runtime loading of individual FBX/GLB files — which would block
-the conversation with network requests and destroy immersion.
-
----
-
-## Step 1 — Download animation sources
-
-### Quaternius Universal Animation Library (CC0)
-- URL: https://quaternius.itch.io/universal-animation-library
-- Download the `.zip`, extract to `scripts/sources/quaternius/`
-- Select clips matching the names in `ANIMATION_MANIFEST` (see `animation-dictionary.ts`)
-
-### Mesh2Motion (CC0 / MIT)
-- URL: https://mesh2motion.org
-- Use their web interface to select and export animations
-- Export as GLB (multi-animation pack option)
-- Save to `scripts/sources/mesh2motion/`
-
-### Mixamo (Adobe — free commercial use)
-- URL: https://mixamo.com
-- Upload any standard humanoid FBX as the base (or use the default)
-- Search for each clip name in `ANIMATION_MANIFEST` (e.g. "Dismissive Wave", "Thoughtful Head Shake")
-- Download each as FBX with skeleton, 30fps
-- Save to `scripts/sources/mixamo/`
-
----
-
-## Step 2 — Rename clips to match the manifest
-
-Each downloaded animation must be renamed to exactly match its key in
-`ANIMATION_MANIFEST` in `animation-dictionary.ts`.
-
-Examples:
-- Quaternius "Idle" → `quaternius_neutral_idle`
-- Mixamo "Dismissive Gesture" → `mixamo_anger_dismissive_wave`
-- Mesh2Motion "Clap" → `mesh2motion_joy_celebratory_clap`
-
-The GLB clip name (set in Blender's NLA editor) must match exactly.
-The Virtual Director prompt lists these IDs — the LLM must emit exact matches.
-
----
-
-## Step 3 — Pack into a single GLB using Blender
+## Quick Start
 
 ```bash
-blender --background --python scripts/pack_animations.py
+cd scripts/
+npm install
+node compile-animations.js
 ```
 
-### pack_animations.py (create this script)
+Output: `../public/avatar-engine/animations.glb`
 
-```python
-import bpy
-import os
+The compiled GLB is already included in the repo at `public/avatar-engine/animations.glb`.
+Rerun the compiler only if you add new animation clips to `compile-animations.js`.
 
-SOURCE_DIR   = './scripts/sources'
-OUTPUT_PATH  = './public/avatar-engine/animations.glb'
+## How It Works
 
-# Remove default scene objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
+`compile-animations.js` procedurally generates all 25 animation clips using
+quaternion keyframes on the Mixamo/Avaturn skeleton (18 bones). It uses
+`@gltf-transform/core` to write a valid binary GLB with no mesh geometry —
+only animation tracks.
 
-# Import each source file
-for root, dirs, files in os.walk(SOURCE_DIR):
-    for filename in files:
-        path = os.path.join(root, filename)
-        ext  = filename.lower().split('.')[-1]
-        if ext == 'fbx':
-            bpy.ops.import_scene.fbx(filepath=path)
-        elif ext == 'glb' or ext == 'gltf':
-            bpy.ops.import_scene.gltf(filepath=path)
+Each clip corresponds to an entry in `src/animation-dictionary.ts`'s
+`ANIMATION_MANIFEST`. The clip name must match exactly.
 
-# Export all as a single GLB
-# The AnimationDictionary loader reads gltf.animations[] — clip names are preserved
-bpy.ops.export_scene.gltf(
-    filepath=OUTPUT_PATH,
-    export_format='GLB',
-    export_animations=True,
-    export_skins=False,         # No mesh/skin — animations only
-    export_morph=False,
-    export_apply=False,
-    use_selection=False,
-)
+## Adding New Animations
 
-print(f'Exported animation dictionary to {OUTPUT_PATH}')
-```
+1. Add a `defineClips()` call in `compile-animations.js` with the new clip name
+2. Add the matching entry to `ANIMATION_MANIFEST` in `src/animation-dictionary.ts`
+3. Run `node compile-animations.js`
+4. Commit both the updated JS and the new `animations.glb`
 
----
+## Clip List (25 clips, ~40KB)
 
-## Step 4 — Verify
-
-```bash
-# Check clip names match ANIMATION_MANIFEST
-node -e "
-const { GLTFLoader } = require('three/examples/jsm/loaders/GLTFLoader.js')
-// ... or use a quick Python gltf inspector
-"
-```
-
-A simpler verification: open `animations.glb` in https://gltf.report/ and
-check the **Animations** tab. Each clip name must exactly match a key in
-`ANIMATION_MANIFEST`.
-
----
-
-## Target file size
-
-- Target: < 500KB gzipped
-- If over budget: reduce animation clip lengths (keep gestures under 2s)
-- Remove keyframes outside the relevant range using Blender's NLA editor
-
----
-
-## Output
-
-Place the compiled file at:
-```
-public/avatar-engine/animations.glb
-```
-
-The engine loads it at:
-```ts
-AvatarEngine({ animationDictionaryUrl: '/avatar-engine/animations.glb' })
-```
-
----
-
-## Adding new animations later
-
-1. Download/create the new clip
-2. Add an entry to `ANIMATION_MANIFEST` in `animation-dictionary.ts`
-3. Re-run `scripts/compile-animations.py`
-4. Re-deploy `public/avatar-engine/animations.glb`
-5. The Virtual Director automatically discovers the new ID on next load
+| Clip | Type | Duration |
+|---|---|---|
+| `quaternius_neutral_idle` | Loop | 4s |
+| `quaternius_joy_breathing_idle` | Loop | 3s |
+| `quaternius_anger_tense_idle` | Loop | 3s |
+| `quaternius_sadness_slumped` | Loop | 5s |
+| `quaternius_concentration_idle` | Loop | 4s |
+| `mixamo_neutral_talking_default` | Once | 2s |
+| `mixamo_neutral_thoughtful_nod` | Once | 1.5s |
+| `mixamo_neutral_head_shake` | Once | 1.2s |
+| `mixamo_joy_talking_hands` | Once | 2.5s |
+| `mixamo_joy_thumbs_up` | Once | 1.8s |
+| `mixamo_anger_dismissive_wave` | Once | 1.5s |
+| `mixamo_anger_pointing` | Once | 1.8s |
+| `mixamo_anger_arms_crossed` | Loop | 2s |
+| `mixamo_sadness_apologetic_hands` | Once | 2s |
+| `mixamo_sadness_head_down` | Once | 3s |
+| `mixamo_surprise_step_back` | Once | 1.5s |
+| `mixamo_empathy_open_hands` | Once | 2s |
+| `mixamo_empathy_leaning_forward` | Loop | 3s |
+| `mixamo_concentration_chin_stroke` | Once | 2.5s |
+| `mixamo_confusion_head_tilt` | Once | 1.8s |
+| `mesh2motion_neutral_weight_shift` | Loop | 4s |
+| `mesh2motion_joy_celebratory_clap` | Once | 1.5s |
+| `mesh2motion_sadness_shoulder_slump` | Loop | 5s |
+| `mixamo_neutral_looking_around` | Loop | 6s |
+| `mixamo_neutral_listening_sway` | Loop | 8s |
