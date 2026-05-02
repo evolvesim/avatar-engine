@@ -1,0 +1,36 @@
+{
+  "name": "@evolve/avatar-engine",
+  "version": "0.2.0",
+  "description": "Shared real-time 3D avatar engine for Evolve Simulations products — emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "license": "UNLICENSED",
+  "private": true,
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "three": ">=0.160.0",
+    "@react-three/fiber": ">=8"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.165.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": [
+    "avatar",
+    "3d",
+    "lip-sync",
+    "viseme",
+    "arkit",
+    "emotion",
+    "virtual-director",
+    "three.js",
+    "react-three-fiber",
+    "azure-tts",
+    "elevenlabs",
+    "mascotbot"
+  ]
+}

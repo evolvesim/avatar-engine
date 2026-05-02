@@ -1,433 +1,283 @@
 /**
  * AvatarCanvas.tsx — Shared avatar engine for all Evolve Simulations products
  *
- * Single source of truth for:
- *   - Avaturn GLB loading + mesh refs
- *   - Azure viseme queue drain + ARKit morph target lerp
- *   - Procedural blink + head micro-movement
+ * Integrates all subsystems from the animation system design:
+ *   - Viseme queue drain + ARKit morph target lerp
+ *   - Additive blending (emotion baseline × α + viseme + procedural)
+ *   - Emotion-persistent facial expression state machine
+ *   - Skeletal animation controller (AnimationMixer + WordBoundary triggers)
+ *   - Procedural micro-animations (blink, respiration, head tracking, saccades)
+ *   - WebAudio FFT fallback for non-Azure providers
+ *   - T-pose correction for Avaturn GLBs
  *   - Camera framing presets
  *   - Lighting presets (boardroom / consumer / education)
- *   - Error boundary + Suspense fallback
- *
- * Used by:
- *   Evolve B2B  — enterprise L&D simulation dashboard
- *   EvySim      — consumer communication coaching app
- *   ACTS        — K-12 / tertiary education portal
  *
  * ─── Architecture ─────────────────────────────────────────────────────────────
  *
- *   Azure Speech SDK → visemeReceived → VisemeEvent[] in visemeQueueRef
- *                                              ↓
- *                         useFrame drains queue (performance.now + audioOffset)
- *                                              ↓
- *                         applyViseme → targetW → lerp → morphTargetInfluences
- *                                              ↓
- *                         ARKit blendshapes on Head_Mesh, Teeth_Mesh, etc.
+ *   AvatarEngine
+ *     → visemeQueueRef (Azure viseme events)
+ *     → emotionStateMachine (persistent FACS→ARKit)
+ *     → skeletalController (AnimationMixer + gestures)
+ *     → fftFallback (WebAudio amplitude)
+ *          ↓
+ *   useFrame (60fps):
+ *     drain viseme queue → viseme ARKit weights
+ *     emotion.effectiveWeights(isSpeaking) → attenuated emotion weights
+ *     fftFallback.tick() → fallback weights (if viseme queue empty)
+ *     ocular tick → blink + saccade weights
+ *     additiveBlend(emotion, viseme|fft, procedural)
+ *     lerpWeightMap(current, target, delta)
+ *     applyWeightsToMeshes(lerped, meshRefs)
+ *     tickRespiration → spine/chest bones
+ *     tickHeadTracking → neck/head bones (FFT amplitude)
+ *     skeletalController.update(delta)
  *
- * ─── Usage ───────────────────────────────────────────────────────────────────
+ * ─── Usage ────────────────────────────────────────────────────────────────────
  *
- *   // Evolve B2B
  *   <AvatarCanvas
+ *     engine={avatarEngine}
  *     glbUrl="/avatars/professional-male.glb"
  *     cameraPreset="head-and-shoulders"
  *     lightingPreset="boardroom"
- *     visemeQueueRef={visemeQueueRef}
- *     isAvatarSpeaking={state.status === 'speaking'}
- *     visemeStartRef={visemeStartRef}
- *   />
- *
- *   // EvySim
- *   <AvatarCanvas
- *     glbUrl="/avatars/evysim-coach.glb"
- *     cameraPreset="close-face"
- *     lightingPreset="consumer"
- *     visemeQueueRef={visemeQueueRef}
- *     isAvatarSpeaking={state.status === 'speaking'}
- *     visemeStartRef={visemeStartRef}
- *   />
- *
- *   // ACTS Education
- *   <AvatarCanvas
- *     glbUrl="/avatars/acts-guide.glb"
- *     cameraPreset="head-and-shoulders"
- *     lightingPreset="education"
- *     visemeQueueRef={visemeQueueRef}
- *     isAvatarSpeaking={state.status === 'speaking'}
- *     visemeStartRef={visemeStartRef}
  *   />
  */
 
 'use client'
 
 import React, {
+  Suspense,
   useRef,
   useEffect,
-  useCallback,
-  Component,
-  Suspense,
-  type RefObject,
+  useMemo,
 } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useGLTF, useAnimations } from '@react-three/drei'
+import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as THREE from 'three'
 
+import type { AvatarEngine }     from './avatar-engine'
+import type { CameraPreset, LightingPreset } from './types'
+import { CAMERA_PRESETS }        from './types'
+import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES } from './viseme-map'
 import {
-  VISEME_TO_ARKIT,
-  ALL_VISEME_NAMES,
-  JAW_OPEN_SHAPES,
-  AVATURN_MESH_NAMES,
-} from './viseme-map'
+  additiveBlend,
+  lerpWeightMap,
+  applyWeightsToMeshes,
+} from './additive-blend'
 import {
-  CAMERA_PRESETS,
-  type AvatarCanvasProps,
-  type CameraPreset,
-  type LightingPreset,
-  type VisemeEvent,
-} from './types'
+  createOcularState,
+  createRespirationState,
+  createHeadTrackingState,
+  tickOcularMechanics,
+  tickRespiration,
+  tickHeadTracking,
+  fixTPose,
+  findBone,
+} from './procedural-animations'
+import type { ARKitWeights } from './emotion-state'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Error boundary
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────────────────────
 
-interface EBProps { fallback: React.ReactNode; children: React.ReactNode }
-interface EBState { hasError: boolean; message: string }
-
-class AvatarErrorBoundary extends Component<EBProps, EBState> {
-  constructor(props: EBProps) {
-    super(props)
-    this.state = { hasError: false, message: '' }
-  }
-
-  static getDerivedStateFromError(error: Error): EBState {
-    return { hasError: true, message: error.message }
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[AvatarEngine] render error:', error, info)
-  }
-
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children
-  }
+export interface AvatarCanvasProps {
+  engine:          AvatarEngine
+  glbUrl?:         string
+  cameraPreset?:   CameraPreset
+  lightingPreset?: LightingPreset
+  bodyRotationY?:  number
+  className?:      string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Camera setup — must live inside Canvas so useThree is valid.
-// Never call camera.lookAt() in onCreated — R3F resets the camera after that
-// callback and the lookAt is silently wiped. Use this component instead.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Camera setup ──────────────────────────────────────────────────────────────
 
 function CameraSetup({ preset }: { preset: CameraPreset }) {
   const { camera } = useThree()
   const cfg = CAMERA_PRESETS[preset]
+
   useEffect(() => {
+    camera.position.set(...cfg.position)
+    ;(camera as THREE.PerspectiveCamera).fov = cfg.fov
+    ;(camera as THREE.PerspectiveCamera).updateProjectionMatrix()
     camera.lookAt(...cfg.target)
-  }, [camera, cfg.target])
+  }, [camera, cfg])
+
   return null
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Lighting — three presets, one per product type
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Lighting ──────────────────────────────────────────────────────────────────
 
-function SceneLighting({ preset }: { preset: LightingPreset }) {
-  switch (preset) {
-    case 'boardroom':
-      // Cool, professional. Crisp key + soft fill + faint blue-grey rim.
-      return (
-        <>
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[2, 4, 3]}   intensity={1.3} color="#f0f4ff" />
-          <directionalLight position={[-2, 1, -1]} intensity={0.25} color="#c8d8e8" />
-          <pointLight       position={[0, 2, 1.5]} intensity={0.3}  color="#a0b8d0" />
-        </>
-      )
-    case 'consumer':
-      // Warm purple accent — matches EvySim dopamine palette.
-      return (
-        <>
-          <ambientLight intensity={0.7} />
-          <directionalLight position={[2, 4, 3]}   intensity={1.2} />
-          <directionalLight position={[-2, 1, -1]} intensity={0.3} color="#a78bfa" />
-          <pointLight       position={[0, 2, 1.5]} intensity={0.5} color="#c4b5fd" />
-        </>
-      )
-    case 'education':
-      // Bright, neutral, non-threatening. Good for K-12 screen time.
-      return (
-        <>
-          <ambientLight intensity={0.9} />
-          <directionalLight position={[1, 3, 2]}   intensity={1.1} color="#fff8f0" />
-          <directionalLight position={[-1, 1, 1]}  intensity={0.4} color="#f0f8ff" />
-        </>
-      )
+function Lighting({ preset }: { preset: LightingPreset }) {
+  const configs = {
+    boardroom: { ambient: '#d4e6f1', key: '#ffffff', keyIntensity: 1.4, fill: '#bfc9ca', fillIntensity: 0.6 },
+    consumer:  { ambient: '#c7a8f5', key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4 },
+    education: { ambient: '#e8f5e9', key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5 },
   }
+  const c = configs[preset]
+  return (
+    <>
+      <ambientLight color={c.ambient} intensity={0.7} />
+      <directionalLight color={c.key}  intensity={c.keyIntensity}  position={[2, 4, 3]} castShadow />
+      <directionalLight color={c.fill} intensity={c.fillIntensity} position={[-2, 2, -1]} />
+    </>
+  )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AvatarModel — the actual GLB scene with full viseme + animation logic
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Avatar scene ──────────────────────────────────────────────────────────────
 
-interface AvatarModelProps {
-  glbUrl: string
-  visemeQueueRef: RefObject<VisemeEvent[]>
-  isAvatarSpeaking: boolean
-  visemeStartRef: RefObject<number>
-  blink: boolean
-  headBob: boolean
-  bodyRotationY: number
-}
-
-function AvatarModel({
+function AvatarScene({
+  engine,
   glbUrl,
-  visemeQueueRef,
-  isAvatarSpeaking,
-  visemeStartRef,
-  blink,
-  headBob,
   bodyRotationY,
-}: AvatarModelProps) {
-  const { scene, animations } = useGLTF(glbUrl)
-  const { actions }           = useAnimations(animations, scene)
+}: {
+  engine:        AvatarEngine
+  glbUrl:        string
+  bodyRotationY: number
+}) {
+  const gltf  = useLoader(GLTFLoader, glbUrl)
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf])
 
-  // Refs holding SkinnedMesh instances keyed by mesh name
-  const meshRefs = useRef<Record<string, THREE.SkinnedMesh>>({})
+  // ── Mesh refs ──────────────────────────────────────────────────────────────
+  const meshRefs = useRef<Record<string, THREE.SkinnedMesh | null>>(
+    Object.fromEntries(AVATURN_MESH_NAMES.map(n => [n, null]))
+  )
 
-  // Current and target morph target weights — never stored in React state
-  // to avoid re-render overhead during useFrame
-  const targetW  = useRef<Record<string, number>>({})
-  const currentW = useRef<Record<string, number>>({})
+  // ── Bone refs ──────────────────────────────────────────────────────────────
+  const headBone   = useRef<THREE.Bone | null>(null)
+  const neckBone   = useRef<THREE.Bone | null>(null)
+  const spineBone  = useRef<THREE.Bone | null>(null)
+  const chestBone  = useRef<THREE.Bone | null>(null)
 
-  // Tracks when we last applied a non-sil viseme — used for the idle gate
-  const lastApplyAt = useRef<number>(0)
+  // ── Blendshape state (useRef — never triggers re-renders) ──────────────────
+  const currentWeights = useRef<ARKitWeights>({})
+  const targetWeights  = useRef<ARKitWeights>({})
 
-  // Ref to the Head bone for head bob
-  const headBoneRef = useRef<THREE.Object3D | null>(null)
+  // ── Procedural state ───────────────────────────────────────────────────────
+  const ocular      = useRef(createOcularState())
+  const respiration = useRef(createRespirationState())
+  const headTrack   = useRef(createHeadTrackingState())
 
-  // Blink state machine
-  const blinkTimer = useRef<number>(0)
-  const blinkPhase = useRef<0 | 1 | 2>(0)  // 0=open, 1=closing, 2=opening
-  const blinkVal   = useRef<number>(0)
+  // ── Viseme timing ──────────────────────────────────────────────────────────
+  const lastVisemeAt = useRef<number>(0)
 
-  // Head bob time accumulator
-  const headBobTime = useRef<number>(0)
-
-  // ── Start idle animation (Avaturn idle clip) ──────────────────────────────
+  // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
-    const action = actions['avaturn_animation']
-    if (action) {
-      action.reset()
-      action.setLoop(THREE.LoopRepeat, Infinity)
-      action.fadeIn(0.3)
-      action.play()
-    }
-    return () => { action?.fadeOut(0.3) }
-  }, [actions])
+    if (!scene) return
 
-  // ── Populate mesh refs + fix T-pose arm bones ──────────────────────────────
-  useEffect(() => {
-    const targetMeshNames = new Set<string>(AVATURN_MESH_NAMES)
-
+    // Collect mesh refs
     scene.traverse((obj) => {
-      // Mesh refs for morph target writes
-      if (obj instanceof THREE.SkinnedMesh && targetMeshNames.has(obj.name)) {
+      if (obj instanceof THREE.SkinnedMesh && obj.name in meshRefs.current) {
         meshRefs.current[obj.name] = obj
       }
-
-      // Head bone for procedural bob
-      if (obj.name === 'Head' && headBoneRef.current === null) {
-        headBoneRef.current = obj
-      }
-
-      // T-pose fix: rotate arm bones so arms rest at sides instead of 90° out.
-      // Only applied if the GLB has no embedded idle animation.
-      if (!animations.length) {
-        if (obj.name === 'LeftArm')      (obj as THREE.Bone).rotation.z =  1.1
-        if (obj.name === 'RightArm')     (obj as THREE.Bone).rotation.z = -1.1
-        if (obj.name === 'LeftForeArm')  (obj as THREE.Bone).rotation.z =  0.15
-        if (obj.name === 'RightForeArm') (obj as THREE.Bone).rotation.z = -0.15
-      }
     })
-  }, [scene, animations])
 
-  // ── applyViseme ────────────────────────────────────────────────────────────
-  const applyViseme = useCallback((id: number) => {
-    // Skip viseme_sil (id=0) — applying it zeroes all shapes mid-sentence,
-    // creating an unnatural mouth snap between phonemes.
-    if (id === 0) return
+    // Collect bone refs
+    headBone.current  = findBone(scene, 'Head')
+    neckBone.current  = findBone(scene, 'Neck')
+    spineBone.current = findBone(scene, 'Spine') ?? findBone(scene, 'Spine1')
+    chestBone.current = findBone(scene, 'Spine2')
 
-    // Zero all shapes, then set the target shape(s) for this viseme
-    ALL_VISEME_NAMES.forEach(v => { targetW.current[v] = 0 })
+    // Fix T-pose
+    fixTPose(scene)
 
-    const shapes = VISEME_TO_ARKIT[id] ?? ['viseme_sil']
-    const weight = 1 / shapes.length  // split evenly for compound visemes
-    shapes.forEach(s => { targetW.current[s] = weight })
+    // Initialise skeletal controller with avatar root
+    engine.skeletal.init(scene)
+  }, [scene, engine])
 
-    // Open jaw for vowel shapes — 0.25 is the sweet spot (0.5 looks unnatural)
-    targetW.current['jawOpen'] = shapes.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.25 : 0
-
-    lastApplyAt.current = Date.now()
-  }, [])
-
-  // ── useFrame — the hot path ───────────────────────────────────────────────
+  // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
-    const now  = Date.now()
-    const perf = performance.now()
-    const queue      = visemeQueueRef.current ?? []
-    const audioStart = visemeStartRef.current  // performance.now() stamp
+    const now        = performance.now()
+    const queue      = engine.visemeQueueRef.current
+    const startTime  = engine.visemeStartRef.current
+    const isSpeaking = engine.isSpeakingRef.current
 
-    // ── 1. Drain viseme queue ───────────────────────────────────────────────
-    // audioOffset is ms from audio start. Fire when:
-    //   audioStart + audioOffset <= performance.now()
-    if (audioStart > 0) {
-      while (queue.length > 0 && (audioStart + queue[0].audioOffset) <= perf) {
-        applyViseme(queue.shift()!.visemeId)
-      }
-    }
+    // ── 1. Drain viseme queue ──────────────────────────────────────────────
+    const visemeWeights: ARKitWeights = {}
+    const elapsed = now - startTime
 
-    // ── 2. Idle gate — zero mouth only when truly silent ───────────────────
-    // hasFuture:     more visemes are queued for later
-    // recentlyFired: just fired within 300ms — keeps mouth from snapping shut
-    //                between closely spaced visemes
-    const hasFuture     = audioStart > 0 && queue.length > 0
-    const recentlyFired = (now - lastApplyAt.current) < 300
-    if (!hasFuture && !recentlyFired && !isAvatarSpeaking) {
-      ALL_VISEME_NAMES.forEach(k => { targetW.current[k] = 0 })
-      targetW.current['jawOpen'] = 0
-    }
-
-    // ── 3. Lerp all morph targets (smooth interpolation) ───────────────────
-    // Exponential lerp: faster approach when far from target, smooth arrival.
-    // Factor 12 = snappy but not jarring. Reduce to 6–8 for softer mouth.
-    for (const [name, target] of Object.entries(targetW.current)) {
-      const cur  = currentW.current[name] ?? 0
-      const next = THREE.MathUtils.lerp(cur, target, 1 - Math.exp(-12 * delta))
-      currentW.current[name] = next
-
-      for (const mesh of Object.values(meshRefs.current)) {
-        const dict = mesh.morphTargetDictionary
-        const inf  = mesh.morphTargetInfluences
-        if (dict && inf && name in dict) {
-          inf[dict[name]] = next
+    while (queue.length > 0 && queue[0].audioOffset <= elapsed) {
+      const event   = queue.shift()!
+      const arkit   = VISEME_TO_ARKIT[event.visemeId]
+      if (arkit) {
+        for (const [key, value] of Object.entries(arkit)) {
+          visemeWeights[key] = Math.max(visemeWeights[key] ?? 0, value)
         }
       }
+      lastVisemeAt.current = now
     }
 
-    // ── 4. Procedural blink ─────────────────────────────────────────────────
-    if (blink) {
-      blinkTimer.current += delta
+    // ── 2. FFT fallback (if viseme queue exhausted but still speaking) ─────
+    const useFftFallback = isSpeaking
+      && queue.length === 0
+      && (now - lastVisemeAt.current) > 200
+      && engine.fftFallback.connected
 
-      // Phase 0 (eyes open): wait 3–7s then start closing
-      if (blinkPhase.current === 0 && blinkTimer.current > 3 + Math.random() * 4) {
-        blinkPhase.current = 1
-        blinkTimer.current = 0
-      }
+    const fftAmp = engine.fftFallback.tick()
+    const activeVisemeWeights = useFftFallback
+      ? engine.fftFallback.getBlendshapeWeights()
+      : visemeWeights
 
-      // Phase 1 (closing): ramp up to 1 at 14 units/sec
-      if (blinkPhase.current === 1) {
-        blinkVal.current = Math.min(blinkVal.current + delta * 14, 1)
-        if (blinkVal.current >= 1) blinkPhase.current = 2
-      }
+    // ── 3. Emotion baseline (attenuated during speech) ─────────────────────
+    const emotionWeights = engine.emotion.effectiveWeights(isSpeaking)
 
-      // Phase 2 (opening): ramp down to 0 at 10 units/sec
-      if (blinkPhase.current === 2) {
-        blinkVal.current = Math.max(blinkVal.current - delta * 10, 0)
-        if (blinkVal.current <= 0) {
-          blinkPhase.current = 0
-          blinkTimer.current = 0
-        }
-      }
+    // ── 4. Procedural layer (blink, saccades) ─────────────────────────────
+    const { blinkWeights } = tickOcularMechanics(ocular.current, delta)
 
-      // Apply blink to all meshes that have these targets
-      for (const name of ['eyeBlinkLeft', 'eyeBlinkRight', 'eyesClosed']) {
-        for (const mesh of Object.values(meshRefs.current)) {
-          const dict = mesh.morphTargetDictionary
-          const inf  = mesh.morphTargetInfluences
-          if (dict && inf && name in dict) {
-            inf[dict[name]] = blinkVal.current
-          }
-        }
-      }
-    }
+    // ── 5. Additive blend: emotion + viseme + procedural ───────────────────
+    const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
 
-    // ── 5. Procedural head micro-movement ──────────────────────────────────
-    if (headBob && headBoneRef.current) {
-      headBobTime.current += delta
-      const t = headBobTime.current
-      headBoneRef.current.rotation.x = Math.sin(t * 0.4) * 0.008 + Math.sin(t * 1.1) * 0.004
-      headBoneRef.current.rotation.y = Math.sin(t * 0.3) * 0.010 + Math.sin(t * 0.7) * 0.005
-      headBoneRef.current.rotation.z = Math.sin(t * 0.5) * 0.004
-    }
+    // ── 6. Lerp toward target (organic muscle transition) ─────────────────
+    lerpWeightMap(currentWeights.current, blended, delta, 12)
+
+    // ── 7. Apply to mesh morph targets ────────────────────────────────────
+    applyWeightsToMeshes(
+      currentWeights.current,
+      meshRefs.current as Record<string, THREE.SkinnedMesh | null>
+    )
+
+    // ── 8. Procedural respiration ──────────────────────────────────────────
+    tickRespiration(respiration.current, delta, spineBone.current, chestBone.current)
+
+    // ── 9. Audio-reactive head tracking ───────────────────────────────────
+    tickHeadTracking(headTrack.current, delta, fftAmp, headBone.current, neckBone.current)
+
+    // ── 10. Skeletal animation mixer ───────────────────────────────────────
+    engine.skeletal.update(delta)
   })
 
   return (
     <primitive
       object={scene}
-      scale={[1, 1, 1]}
-      position={[0, -1.52, 0]}  // Avaturn standard: hips at world origin → head at ~Y=0.2
+      position={[0, -1.52, 0]}
       rotation={[0, bodyRotationY, 0]}
     />
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AvatarCanvas — public API, default export
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Public component ──────────────────────────────────────────────────────────
 
 export function AvatarCanvas({
+  engine,
   glbUrl         = '/avatar.glb',
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
-  visemeQueueRef,
-  isAvatarSpeaking,
-  visemeStartRef,
-  blink          = true,
-  headBob        = true,
   bodyRotationY  = 0.5,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
-  const cfg = CAMERA_PRESETS[cameraPreset]
-
-  // Preload is called at module level below — useGLTF.preload is idempotent
-  // and safe to call with multiple different URLs.
-
   return (
-    <div className={className} style={{ position: 'relative' }}>
+    <div className={className}>
       <Canvas
-        camera={{ position: cfg.position, fov: cfg.fov }}
         gl={{ antialias: true, alpha: true }}
-        frameloop="always"
-        style={{ width: '100%', height: '100%' }}
+        camera={{ position: CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
+        shadows
       >
         <CameraSetup preset={cameraPreset} />
-        <SceneLighting preset={lightingPreset} />
-
-        <AvatarErrorBoundary
-          fallback={
-            <mesh>
-              <sphereGeometry args={[0.08, 8, 8]} />
-              <meshBasicMaterial color="#a78bfa" wireframe />
-            </mesh>
-          }
-        >
-          <Suspense fallback={null}>
-            <AvatarModel
-              glbUrl={glbUrl}
-              visemeQueueRef={visemeQueueRef}
-              isAvatarSpeaking={isAvatarSpeaking}
-              visemeStartRef={visemeStartRef}
-              blink={blink}
-              headBob={headBob}
-              bodyRotationY={bodyRotationY}
-            />
-          </Suspense>
-        </AvatarErrorBoundary>
+        <Lighting preset={lightingPreset} />
+        <Suspense fallback={null}>
+          <AvatarScene
+            engine={engine}
+            glbUrl={glbUrl}
+            bodyRotationY={bodyRotationY}
+          />
+        </Suspense>
       </Canvas>
     </div>
   )
 }
-
-// Preload the default avatar at import time so it's in the Three.js cache
-// before the first render. Products that use a different glbUrl should call
-// useGLTF.preload('/their-avatar.glb') in their own page/layout files.
-useGLTF.preload('/avatar.glb')
