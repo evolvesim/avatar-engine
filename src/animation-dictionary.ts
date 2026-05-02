@@ -59,32 +59,102 @@ export type AnimationDictionaryState = 'idle' | 'loading' | 'ready' | 'error'
  * prompt builder so the LLM knows exactly what animation IDs are valid.
  */
 export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = {
-  // ── Idle loops (emotion-tinted ambient movement) ──
-  'quaternius_neutral_idle':        { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'quaternius_joy_breathing_idle':  { emotion: 'joy',           loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'quaternius_anger_tense_idle':    { emotion: 'anger',         loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'quaternius_sadness_slumped':     { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'quaternius_concentration_idle':  { emotion: 'concentration', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
 
-  // ── Conversational gestures (play once, return to idle) ──
-  'mixamo_neutral_talking_default':       { emotion: 'neutral',  loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mixamo_neutral_thoughtful_nod':        { emotion: 'neutral',  loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mixamo_neutral_head_shake':            { emotion: 'neutral',  loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mixamo_joy_talking_hands':             { emotion: 'joy',      loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mixamo_joy_thumbs_up':                 { emotion: 'joy',      loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mixamo_anger_dismissive_wave':         { emotion: 'anger',    loop: THREE.LoopOnce, defaultCrossfade: 0.2  },
-  'mixamo_anger_pointing':                { emotion: 'anger',    loop: THREE.LoopOnce, defaultCrossfade: 0.2  },
-  'mixamo_anger_arms_crossed':            { emotion: 'anger',    loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
-  'mixamo_sadness_apologetic_hands':      { emotion: 'sadness',  loop: THREE.LoopOnce, defaultCrossfade: 0.35 },
-  'mixamo_sadness_head_down':             { emotion: 'sadness',  loop: THREE.LoopOnce, defaultCrossfade: 0.35 },
-  'mixamo_surprise_step_back':            { emotion: 'surprise', loop: THREE.LoopOnce, defaultCrossfade: 0.15 },
-  'mixamo_empathy_open_hands':            { emotion: 'empathy',  loop: THREE.LoopOnce, defaultCrossfade: 0.3  },
-  'mixamo_empathy_leaning_forward':       { emotion: 'empathy',  loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
-  'mixamo_concentration_chin_stroke':     { emotion: 'concentration', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
-  'mixamo_confusion_head_tilt':           { emotion: 'confusion', loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
-  'mesh2motion_neutral_weight_shift':     { emotion: 'neutral',  loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'mesh2motion_joy_celebratory_clap':     { emotion: 'joy',      loop: THREE.LoopOnce, defaultCrossfade: 0.2  },
-  'mesh2motion_sadness_shoulder_slump':   { emotion: 'sadness',  loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  // ── NEUTRAL (9) ──────────────────────────────────────────────────────────
+  'quaternius_neutral_idle':                    { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mesh2motion_neutral_weight_shift':           { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_neutral_talking_default':             { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'mixamo_neutral_thoughtful_nod':              { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'mixamo_neutral_head_shake':                  { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'mixamo_neutral_looking_around':              { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_neutral_listening_sway':              { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_neutral_explain_both_hands':          { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_neutral_self_reference':              { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── JOY (7) ──────────────────────────────────────────────────────────────
+  'quaternius_joy_breathing_idle':              { emotion: 'joy',           loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_joy_talking_hands':                   { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'mixamo_joy_thumbs_up':                       { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'mesh2motion_joy_celebratory_clap':           { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_joy_enthusiastic_agree':              { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_joy_warm_smile_nod':                  { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_joy_present_good_news':               { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── ANGER (7) ────────────────────────────────────────────────────────────
+  'quaternius_anger_tense_idle':                { emotion: 'anger',         loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_anger_dismissive_wave':               { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'mixamo_anger_pointing':                      { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'mixamo_anger_arms_crossed':                  { emotion: 'anger',         loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_anger_finger_wag':                    { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+  'evolve_anger_controlled_release':            { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.5  },
+  'evolve_anger_emphatic_table':                { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+
+  // ── SADNESS (6) ──────────────────────────────────────────────────────────
+  'quaternius_sadness_slumped':                 { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_sadness_apologetic_hands':            { emotion: 'sadness',       loop: THREE.LoopOnce,   defaultCrossfade: 0.35 },
+  'mixamo_sadness_head_down':                   { emotion: 'sadness',       loop: THREE.LoopOnce,   defaultCrossfade: 0.35 },
+  'mesh2motion_sadness_shoulder_slump':         { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_sadness_slow_head_shake':             { emotion: 'sadness',       loop: THREE.LoopOnce,   defaultCrossfade: 0.35 },
+  'evolve_sadness_resigned_sigh':               { emotion: 'sadness',       loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+
+  // ── SURPRISE (5) ─────────────────────────────────────────────────────────
+  'mixamo_surprise_step_back':                  { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+  'evolve_surprise_double_take':                { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.1  },
+  'evolve_surprise_lean_in':                    { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_surprise_hands_on_face':              { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_surprise_recover':                    { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+
+  // ── FEAR (5) ─────────────────────────────────────────────────────────────
+  'quaternius_fear_frozen_idle':                { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_fear_shrink_back':                    { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_fear_protective_arms':                { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_fear_furtive_glance':                 { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+  'evolve_fear_tension_tremble':                { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.3  },
+
+  // ── DISGUST (4) ──────────────────────────────────────────────────────────
+  'quaternius_disgust_recoil_idle':             { emotion: 'disgust',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_disgust_look_away':                   { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_disgust_lean_back_cross':             { emotion: 'disgust',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_disgust_sharp_recoil':                { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.1  },
+
+  // ── EMPATHY (6) ──────────────────────────────────────────────────────────
+  'mixamo_empathy_open_hands':                  { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'mixamo_empathy_leaning_forward':             { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_empathy_gentle_nod':                  { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_empathy_reach_out':                   { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_empathy_hand_over_heart':             { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.35 },
+  'evolve_empathy_soft_head_tilt':              { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+
+  // ── CONCENTRATION (6) ────────────────────────────────────────────────────
+  'quaternius_concentration_idle':              { emotion: 'concentration', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'mixamo_concentration_chin_stroke':           { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_concentration_arms_folded_think':     { emotion: 'concentration', loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_concentration_step_forward':          { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_concentration_finger_tap_temple':     { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_concentration_deliberate_point':      { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── CONFUSION (5) ────────────────────────────────────────────────────────
+  'mixamo_confusion_head_tilt':                 { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_confusion_shrug':                     { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_confusion_look_around':               { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_confusion_double_head_tilt':          { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_confusion_quizzical_raise':           { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+
+  // ── PROFESSIONAL (7) — Evolve B2B enterprise scenarios ───────────────────
+  'evolve_professional_authority_stance':       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_professional_present_data':           { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'evolve_professional_steeple_fingers':        { emotion: 'concentration', loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_professional_formal_nod':             { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'evolve_professional_open_pitch':             { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'evolve_professional_confident_cross':        { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_professional_handshake_prep':         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── LISTENING (5) ────────────────────────────────────────────────────────
+  'evolve_listening_active_sway':               { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_listening_affirm_micro_nod':          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'evolve_listening_interested_lean':           { emotion: 'empathy',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
+  'evolve_listening_reflective_pause':          { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.4  },
+  'evolve_listening_attentive_still':           { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
