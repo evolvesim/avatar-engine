@@ -129,6 +129,9 @@ export class AvatarEngine {
         this.director.updateAnimIds(this.dictionary.animationIds)
       }
       this._ready = true
+      // If skeletal.init() already ran (GLB loaded before dictionary),
+      // kick off the idle animation now that clips are available.
+      this.skeletal.onEmotionChange(this.emotion.state.id)
     })
   }
 
