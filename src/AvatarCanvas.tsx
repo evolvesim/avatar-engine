@@ -83,6 +83,8 @@ export interface AvatarCanvasProps {
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
   bodyRotationY?:  number
+  /** Y offset applied to the avatar primitive. Default -1.52 (Avaturn standard Hips=1.52m). Override if your GLB's Hips bone is at a different height. Use: -(hipsWorldY - 0.25) to frame head at Y≈0.25. */
+  avatarYOffset?:  number
   className?:      string
 }
 
@@ -126,10 +128,12 @@ function AvatarScene({
   engine,
   glbUrl,
   bodyRotationY,
+  avatarYOffset,
 }: {
   engine:        AvatarEngine
   glbUrl:        string
   bodyRotationY: number
+  avatarYOffset: number
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
@@ -245,7 +249,7 @@ function AvatarScene({
   return (
     <primitive
       object={scene}
-      position={[0, -1.52, 0]}
+      position={[0, avatarYOffset, 0]}
       rotation={[0, bodyRotationY, 0]}
     />
   )
@@ -259,6 +263,7 @@ export function AvatarCanvas({
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
   bodyRotationY  = 0.5,
+  avatarYOffset  = -1.52,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   return (
@@ -275,6 +280,7 @@ export function AvatarCanvas({
             engine={engine}
             glbUrl={glbUrl}
             bodyRotationY={bodyRotationY}
+            avatarYOffset={avatarYOffset}
           />
         </Suspense>
       </Canvas>
