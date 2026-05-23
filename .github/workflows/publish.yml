@@ -37,7 +37,7 @@ jobs:
       - name: Check if version changed
         id: version-check
         run: |
-          PUBLISHED=$(npm view @evolve/avatar-engine version 2>/dev/null || echo "0.0.0")
+          PUBLISHED=$(npm view @evolve/avatar-engine version --registry https://npm.pkg.github.com 2>/dev/null || echo "0.0.0")
           CURRENT=$(node -p "require('./package.json').version")
           echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
@@ -46,8 +46,10 @@ jobs:
           else
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - run: npm publish
         if: steps.version-check.outputs.changed == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
