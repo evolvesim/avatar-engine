@@ -31,13 +31,13 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@evolve'
+          scope: '@evolvesim'
       - run: npm ci
 
       - name: Check if version changed
         id: version-check
         run: |
-          PUBLISHED=$(npm view @evolve/avatar-engine version --registry https://npm.pkg.github.com 2>/dev/null || echo "0.0.0")
+          PUBLISHED=$(npm view @evolvesim/avatar-engine version --registry https://npm.pkg.github.com 2>/dev/null || echo "0.0.0")
           CURRENT=$(node -p "require('./package.json').version")
           echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
