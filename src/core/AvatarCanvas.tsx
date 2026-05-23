@@ -99,6 +99,13 @@ export interface AvatarCanvasProps {
   bodyRotationY?:  number
   /** Y offset applied to the avatar primitive. Default -1.52 (Avaturn standard Hips=1.52m). Override if your GLB's Hips bone is at a different height. Use: -(hipsWorldY - 0.25) to frame head at Y≈0.25. */
   avatarYOffset?:  number
+  /**
+   * When false, skip the Avaturn-arm `fixTPose()` correction.
+   * Default true (back-compatible — corrects classic Avaturn T-pose exports).
+   * Set false when consuming an Avaturn A-pose export or any rig that already
+   * has natural arm rotation and does NOT need the ±1.1 rad shoulder fix.
+   */
+  applyTPoseFix?:  boolean
   className?:      string
 }
 
@@ -143,11 +150,13 @@ function AvatarScene({
   glbUrl,
   bodyRotationY,
   avatarYOffset,
+  applyTPoseFix,
 }: {
-  engine:        AvatarEngine
-  glbUrl:        string
-  bodyRotationY: number
-  avatarYOffset: number
+  engine:         AvatarEngine
+  glbUrl:         string
+  bodyRotationY:  number
+  avatarYOffset:  number
+  applyTPoseFix:  boolean
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
@@ -192,12 +201,12 @@ function AvatarScene({
     spineBone.current = findBone(scene, 'Spine') ?? findBone(scene, 'Spine1')
     chestBone.current = findBone(scene, 'Spine2')
 
-    // Fix T-pose
-    fixTPose(scene)
+    // Fix T-pose (skip when caller's GLB is already in A-pose)
+    if (applyTPoseFix) fixTPose(scene)
 
     // Initialise skeletal controller with avatar root
     engine.skeletal.init(scene)
-  }, [scene, engine])
+  }, [scene, engine, applyTPoseFix])
 
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
@@ -283,6 +292,7 @@ export function AvatarCanvas({
   lightingPreset = 'consumer',
   bodyRotationY  = 0.5,
   avatarYOffset  = -1.52,
+  applyTPoseFix  = true,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -308,6 +318,7 @@ export function AvatarCanvas({
             glbUrl={glbUrl}
             bodyRotationY={bodyRotationY}
             avatarYOffset={avatarYOffset}
+            applyTPoseFix={applyTPoseFix}
           />
         </Suspense>
       </Canvas>
