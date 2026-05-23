@@ -97,7 +97,17 @@ export interface AvatarCanvasProps {
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
   bodyRotationY?:  number
-  /** Y offset applied to the avatar primitive. Default -1.52 (Avaturn standard Hips=1.52m). Override if your GLB's Hips bone is at a different height. Use: -(hipsWorldY - 0.25) to frame head at Y≈0.25. */
+  /**
+   * Y offset applied to the avatar primitive in world space.
+   * Default -1.52 (Avaturn standard Hips=1.52m).
+   * Override if your GLB's Hips bone is at a different height.
+   * Use: -(headWorldY - cameraTargetY) to frame head at the camera target.
+   *
+   * Issue #4 (May 2026): prior 0.3.1 publish appeared to ignore this prop
+   * for some consumers. Republished as 0.3.2 from a clean build to ensure
+   * the prop reaches the underlying `<primitive>` correctly. The prop chain
+   * is: AvatarCanvas → AvatarScene → `<primitive position={[x, y, 0]}>`.
+   */
   avatarYOffset?:  number
   /**
    * When false, skip the Avaturn-arm `fixTPose()` correction.
