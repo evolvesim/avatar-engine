@@ -61,6 +61,7 @@ export class SkeletalController {
   private currentEmotion: EmotionId = 'neutral'
   private pendingIdle:   boolean = false
   private pendingIdleFrames = 0
+  private diagnosticFrame = 0
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -74,6 +75,7 @@ export class SkeletalController {
    */
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
+    console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)', 'clips provided:', clips?.length ?? 0)
 
     // Extract avaturn_animation embedded in the GLB scene itself
     // (not in animations.glb — it's baked into every Avaturn export)
@@ -87,14 +89,18 @@ export class SkeletalController {
     if (rawBase) {
       // Strip morph tracks — applyWeightsToMeshes owns the face; avaturn baseline brow values bleed through otherwise
       const baseClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(rawBase))
+      const beforeCount = baseClip.tracks.length
       baseClip.tracks = baseClip.tracks.filter(
         t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
       )
+      const afterCount = baseClip.tracks.length
+      console.log(`[SkeletalController] avaturn_animation found — ${afterCount} bone tracks (stripped ${beforeCount - afterCount} morph tracks)`)
       this.baseAction = this.mixer.clipAction(baseClip)
       this.baseAction.setLoop(THREE.LoopRepeat, Infinity)
       this.baseAction.clampWhenFinished = false
       this.baseAction.setEffectiveWeight(1)
       this.baseAction.play()
+      console.log('[SkeletalController] baseAction playing — weight:', this.baseAction.getEffectiveWeight(), 'enabled:', this.baseAction.enabled, 'isRunning:', this.baseAction.isRunning())
     } else {
       console.warn('[SkeletalController] avaturn_animation not found in GLB — arms may T-pose')
     }
@@ -137,6 +143,24 @@ export class SkeletalController {
     }
 
     this.mixer?.update(delta)
+
+    // One-time diagnostic at frame 10
+    this.diagnosticFrame++
+    if (this.diagnosticFrame === 10) {
+      console.log('[SkeletalController] frame-10 diag — baseAction:', {
+        exists: !!this.baseAction,
+        weight: this.baseAction?.getEffectiveWeight(),
+        enabled: this.baseAction?.enabled,
+        isRunning: this.baseAction?.isRunning(),
+        paused: this.baseAction?.paused,
+        time: this.baseAction?.time,
+      })
+      console.log('[SkeletalController] frame-10 diag — topAction:', {
+        exists: !!this.topAction,
+        weight: this.topAction?.getEffectiveWeight(),
+        isRunning: this.topAction?.isRunning(),
+      })
+    }
   }
 
   private _tryStartIdle(): void {
