@@ -106,6 +106,13 @@ export interface AvatarCanvasProps {
    * has natural arm rotation and does NOT need the ±1.1 rad shoulder fix.
    */
   applyTPoseFix?:  boolean
+  /**
+   * X offset applied to the avatar primitive in world space. Default 0 (centred).
+   * Use this for horizontal positioning inside the canvas — CSS translates on the
+   * wrapper don't move the avatar visually because the camera re-centres around
+   * world X=0. Example: `avatarXOffset={-0.1}` nudges the avatar 10cm to the left.
+   */
+  avatarXOffset?:  number
   className?:      string
 }
 
@@ -151,12 +158,14 @@ function AvatarScene({
   bodyRotationY,
   avatarYOffset,
   applyTPoseFix,
+  avatarXOffset,
 }: {
   engine:         AvatarEngine
   glbUrl:         string
   bodyRotationY:  number
   avatarYOffset:  number
   applyTPoseFix:  boolean
+  avatarXOffset:  number
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
@@ -275,7 +284,7 @@ function AvatarScene({
   return (
     <primitive
       object={scene}
-      position={[0, avatarYOffset, 0]}
+      position={[avatarXOffset, avatarYOffset, 0]}
       rotation={[0, bodyRotationY, 0]}
     />
   )
@@ -292,6 +301,7 @@ export function AvatarCanvas({
   lightingPreset = 'consumer',
   bodyRotationY  = 0.5,
   avatarYOffset  = -1.52,
+  avatarXOffset  = 0,
   applyTPoseFix  = true,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
@@ -318,6 +328,7 @@ export function AvatarCanvas({
             glbUrl={glbUrl}
             bodyRotationY={bodyRotationY}
             avatarYOffset={avatarYOffset}
+            avatarXOffset={avatarXOffset}
             applyTPoseFix={applyTPoseFix}
           />
         </Suspense>
