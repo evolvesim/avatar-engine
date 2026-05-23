@@ -172,7 +172,15 @@ export class SkeletalController {
     console.log('[SkeletalController] idle started:', id)
     this.pendingIdle = false
 
-    const action = this.mixer.clipAction(entry.clip)
+    // Convert to additive BEFORE creating the action so the clip delta is
+    // computed against the bind pose. This means topAction adds expression
+    // ON TOP of baseAction without affecting baseAction's normalisation weight.
+    // Without this, NormalAnimationBlendMode divides all bone contributions by
+    // totalAccumulatedWeight (base + top = 2), so arms get only 50% drive and
+    // fall halfway to bind pose (T-pose).
+    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
+    const action = this.mixer.clipAction(additiveClip)
+    action.blendMode = THREE.AdditiveAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -242,7 +250,9 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const action = this.mixer.clipAction(entry.clip)
+    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
+    const action = this.mixer.clipAction(additiveClip)
+    action.blendMode = THREE.AdditiveAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -267,7 +277,9 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const action = this.mixer.clipAction(entry.clip)
+    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
+    const action = this.mixer.clipAction(additiveClip)
+    action.blendMode = THREE.AdditiveAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
