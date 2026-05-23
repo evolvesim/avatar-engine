@@ -48,7 +48,6 @@ import React, {
   Suspense,
   useRef,
   useEffect,
-  useLayoutEffect,
   useMemo,
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
@@ -204,18 +203,6 @@ function AvatarScene({
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
 
-  // ── Primitive ref (imperative position/rotation — see Issue #4) ────────────
-  const primitiveRef = useRef<THREE.Object3D>(null)
-
-  // ── T-pose fix offsets (re-applied after mixer each frame — Issue #5) ─────
-  const tPoseBonesRef = useRef<Array<{ bone: THREE.Bone; quaternion: THREE.Quaternion }>>([])
-
-  useLayoutEffect(() => {
-    if (!primitiveRef.current) return
-    primitiveRef.current.position.set(avatarXOffset, avatarYOffset, 0)
-    primitiveRef.current.rotation.set(0, bodyRotationY, 0)
-  }, [avatarXOffset, avatarYOffset, bodyRotationY])
-
   // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return
@@ -234,27 +221,8 @@ function AvatarScene({
     chestBone.current = findBone(scene, 'Spine2')
 
     // Fix T-pose (skip when caller's GLB is already in A-pose)
-    tPoseBonesRef.current = []
     if (applyTPoseFix) {
       fixTPose(scene)
-      // Capture post-fix arm-bone quaternions so we can re-apply them every frame
-      // AFTER the AnimationMixer (which writes to bone.quaternion via
-      // QuaternionKeyframeTrack — Euler-based overrides do not reliably survive).
-      for (const name of ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm']) {
-        const bone = findBone(scene, name)
-        if (bone) {
-          tPoseBonesRef.current.push({ bone, quaternion: bone.quaternion.clone() })
-        }
-      }
-
-      console.log('[AvatarEngine] tPoseBonesRef captured:', tPoseBonesRef.current.map(b => ({
-        name: b.bone.name,
-        quaternion: b.bone.quaternion.toArray().map(v => +v.toFixed(3)),
-      })))
-
-      const allBoneNames: string[] = []
-      scene.traverse(obj => { if (obj instanceof THREE.Bone) allBoneNames.push(obj.name) })
-      console.log('[AvatarEngine] All bones in scene:', allBoneNames)
     }
 
     // Initialise skeletal controller with avatar root
@@ -323,19 +291,15 @@ function AvatarScene({
 
     // ── 10. Skeletal animation mixer ───────────────────────────────────────
     engine.skeletal.update(delta)
-
-    // ── 11. Re-apply T-pose fix AFTER mixer (Issue #5) ─────────────────────
-    // The mixer drives arm bones from keyframe data each frame, which on
-    // Mixamo/Avaturn clips starts at the T-pose bind pose at t=0. Restoring
-    // the captured post-fix rotations here keeps the arms down.
-    if (applyTPoseFix) {
-      for (const { bone, quaternion } of tPoseBonesRef.current) {
-        bone.quaternion.copy(quaternion)
-      }
-    }
   })
 
-  return <primitive ref={primitiveRef} object={scene} />
+  return (
+    <primitive
+      object={scene}
+      position={[avatarXOffset, avatarYOffset, 0]}
+      rotation={[0, bodyRotationY, 0]}
+    />
+  )
 }
 
 // ── Public component ──────────────────────────────────────────────────────────
