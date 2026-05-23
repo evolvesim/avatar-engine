@@ -72,12 +72,16 @@ export class SkeletalController {
    * Bind the mixer to the avatar's root scene object.
    * Call this once after the GLB has loaded.
    */
-  init(avatarRoot: THREE.Object3D): void {
+  init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
 
     // Extract avaturn_animation embedded in the GLB scene itself
     // (not in animations.glb — it's baked into every Avaturn export)
-    const animations: THREE.AnimationClip[] = (avatarRoot as THREE.Object3D & { animations?: THREE.AnimationClip[] }).animations ?? []
+    const animations: THREE.AnimationClip[] =
+      (clips && clips.length > 0)
+        ? clips
+        : ((avatarRoot as THREE.Object3D & { animations?: THREE.AnimationClip[] }).animations ?? [])
+
     const rawBase = animations.find(c => c.name === 'avaturn_animation')
 
     if (rawBase) {

@@ -179,6 +179,7 @@ function AvatarScene({
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
+  const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── Mesh refs ──────────────────────────────────────────────────────────────
   const meshRefs = useRef<Record<string, THREE.SkinnedMesh | null>>(
@@ -226,8 +227,8 @@ function AvatarScene({
     }
 
     // Initialise skeletal controller with avatar root
-    engine.skeletal.init(scene)
-  }, [scene, engine, applyTPoseFix])
+    engine.skeletal.init(scene, clips)
+  }, [scene, clips, engine, applyTPoseFix])
 
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
