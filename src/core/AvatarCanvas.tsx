@@ -48,6 +48,7 @@ import React, {
   Suspense,
   useRef,
   useEffect,
+  useLayoutEffect,
   useMemo,
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
@@ -203,6 +204,15 @@ function AvatarScene({
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
 
+  // ── Primitive ref (imperative position/rotation — see Issue #4) ────────────
+  const primitiveRef = useRef<THREE.Object3D>(null)
+
+  useLayoutEffect(() => {
+    if (!primitiveRef.current) return
+    primitiveRef.current.position.set(avatarXOffset, avatarYOffset, 0)
+    primitiveRef.current.rotation.set(0, bodyRotationY, 0)
+  }, [avatarXOffset, avatarYOffset, bodyRotationY])
+
   // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return
@@ -291,13 +301,7 @@ function AvatarScene({
     engine.skeletal.update(delta)
   })
 
-  return (
-    <primitive
-      object={scene}
-      position={[avatarXOffset, avatarYOffset, 0]}
-      rotation={[0, bodyRotationY, 0]}
-    />
-  )
+  return <primitive ref={primitiveRef} object={scene} />
 }
 
 // ── Public component ──────────────────────────────────────────────────────────
