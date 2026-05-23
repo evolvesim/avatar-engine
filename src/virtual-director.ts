@@ -34,7 +34,7 @@ const GestureCueSchema = z.object({
   /** The text token that triggers this gesture */
   target_word: z.string(),
   /** Zero-based word index for disambiguation */
-  word_index:  z.number().int().nonneg(),
+  word_index:  z.number().int().nonnegative(),
   /**
    * Optional crossfade duration in seconds.
    * Default: 0.25s (per research spec)

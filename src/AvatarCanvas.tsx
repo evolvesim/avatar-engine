@@ -200,8 +200,11 @@ function AvatarScene({
       const event   = queue.shift()!
       const arkit   = VISEME_TO_ARKIT[event.visemeId]
       if (arkit) {
-        for (const [key, value] of Object.entries(arkit)) {
-          visemeWeights[key] = Math.max(visemeWeights[key] ?? 0, value)
+        // arkit is string[] — each element is an ARKit blendshape name
+        // split weight evenly across co-articulated shapes (e.g. viseme 20/21)
+        const w = 1 / arkit.length
+        for (const shapeName of arkit) {
+          visemeWeights[shapeName] = Math.max(visemeWeights[shapeName] ?? 0, w)
         }
       }
       lastVisemeAt.current = now

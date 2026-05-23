@@ -312,7 +312,8 @@ export function useSimulation({
 </speak>`
 
     // 3. Lazy-load Azure Speech SDK (browser-only, keeps SSR bundle clean)
-    const sdk = await import('microsoft-cognitiveservices-speech-sdk')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sdk: any = await import('microsoft-cognitiveservices-speech-sdk')
     if (signal.aborted) return
 
     const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token, region)

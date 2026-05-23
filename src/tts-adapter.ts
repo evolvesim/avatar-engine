@@ -58,11 +58,21 @@ export interface AzureAdapterConfig {
   speechPitch?:   string
 }
 
+// Type alias for the lazily-imported Azure SDK — avoids hard import at module level
+// so the package stays SSR-safe (browser-only SDK, no Node.js audio device access).
+type AzureSDK = Awaited<ReturnType<typeof _importAzureSDK>>
+async function _importAzureSDK() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return import('microsoft-cognitiveservices-speech-sdk') as Promise<any>
+}
+
 export class AzureTTSAdapter implements TTSAdapter {
   readonly provider = 'azure' as const
   private config: Required<AzureAdapterConfig>
-  private sdk: typeof import('microsoft-cognitiveservices-speech-sdk') | null = null
-  private synthesizer: import('microsoft-cognitiveservices-speech-sdk').SpeechSynthesizer | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private sdk: AzureSDK | null = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private synthesizer: any | null = null
 
   constructor(config: AzureAdapterConfig) {
     this.config = {
@@ -75,7 +85,7 @@ export class AzureTTSAdapter implements TTSAdapter {
   async speak(text: string, cb: TTSAdapterCallbacks): Promise<void> {
     // Lazy-load the Azure SDK — only pulled when Azure is the active provider
     if (!this.sdk) {
-      this.sdk = await import('microsoft-cognitiveservices-speech-sdk')
+      this.sdk = await _importAzureSDK()
     }
     const SDK = this.sdk
 
@@ -89,7 +99,8 @@ export class AzureTTSAdapter implements TTSAdapter {
     this.synthesizer  = synthesizer
 
     // ── Viseme events ─────────────────────────────────────────────────────
-    synthesizer.visemeReceived = (_s, e) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    synthesizer.visemeReceived = (_s: any, e: any) => {
       cb.onViseme({
         visemeId:    e.visemeId,
         audioOffset: e.audioOffset / 10000, // 100ns ticks → ms
@@ -97,7 +108,8 @@ export class AzureTTSAdapter implements TTSAdapter {
     }
 
     // ── Word boundary events ──────────────────────────────────────────────
-    synthesizer.wordBoundary = (_s, _e) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    synthesizer.wordBoundary = (_s: any, _e: any) => {
       cb.onWordBoundary()
     }
 
@@ -117,14 +129,16 @@ export class AzureTTSAdapter implements TTSAdapter {
       cb.onSpeechStart()
       synthesizer.speakSsmlAsync(
         ssml,
-        (_result) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (_result: any) => {
           cb.onSpeechEnd()
           synthesizer.close()
           this.synthesizer = null
           resolve()
         },
-        (err) => {
-          cb.onError(new Error(err))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (err: any) => {
+          cb.onError(new Error(String(err)))
           synthesizer.close()
           this.synthesizer = null
           resolve()

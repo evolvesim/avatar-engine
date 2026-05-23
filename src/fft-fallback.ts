@@ -34,7 +34,7 @@ export class FFTFallback {
   private audioCtx:     AudioContext | null = null
   private analyser:     AnalyserNode | null = null
   private source:       MediaElementAudioSourceNode | MediaStreamAudioSourceNode | null = null
-  private dataArray:    Uint8Array | null = null
+  private dataArray:    Uint8Array<ArrayBuffer> | null = null
   private _amplitude:   number = 0        // Normalised 0–1
   private _connected:   boolean = false
 
