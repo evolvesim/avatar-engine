@@ -207,6 +207,9 @@ function AvatarScene({
   // ── Primitive ref (imperative position/rotation — see Issue #4) ────────────
   const primitiveRef = useRef<THREE.Object3D>(null)
 
+  // ── T-pose fix offsets (re-applied after mixer each frame — Issue #5) ─────
+  const tPoseBonesRef = useRef<Array<{ bone: THREE.Bone; rotation: THREE.Euler }>>([])
+
   useLayoutEffect(() => {
     if (!primitiveRef.current) return
     primitiveRef.current.position.set(avatarXOffset, avatarYOffset, 0)
@@ -231,7 +234,19 @@ function AvatarScene({
     chestBone.current = findBone(scene, 'Spine2')
 
     // Fix T-pose (skip when caller's GLB is already in A-pose)
-    if (applyTPoseFix) fixTPose(scene)
+    tPoseBonesRef.current = []
+    if (applyTPoseFix) {
+      fixTPose(scene)
+      // Capture post-fix arm-bone rotations so we can re-apply them every frame
+      // AFTER the AnimationMixer (which would otherwise drive bones back to the
+      // clip's bind-pose keyframes — i.e. T-pose).
+      for (const name of ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm']) {
+        const bone = findBone(scene, name)
+        if (bone) {
+          tPoseBonesRef.current.push({ bone, rotation: bone.rotation.clone() })
+        }
+      }
+    }
 
     // Initialise skeletal controller with avatar root
     engine.skeletal.init(scene)
@@ -299,6 +314,16 @@ function AvatarScene({
 
     // ── 10. Skeletal animation mixer ───────────────────────────────────────
     engine.skeletal.update(delta)
+
+    // ── 11. Re-apply T-pose fix AFTER mixer (Issue #5) ─────────────────────
+    // The mixer drives arm bones from keyframe data each frame, which on
+    // Mixamo/Avaturn clips starts at the T-pose bind pose at t=0. Restoring
+    // the captured post-fix rotations here keeps the arms down.
+    if (applyTPoseFix) {
+      for (const { bone, rotation } of tPoseBonesRef.current) {
+        bone.rotation.copy(rotation)
+      }
+    }
   })
 
   return <primitive ref={primitiveRef} object={scene} />

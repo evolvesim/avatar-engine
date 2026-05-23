@@ -55,6 +55,7 @@ export class SkeletalController {
   private pendingCues:   GestureCue[] = []
   private wordCounter:   number = 0
   private currentEmotion: EmotionId = 'neutral'
+  private pendingIdle:   boolean = false
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -68,7 +69,8 @@ export class SkeletalController {
    */
   init(avatarRoot: THREE.Object3D): void {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
-    this.playIdle('neutral')
+    this.pendingIdle = true
+    this._tryStartIdle()
   }
 
   /**
@@ -76,7 +78,23 @@ export class SkeletalController {
    * @param delta  Seconds since last frame (from R3F useFrame state)
    */
   update(delta: number): void {
+    // AnimationDictionary loads async; retry idle each frame until ready.
+    if (this.pendingIdle) this._tryStartIdle()
     this.mixer?.update(delta)
+  }
+
+  private _tryStartIdle(): void {
+    if (!this.pendingIdle || !this.mixer) return
+    const id    = EMOTION_IDLE_MAP[this.currentEmotion] ?? 'quaternius_neutral_idle'
+    const entry = this.dictionary.get(id)
+    if (!entry) return
+
+    this.pendingIdle = false
+    const action = this.mixer.clipAction(entry.clip)
+    action.setLoop(entry.loop, Infinity)
+    action.clampWhenFinished = false
+    action.play()
+    this.currentAction = action
   }
 
   // ── Performance loading ─────────────────────────────────────────────────────
@@ -187,7 +205,8 @@ export class SkeletalController {
     this.wordCounter  = 0
     this.currentEmotion = 'neutral'
     this.currentAction  = null
-    this.playIdle('neutral')
+    this.pendingIdle    = true
+    this._tryStartIdle()
   }
 
   dispose(): void {
