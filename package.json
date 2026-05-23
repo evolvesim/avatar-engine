@@ -1,7 +1,7 @@
 {
   "name": "@evolve/avatar-engine",
   "version": "0.3.0",
-  "description": "Shared real-time 3D avatar engine for Evolve Simulations products — emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
+  "description": "Shared real-time 3D avatar engine for Evolve Simulations products \u2014 emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -10,9 +10,10 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "license": "UNLICENSED",
-  "private": true,
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
