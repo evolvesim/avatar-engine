@@ -111,8 +111,13 @@ export class VirtualDirector {
   private config: Required<VirtualDirectorConfig>
   private availableAnimIds: string[]
   private availableEmotions: EmotionId[]
+  private systemPromptOverride: string | undefined
 
-  constructor(config: VirtualDirectorConfig, availableAnimIds: string[]) {
+  constructor(
+    config: VirtualDirectorConfig,
+    availableAnimIds: string[],
+    systemPromptOverride?: string,
+  ) {
     this.config = {
       model:       config.model       ?? 'gpt-4o-mini',
       maxTokens:   config.maxTokens   ?? 256,
@@ -121,6 +126,7 @@ export class VirtualDirector {
     }
     this.availableAnimIds  = availableAnimIds
     this.availableEmotions = EmotionStateMachine.availableEmotions()
+    this.systemPromptOverride = systemPromptOverride
   }
 
   /**
@@ -134,7 +140,9 @@ export class VirtualDirector {
   // ── System prompt ───────────────────────────────────────────────────────────
 
   private buildSystemPrompt(): string {
-    return `You are a Virtual Director for a real-time 3D avatar system. Your only job is to analyse dialogue and output a JSON performance script.
+    const intro = this.systemPromptOverride
+      ?? `You are a Virtual Director for a real-time 3D avatar system. Your only job is to analyse dialogue and output a JSON performance script.`
+    return `${intro}
 
 AVAILABLE EMOTIONS (enum — use exact string):
 ${this.availableEmotions.join(', ')}

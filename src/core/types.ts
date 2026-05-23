@@ -6,6 +6,38 @@
 
 import type React from 'react'
 
+// ── TTS adapter interface ─────────────────────────────────────────────────────
+
+export interface AvatarCallbacks {
+  onViseme(id: number, offsetMs: number): void
+  onWordBoundary(): void
+  onSpeechStart(): void
+  onSpeechEnd(): void
+  onError(err: Error): void
+}
+
+/**
+ * 'oneshot'         Azure-style: speak(text, cb), await completion.
+ * 'conversational'  ElevenLabs-style: connect() once, stream continuously.
+ */
+export interface TTSAdapter {
+  readonly mode: 'oneshot' | 'conversational'
+
+  speak?(text: string, callbacks: AvatarCallbacks): Promise<void>
+  stop?(): void
+
+  connect?(callbacks: AvatarCallbacks): Promise<void>
+  sendUserAudio?(chunk: Float32Array): void
+  disconnect?(): void
+
+  dispose(): void
+}
+
+export interface DirectorConfig {
+  clipSet: string
+  systemPrompt: string
+}
+
 // ── Viseme event ──────────────────────────────────────────────────────────────
 
 /**

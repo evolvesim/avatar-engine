@@ -1,11 +1,29 @@
 {
   "name": "@evolve/avatar-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared real-time 3D avatar engine for Evolve Simulations products — emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
   "license": "UNLICENSED",
   "private": true,
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "peerDependencies": {
     "@react-three/fiber": ">=8",
     "react": ">=18",
@@ -18,7 +36,8 @@
   "devDependencies": {
     "@types/three": "^0.165.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.50.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
   },
   "keywords": [
     "avatar",

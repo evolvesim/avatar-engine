@@ -55,7 +55,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
-import type { CameraPreset, LightingPreset } from './types'
+import type {
+  CameraPreset,
+  LightingPreset,
+  TTSAdapter,
+  DirectorConfig,
+} from './types'
 import { CAMERA_PRESETS }        from './types'
 import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES } from './viseme-map'
 import {
@@ -79,6 +84,15 @@ import type { ARKitWeights } from './emotion-state'
 
 export interface AvatarCanvasProps {
   engine:          AvatarEngine
+  /**
+   * TTSAdapter for this avatar. The engine already holds an adapter; this prop
+   * is exposed for callers that want to wire the adapter explicitly at the
+   * canvas level (e.g. for conversational-mode connect/disconnect on mount).
+   * If omitted, `engine.adapter` is used.
+   */
+  adapter?:        TTSAdapter
+  /** Optional VirtualDirector preset — defaults to trainingDirectorConfig in callers. */
+  directorConfig?: DirectorConfig
   glbUrl?:         string
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
@@ -262,6 +276,8 @@ function AvatarScene({
 
 export function AvatarCanvas({
   engine,
+  adapter,
+  directorConfig: _directorConfig,
   glbUrl         = '/avatar.glb',
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
@@ -269,6 +285,14 @@ export function AvatarCanvas({
   avatarYOffset  = -1.52,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
+  // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
+  const activeAdapter = adapter ?? engine.adapter
+  useEffect(() => {
+    if (activeAdapter.mode !== 'conversational') return
+    engine.connect().catch((err) => console.error('[AvatarCanvas] connect failed:', err))
+    return () => { engine.disconnect() }
+  }, [engine, activeAdapter])
+
   return (
     <div className={className}>
       <Canvas

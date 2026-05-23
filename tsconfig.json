@@ -14,11 +14,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
       "@evolve/avatar-engine": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "scripts"]
+  "exclude": ["node_modules", "dist", "tests", "scripts"]
 }
