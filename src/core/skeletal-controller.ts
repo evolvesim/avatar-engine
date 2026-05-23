@@ -56,6 +56,7 @@ export class SkeletalController {
   private wordCounter:   number = 0
   private currentEmotion: EmotionId = 'neutral'
   private pendingIdle:   boolean = false
+  private pendingIdleFrames = 0
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -79,7 +80,16 @@ export class SkeletalController {
    */
   update(delta: number): void {
     // AnimationDictionary loads async; retry idle each frame until ready.
-    if (this.pendingIdle) this._tryStartIdle()
+    if (this.pendingIdle) {
+      this._tryStartIdle()
+      this.pendingIdleFrames++
+      if (this.pendingIdleFrames === 120) {
+        const id = EMOTION_IDLE_MAP[this.currentEmotion] ?? 'quaternius_neutral_idle'
+        console.warn('[SkeletalController] pendingIdle still true after 120 frames — dict never resolved clip:', id)
+      }
+    } else {
+      this.pendingIdleFrames = 0
+    }
     this.mixer?.update(delta)
   }
 
@@ -89,6 +99,7 @@ export class SkeletalController {
     const entry = this.dictionary.get(id)
     if (!entry) return
 
+    console.log('[SkeletalController] idle started:', id)
     this.pendingIdle = false
     const action = this.mixer.clipAction(entry.clip)
     action.setLoop(entry.loop, Infinity)

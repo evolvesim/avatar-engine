@@ -208,7 +208,7 @@ function AvatarScene({
   const primitiveRef = useRef<THREE.Object3D>(null)
 
   // ── T-pose fix offsets (re-applied after mixer each frame — Issue #5) ─────
-  const tPoseBonesRef = useRef<Array<{ bone: THREE.Bone; rotation: THREE.Euler }>>([])
+  const tPoseBonesRef = useRef<Array<{ bone: THREE.Bone; quaternion: THREE.Quaternion }>>([])
 
   useLayoutEffect(() => {
     if (!primitiveRef.current) return
@@ -237,15 +237,24 @@ function AvatarScene({
     tPoseBonesRef.current = []
     if (applyTPoseFix) {
       fixTPose(scene)
-      // Capture post-fix arm-bone rotations so we can re-apply them every frame
-      // AFTER the AnimationMixer (which would otherwise drive bones back to the
-      // clip's bind-pose keyframes — i.e. T-pose).
+      // Capture post-fix arm-bone quaternions so we can re-apply them every frame
+      // AFTER the AnimationMixer (which writes to bone.quaternion via
+      // QuaternionKeyframeTrack — Euler-based overrides do not reliably survive).
       for (const name of ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm']) {
         const bone = findBone(scene, name)
         if (bone) {
-          tPoseBonesRef.current.push({ bone, rotation: bone.rotation.clone() })
+          tPoseBonesRef.current.push({ bone, quaternion: bone.quaternion.clone() })
         }
       }
+
+      console.log('[AvatarEngine] tPoseBonesRef captured:', tPoseBonesRef.current.map(b => ({
+        name: b.bone.name,
+        quaternion: b.bone.quaternion.toArray().map(v => +v.toFixed(3)),
+      })))
+
+      const allBoneNames: string[] = []
+      scene.traverse(obj => { if (obj instanceof THREE.Bone) allBoneNames.push(obj.name) })
+      console.log('[AvatarEngine] All bones in scene:', allBoneNames)
     }
 
     // Initialise skeletal controller with avatar root
@@ -320,8 +329,8 @@ function AvatarScene({
     // Mixamo/Avaturn clips starts at the T-pose bind pose at t=0. Restoring
     // the captured post-fix rotations here keeps the arms down.
     if (applyTPoseFix) {
-      for (const { bone, rotation } of tPoseBonesRef.current) {
-        bone.rotation.copy(rotation)
+      for (const { bone, quaternion } of tPoseBonesRef.current) {
+        bone.quaternion.copy(quaternion)
       }
     }
   })
