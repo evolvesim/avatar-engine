@@ -172,21 +172,18 @@ export class SkeletalController {
     console.log('[SkeletalController] idle started:', id)
     this.pendingIdle = false
 
-    // Convert to additive BEFORE creating the action so the clip delta is
-    // computed against the bind pose. This means topAction adds expression
-    // ON TOP of baseAction without affecting baseAction's normalisation weight.
-    // Without this, NormalAnimationBlendMode divides all bone contributions by
-    // totalAccumulatedWeight (base + top = 2), so arms get only 50% drive and
-    // fall halfway to bind pose (T-pose).
-    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
-    const action = this.mixer.clipAction(additiveClip)
-    action.blendMode = THREE.AdditiveAnimationBlendMode
+    // topAction runs in Normal mode. topAction clips have only head/spine tracks
+    // so arms are driven 100% by baseAction (avaturn_animation). SkeletonUtils.clone
+    // ensures the SkinnedMesh skeleton is rebound to cloned bones so the mixer
+    // drives the correct objects.
+    const action = this.mixer.clipAction(entry.clip)
+    action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
     action.play()
     this.topAction = action
-    this.topWeightTgt = 1
+    this.topWeightTgt = 1.0
   }
 
   // ── Performance loading ─────────────────────────────────────────────────────
@@ -250,9 +247,8 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
-    const action = this.mixer.clipAction(additiveClip)
-    action.blendMode = THREE.AdditiveAnimationBlendMode
+    const action = this.mixer.clipAction(entry.clip)
+    action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -277,9 +273,8 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const additiveClip = THREE.AnimationUtils.makeClipAdditive(entry.clip.clone())
-    const action = this.mixer.clipAction(additiveClip)
-    action.blendMode = THREE.AdditiveAnimationBlendMode
+    const action = this.mixer.clipAction(entry.clip)
+    action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()

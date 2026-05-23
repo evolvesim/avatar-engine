@@ -52,6 +52,7 @@ import React, {
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -178,7 +179,7 @@ function AvatarScene({
   avatarXOffset:  number
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf])
+  const scene = useMemo(() => SkeletonUtils.clone(gltf.scene) as THREE.Object3D, [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── Mesh refs ──────────────────────────────────────────────────────────────
