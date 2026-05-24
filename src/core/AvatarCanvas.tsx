@@ -230,6 +230,18 @@ function AvatarScene({
     engine.skeletal.init(scene, clips)
   }, [scene, clips, engine, applyTPoseFix])
 
+  // After the scene is in the R3F tree, re-initialise bone textures
+  // for any SkinnedMesh whose skeleton.bones[] was rebound by rebindSkeletons().
+  // This is safe here because useEffect fires after the first paint when
+  // the WebGL context is available.
+  useEffect(() => {
+    scene.traverse((obj) => {
+      if (obj instanceof THREE.SkinnedMesh && obj.skeleton) {
+        obj.skeleton.computeBoneTexture()
+      }
+    })
+  }, [scene])
+
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
     const now        = performance.now()
