@@ -177,6 +177,7 @@ function AvatarScene({
   applyTPoseFix:  boolean
   avatarXOffset:  number
 }) {
+  const { gl } = useThree()
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
@@ -246,6 +247,9 @@ function AvatarScene({
       scene.traverse((obj) => {
         if (obj instanceof THREE.SkinnedMesh && obj.skeleton) {
           obj.skeleton.computeBoneTexture()
+          if (obj.skeleton.boneTexture) {
+            gl.initTexture(obj.skeleton.boneTexture as THREE.DataTexture)
+          }
         }
       })
       boneTextureReady.current = true
