@@ -177,7 +177,6 @@ function AvatarScene({
   applyTPoseFix:  boolean
   avatarXOffset:  number
 }) {
-  const { gl } = useThree()
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
@@ -205,9 +204,6 @@ function AvatarScene({
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
 
-  // ── Bone texture init flag ─────────────────────────────────────────────────
-  const boneTextureReady = useRef(false)
-
   // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return
@@ -234,27 +230,20 @@ function AvatarScene({
     engine.skeletal.init(scene, clips)
   }, [scene, clips, engine, applyTPoseFix])
 
-  // Reset the one-time bone-texture flag whenever the scene is swapped.
+  // Disable frustum culling on all SkinnedMesh nodes.
+  // After rebindSkeletons() the mixer drives bones away from bind pose each frame;
+  // the rest-pose bounding sphere no longer matches actual vertex positions,
+  // causing the renderer to cull the mesh as soon as animation starts.
   useEffect(() => {
-    boneTextureReady.current = false
+    scene.traverse((obj) => {
+      if ((obj as THREE.SkinnedMesh).isSkinnedMesh) {
+        (obj as THREE.SkinnedMesh).frustumCulled = false
+      }
+    })
   }, [scene])
 
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
-    // One-time: allocate GPU bone texture on the first frame
-    // (WebGL context is guaranteed active inside useFrame)
-    if (!boneTextureReady.current) {
-      scene.traverse((obj) => {
-        if (obj instanceof THREE.SkinnedMesh && obj.skeleton) {
-          obj.skeleton.computeBoneTexture()
-          if (obj.skeleton.boneTexture) {
-            gl.initTexture(obj.skeleton.boneTexture as THREE.DataTexture)
-          }
-        }
-      })
-      boneTextureReady.current = true
-    }
-
     const now        = performance.now()
     const queue      = engine.visemeQueueRef.current
     const startTime  = engine.visemeStartRef.current
