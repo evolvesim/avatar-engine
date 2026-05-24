@@ -226,9 +226,13 @@ function AvatarScene({
       fixTPose(scene)
     }
 
-    // Initialise skeletal controller with avatar root
-    engine.skeletal.init(scene, clips)
-  }, [scene, clips, engine, applyTPoseFix])
+    // Initialise skeletal controller with the ORIGINAL gltf.scene — the mixer
+    // drives the original bones, and the cloned SkinnedMesh.skeleton still
+    // references those same bones (shared skeleton), so the clone renders with
+    // correct world positions while the avatarYOffset is applied only to the
+    // clone's root primitive.
+    engine.skeletal.init(gltf.scene, clips)
+  }, [scene, gltf, clips, engine, applyTPoseFix])
 
   // Disable frustum culling on all SkinnedMesh nodes.
   // After rebindSkeletons() the mixer drives bones away from bind pose each frame;

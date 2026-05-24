@@ -46,41 +46,6 @@ const EMOTION_IDLE_MAP: Record<EmotionId, string> = {
   confusion:     'quaternius_neutral_idle',
 }
 
-// ── Skeleton rebind ───────────────────────────────────────────────────────────
-
-/**
- * After `gltf.scene.clone(true)`, SkinnedMesh.skeleton.bones[] still points at
- * the ORIGINAL scene's bones. The AnimationMixer drives the cloned bones, but
- * the SkinnedMesh reads its pose from the original (never-animated) bones —
- * arms stay in T-pose forever.
- *
- * This rebinds each SkinnedMesh's skeleton.bones[] to the cloned bones by
- * matching names. Same operation SkeletonUtils.clone performs internally,
- * but applied after the fact so we avoid the import that crashes Next.js/R3F.
- */
-function rebindSkeletons(root: THREE.Object3D): void {
-  const boneMap = new Map<string, THREE.Object3D>()
-  root.traverse((obj) => {
-    if (obj.name) boneMap.set(obj.name, obj)
-  })
-
-  root.traverse((obj) => {
-    if (!(obj instanceof THREE.SkinnedMesh)) return
-    const skeleton = obj.skeleton
-    if (!skeleton) return
-
-    const reboundBones = skeleton.bones.map((originalBone) => {
-      const clonedBone = boneMap.get(originalBone.name)
-      return (clonedBone as THREE.Bone) ?? originalBone
-    })
-
-    skeleton.bones = reboundBones
-    // NOTE: do NOT call skeleton.computeBoneTexture() here — requires WebGL context
-    // which is not available during useEffect/init(). The mixer calls skeleton.update()
-    // each frame which handles the bone texture automatically.
-  })
-}
-
 // ── Controller ────────────────────────────────────────────────────────────────
 
 export class SkeletalController {
@@ -109,7 +74,6 @@ export class SkeletalController {
    * Call this once after the GLB has loaded.
    */
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
-    rebindSkeletons(avatarRoot)
     this.mixer = new THREE.AnimationMixer(avatarRoot)
     console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)', 'clips provided:', clips?.length ?? 0)
 
