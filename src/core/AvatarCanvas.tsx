@@ -52,7 +52,6 @@ import React, {
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -179,21 +178,7 @@ function AvatarScene({
   avatarXOffset:  number
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
-  // SkeletonUtils.clone preserves the source's constructor (Group → Group) and
-  // rebinds SkinnedMesh.skeleton.bones[] to the cloned bones. Keep the Group
-  // type so R3F's <primitive> reconciles transform props correctly.
-  const scene = useMemo(() => skeletonClone(gltf.scene) as THREE.Group, [gltf])
-
-  // Disable frustum culling after mount — doing this inside useMemo on a
-  // partially-initialised gltf (during Suspense resolution) can throw and
-  // crash the AvatarCanvas tree.
-  useEffect(() => {
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.SkinnedMesh) {
-        obj.frustumCulled = false
-      }
-    })
-  }, [scene])
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── Mesh refs ──────────────────────────────────────────────────────────────
