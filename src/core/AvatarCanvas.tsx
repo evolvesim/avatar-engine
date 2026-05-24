@@ -204,6 +204,9 @@ function AvatarScene({
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
 
+  // ── Bone texture init flag ─────────────────────────────────────────────────
+  const boneTextureReady = useRef(false)
+
   // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return
@@ -230,20 +233,24 @@ function AvatarScene({
     engine.skeletal.init(scene, clips)
   }, [scene, clips, engine, applyTPoseFix])
 
-  // After the scene is in the R3F tree, re-initialise bone textures
-  // for any SkinnedMesh whose skeleton.bones[] was rebound by rebindSkeletons().
-  // This is safe here because useEffect fires after the first paint when
-  // the WebGL context is available.
+  // Reset the one-time bone-texture flag whenever the scene is swapped.
   useEffect(() => {
-    scene.traverse((obj) => {
-      if (obj instanceof THREE.SkinnedMesh && obj.skeleton) {
-        obj.skeleton.computeBoneTexture()
-      }
-    })
+    boneTextureReady.current = false
   }, [scene])
 
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
+    // One-time: allocate GPU bone texture on the first frame
+    // (WebGL context is guaranteed active inside useFrame)
+    if (!boneTextureReady.current) {
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.SkinnedMesh && obj.skeleton) {
+          obj.skeleton.computeBoneTexture()
+        }
+      })
+      boneTextureReady.current = true
+    }
+
     const now        = performance.now()
     const queue      = engine.visemeQueueRef.current
     const startTime  = engine.visemeStartRef.current
