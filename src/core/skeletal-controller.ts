@@ -75,7 +75,9 @@ function rebindSkeletons(root: THREE.Object3D): void {
     })
 
     skeleton.bones = reboundBones
-    skeleton.computeBoneTexture()
+    // NOTE: do NOT call skeleton.computeBoneTexture() here — requires WebGL context
+    // which is not available during useEffect/init(). The mixer calls skeleton.update()
+    // each frame which handles the bone texture automatically.
   })
 }
 
