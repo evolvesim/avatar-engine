@@ -52,7 +52,7 @@ import React, {
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -179,7 +179,22 @@ function AvatarScene({
   avatarXOffset:  number
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
-  const scene = useMemo(() => SkeletonUtils.clone(gltf.scene) as THREE.Object3D, [gltf])
+  // SkeletonUtils.clone preserves the source's constructor (Group → Group) and
+  // rebinds SkinnedMesh.skeleton.bones[] to the cloned bones. Keep the Group
+  // type so R3F's <primitive> reconciles transform props correctly.
+  const scene = useMemo(() => {
+    const cloned = skeletonClone(gltf.scene) as THREE.Group
+    // Force a full world-matrix update so the SkinnedMesh has a valid bounding
+    // sphere from frame 0 — otherwise the cloned mesh can be frustum-culled
+    // before the first animation tick.
+    cloned.updateMatrixWorld(true)
+    cloned.traverse((obj) => {
+      if (obj instanceof THREE.SkinnedMesh) {
+        obj.frustumCulled = false
+      }
+    })
+    return cloned
+  }, [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── Mesh refs ──────────────────────────────────────────────────────────────
