@@ -309,10 +309,12 @@ function AvatarScene({
     // ── 10. Skeletal animation mixer ───────────────────────────────────────
     engine.skeletal.update(delta)
 
-    // Propagate mixer-driven bone transforms through the original scene.
-    // The mixer is bound to gltf.scene (not in R3F scene graph), so R3F's
-    // render loop never calls updateMatrixWorld on it. Without this call,
-    // skeleton.bones[i].matrixWorld stays at bind pose → clone T-poses.
+    // ── 11. Propagate bone transforms through original scene ───────────────
+    // Apply bodyRotationY to the original scene root so all bone world
+    // matrices include the intended facing direction. The clone's <primitive>
+    // position prop handles translation; rotation is handled here on the
+    // original (which drives the skeleton the clone reads).
+    gltf.scene.rotation.y = bodyRotationY
     gltf.scene.updateMatrixWorld(true)
   })
 
@@ -320,7 +322,6 @@ function AvatarScene({
     <primitive
       object={scene}
       position={[avatarXOffset, avatarYOffset, 0]}
-      rotation={[0, bodyRotationY, 0]}
     />
   )
 }
