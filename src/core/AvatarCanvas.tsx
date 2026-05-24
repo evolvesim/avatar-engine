@@ -308,6 +308,12 @@ function AvatarScene({
 
     // ── 10. Skeletal animation mixer ───────────────────────────────────────
     engine.skeletal.update(delta)
+
+    // Propagate mixer-driven bone transforms through the original scene.
+    // The mixer is bound to gltf.scene (not in R3F scene graph), so R3F's
+    // render loop never calls updateMatrixWorld on it. Without this call,
+    // skeleton.bones[i].matrixWorld stays at bind pose → clone T-poses.
+    gltf.scene.updateMatrixWorld(true)
   })
 
   return (
