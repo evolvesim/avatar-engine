@@ -20,10 +20,14 @@ export interface AzureAdapterConfig {
   speechPitch?:   string
 }
 
-type AzureSDK = Awaited<ReturnType<typeof _importAzureSDK>>
-async function _importAzureSDK() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return import('microsoft-cognitiveservices-speech-sdk') as Promise<any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _speechSDK: any | null = null
+
+async function getSpeechSDK() {
+  if (!_speechSDK) {
+    _speechSDK = await import('microsoft-cognitiveservices-speech-sdk')
+  }
+  return _speechSDK
 }
 
 // ── Adapter ───────────────────────────────────────────────────────────────────
@@ -31,7 +35,6 @@ async function _importAzureSDK() {
 export class AzureTTSAdapter implements TTSAdapter {
   readonly mode = 'oneshot' as const
   private config: Required<AzureAdapterConfig>
-  private sdk: AzureSDK | null = null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private synthesizer: any | null = null
 
@@ -44,10 +47,7 @@ export class AzureTTSAdapter implements TTSAdapter {
   }
 
   async speak(text: string, cb: AvatarCallbacks): Promise<void> {
-    if (!this.sdk) {
-      this.sdk = await _importAzureSDK()
-    }
-    const SDK = this.sdk
+    const SDK = await getSpeechSDK()
 
     const tokenRes  = await fetch(this.config.tokenEndpoint)
     const tokenData = await tokenRes.json()
