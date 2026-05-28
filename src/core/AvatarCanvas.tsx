@@ -347,12 +347,13 @@ function AvatarScene({
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
       }
-      const w = 1 / arkit.length
+      // Scale to 0.7 — full weight (1.0) is too strong on Avaturn meshes
+      const w = 0.7 / arkit.length
       for (const shapeName of arkit) {
         targetW.current[shapeName] = w
       }
-      // jawOpen: 0.5 gives a natural jaw drop for open vowels
-      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.5 : 0
+      // jawOpen: 0.3 gives natural jaw movement without looking exaggerated
+      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.3 : 0
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
     }
@@ -406,10 +407,17 @@ function AvatarScene({
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
 
     // ── 6. Lerp toward target (organic muscle transition) ─────────────────
-    // NOTE: viseme shapes are already lerped in step 1 (currentW). The
-    // lerpWeightMap here handles emotion + blink layers only — viseme values
-    // arrive pre-lerped through blended, so they pass through correctly.
+    // Viseme keys are already lerped in step 1 (currentW) — passing them
+    // through lerpWeightMap a second time would double-smooth them, causing
+    // sluggish response. Apply lerpWeightMap for emotion+blink, then overwrite
+    // viseme keys directly from the pre-lerped currentW values.
     lerpWeightMap(currentWeights.current, blended, delta, 12)
+    // Overwrite viseme keys with the already-lerped values from step 1
+    for (const [name, val] of Object.entries(currentW.current)) {
+      if (val > 0 || (currentWeights.current[name] ?? 0) > 0) {
+        currentWeights.current[name] = val
+      }
+    }
 
     // ── 7. Apply to mesh morph targets ────────────────────────────────────
     applyWeightsToMeshes(
