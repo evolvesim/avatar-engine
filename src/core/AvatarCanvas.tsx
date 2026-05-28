@@ -366,7 +366,7 @@ function AvatarScene({
     // recentlyFired gate: keep mouth open between closely spaced visemes.
     // Only zero targetW when there are no future events AND no recent fire.
     const hasFuture     = queue.length > 0
-    const recentlyFired = (nowMs - lastApplyAt.current) < 500
+    const recentlyFired = (nowMs - lastApplyAt.current) < 300
     if (!hasFuture && !recentlyFired) {
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0

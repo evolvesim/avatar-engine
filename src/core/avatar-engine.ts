@@ -154,18 +154,30 @@ export class AvatarEngine {
 
     return {
       onViseme: (visemeId, audioOffset) => {
+        // Azure fires visemeReceived BEFORE onSpeechStart fires, so the queue
+        // may already have events when onSpeechStart tries to clear it.
+        // Stamp startTime on the FIRST viseme of each utterance instead, so
+        // the drain offset arithmetic is always relative to when events arrived.
+        if (q.current.length === 0) {
+          sRef.current = performance.now()
+        }
         q.current.push({ visemeId, audioOffset })
       },
       onWordBoundary: () => {
         this.skeletal.onWordBoundary()
       },
       onSpeechStart: () => {
-        spk.current      = true
-        sRef.current     = performance.now()
-        q.current.length = 0
+        spk.current = true
+        // Do NOT clear the queue or reset startTime here — visemes may have
+        // already arrived before this callback fires (Azure fires viseme
+        // events synchronously before the audio playback callback).
       },
       onSpeechEnd: () => {
         spk.current = false
+        // Signal mouth-close: clear queue and reset startTime so the
+        // recentlyFired gate expires and targetW zeroes naturally.
+        q.current.length = 0
+        sRef.current     = 0
       },
       onError: (err) => {
         console.error('[AvatarEngine] TTS error:', err)
