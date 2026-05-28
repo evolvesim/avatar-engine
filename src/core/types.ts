@@ -157,6 +157,14 @@ export interface AvatarCanvasProps {
   bodyRotationY?: number
 
   /**
+   * When true, automatically compute `avatarYOffset` at runtime by measuring
+   * the head bone's world Y position in the loaded GLB. Overrides any
+   * manually supplied `avatarYOffset` value.
+   * Default: false (backwards-compatible).
+   */
+  autoCalibrate?: boolean
+
+  /**
    * Tailwind / CSS class string applied to the wrapping div.
    * Default: 'w-full h-full'
    */

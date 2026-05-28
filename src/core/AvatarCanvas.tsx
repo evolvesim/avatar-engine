@@ -123,6 +123,20 @@ export interface AvatarCanvasProps {
    * world X=0. Example: `avatarXOffset={-0.1}` nudges the avatar 10cm to the left.
    */
   avatarXOffset?:  number
+  /**
+   * When true, automatically compute `avatarYOffset` at runtime by measuring
+   * the head bone's world Y position in the loaded GLB. Overrides any
+   * manually supplied `avatarYOffset` value.
+   *
+   * The formula targets Y ≈ 1.6 in camera space (the `head-and-shoulders`
+   * camera preset target): `computedOffset = -(headWorldY - 1.6)`.
+   *
+   * If no head bone is found, falls back to the supplied `avatarYOffset`
+   * prop (or the default `-1.52`) and logs a warning.
+   *
+   * Default: false (backwards-compatible).
+   */
+  autoCalibrate?:  boolean
   className?:      string
 }
 
@@ -162,6 +176,20 @@ function Lighting({ preset }: { preset: LightingPreset }) {
 
 // ── Avatar scene ──────────────────────────────────────────────────────────────
 
+const HEAD_BONE_NAMES = ['head', 'mixamorighead', 'bip001_head']
+const CAMERA_TARGET_Y = 1.6
+
+function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
+  let found: THREE.Object3D | null = null
+  root.traverse((obj) => {
+    if (found) return
+    if (HEAD_BONE_NAMES.includes(obj.name.toLowerCase())) {
+      found = obj
+    }
+  })
+  return found
+}
+
 function AvatarScene({
   engine,
   glbUrl,
@@ -169,6 +197,7 @@ function AvatarScene({
   avatarYOffset,
   applyTPoseFix,
   avatarXOffset,
+  autoCalibrate,
 }: {
   engine:         AvatarEngine
   glbUrl:         string
@@ -176,10 +205,32 @@ function AvatarScene({
   avatarYOffset:  number
   applyTPoseFix:  boolean
   avatarXOffset:  number
+  autoCalibrate:  boolean
 }) {
   const gltf  = useLoader(GLTFLoader, glbUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
+
+  // ── Compute effective Y offset (auto-calibrate or supplied) ────────────────
+  const effectiveYOffset = useMemo(() => {
+    if (!autoCalibrate) return avatarYOffset
+    gltf.scene.updateMatrixWorld(true)
+    const head = findHeadBoneByNames(gltf.scene)
+    if (!head) {
+      console.warn(
+        '[AvatarCanvas] autoCalibrate: no head bone found (tried head/mixamorigHead/Bip001_Head). ' +
+        'Falling back to avatarYOffset=', avatarYOffset
+      )
+      return avatarYOffset
+    }
+    const headWorldY = head.getWorldPosition(new THREE.Vector3()).y
+    const computedOffset = -(headWorldY - CAMERA_TARGET_Y)
+    console.log(
+      '[AvatarCanvas] autoCalibrate: headWorldY=', headWorldY,
+      'computed avatarYOffset=', computedOffset
+    )
+    return computedOffset
+  }, [autoCalibrate, avatarYOffset, gltf])
 
   // ── Mesh refs ──────────────────────────────────────────────────────────────
   const meshRefs = useRef<Record<string, THREE.SkinnedMesh | null>>(
@@ -321,7 +372,7 @@ function AvatarScene({
   return (
     <primitive
       object={scene}
-      position={[avatarXOffset, avatarYOffset, 0]}
+      position={[avatarXOffset, effectiveYOffset, 0]}
     />
   )
 }
@@ -339,6 +390,7 @@ export function AvatarCanvas({
   avatarYOffset  = -1.52,
   avatarXOffset  = 0,
   applyTPoseFix  = true,
+  autoCalibrate  = false,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -366,6 +418,7 @@ export function AvatarCanvas({
             avatarYOffset={avatarYOffset}
             avatarXOffset={avatarXOffset}
             applyTPoseFix={applyTPoseFix}
+            autoCalibrate={autoCalibrate}
           />
         </Suspense>
       </Canvas>
