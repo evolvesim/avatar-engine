@@ -270,7 +270,13 @@ function AvatarScene({
 
   // ── Blendshape state (useRef — never triggers re-renders) ──────────────────
   const currentWeights = useRef<ARKitWeights>({})
-  const targetWeights  = useRef<ARKitWeights>({})
+
+  // ── Viseme persistent weights (targetW/currentW pattern) ──────────────────
+  // These refs persist between frames — the recentlyFired guard keeps the mouth
+  // open between closely spaced viseme events instead of snapping to zero.
+  const targetW    = useRef<Record<string, number>>({})
+  const currentW   = useRef<Record<string, number>>({})
+  const lastApplyAt = useRef<number>(0)
 
   // ── Procedural state ───────────────────────────────────────────────────────
   const ocular      = useRef(createOcularState())
@@ -325,33 +331,59 @@ function AvatarScene({
   // ── useFrame: core render loop ─────────────────────────────────────────────
   useFrame((_, delta) => {
     const now        = performance.now()
+    const nowMs      = Date.now()
     const queue      = engine.visemeQueueRef.current
     const startTime  = engine.visemeStartRef.current
     const isSpeaking = engine.isSpeakingRef.current
 
-    // ── 1. Drain viseme queue ──────────────────────────────────────────────
-    const visemeWeights: ARKitWeights = {}
-    const elapsed = now - startTime
-
-    while (queue.length > 0 && queue[0].audioOffset <= elapsed) {
-      const event   = queue.shift()!
-      const arkit   = VISEME_TO_ARKIT[event.visemeId]
-      if (arkit) {
-        // arkit is string[] — each element is an ARKit blendshape name
-        // split weight evenly across co-articulated shapes (e.g. viseme 20/21)
-        const w = 1 / arkit.length
-        for (const shapeName of arkit) {
-          visemeWeights[shapeName] = Math.max(visemeWeights[shapeName] ?? 0, w)
-        }
-        // jawOpen drives the actual jaw bone — without it the Avaturn mesh
-        // barely moves regardless of viseme blendshape weights.
-        // 0.5 gives a natural jaw drop for open vowels without looking extreme.
-        if (arkit.some(s => JAW_OPEN_SHAPES.has(s))) {
-          visemeWeights['jawOpen'] = Math.max(visemeWeights['jawOpen'] ?? 0, 0.5)
-        }
+    // ── 1. Drain viseme queue (targetW/currentW pattern with recentlyFired guard)
+    // applyViseme: zeros all viseme shapes, then sets only the fired one.
+    // Skip id=0 (silence) — it would snap the mouth shut mid-sentence.
+    const applyViseme = (id: number) => {
+      if (id === 0) return
+      const arkit = VISEME_TO_ARKIT[id]
+      if (!arkit) return
+      // Zero all viseme shapes first
+      for (const k of Object.keys(targetW.current)) {
+        targetW.current[k] = 0
       }
+      const w = 1 / arkit.length
+      for (const shapeName of arkit) {
+        targetW.current[shapeName] = w
+      }
+      // jawOpen: 0.5 gives a natural jaw drop for open vowels
+      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.5 : 0
+      lastApplyAt.current = nowMs
       lastVisemeAt.current = now
     }
+
+    const elapsed = now - startTime
+    while (queue.length > 0 && queue[0].audioOffset <= elapsed) {
+      applyViseme(queue.shift()!.visemeId)
+    }
+
+    // recentlyFired gate: keep mouth open between closely spaced visemes.
+    // Only zero targetW when there are no future events AND no recent fire.
+    const hasFuture     = queue.length > 0
+    const recentlyFired = (nowMs - lastApplyAt.current) < 300
+    if (!hasFuture && !recentlyFired) {
+      for (const k of Object.keys(targetW.current)) {
+        targetW.current[k] = 0
+      }
+      targetW.current['jawOpen'] = 0
+    }
+
+    // Per-frame asymmetric lerp: targetW → currentW (attack fast, release slow)
+    for (const [name, target] of Object.entries(targetW.current)) {
+      const cur   = currentW.current[name] ?? 0
+      const alpha = target > cur
+        ? 1 - Math.exp(-14 * delta)   // attack — fast
+        : 1 - Math.exp(-6  * delta)   // release — slow, natural
+      currentW.current[name] = THREE.MathUtils.lerp(cur, target, alpha)
+    }
+
+    // Build visemeWeights from the lerped currentW for the additive blend below
+    const visemeWeights: ARKitWeights = { ...currentW.current }
 
     // ── 2. FFT fallback (if viseme queue exhausted but still speaking) ─────
     const useFftFallback = isSpeaking
@@ -374,6 +406,9 @@ function AvatarScene({
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
 
     // ── 6. Lerp toward target (organic muscle transition) ─────────────────
+    // NOTE: viseme shapes are already lerped in step 1 (currentW). The
+    // lerpWeightMap here handles emotion + blink layers only — viseme values
+    // arrive pre-lerped through blended, so they pass through correctly.
     lerpWeightMap(currentWeights.current, blended, delta, 12)
 
     // ── 7. Apply to mesh morph targets ────────────────────────────────────
