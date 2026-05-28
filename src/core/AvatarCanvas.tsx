@@ -62,7 +62,7 @@ import type {
   DirectorConfig,
 } from './types'
 import { CAMERA_PRESETS }        from './types'
-import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES } from './viseme-map'
+import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES, JAW_OPEN_SHAPES } from './viseme-map'
 import {
   additiveBlend,
   lerpWeightMap,
@@ -342,6 +342,12 @@ function AvatarScene({
         const w = 1 / arkit.length
         for (const shapeName of arkit) {
           visemeWeights[shapeName] = Math.max(visemeWeights[shapeName] ?? 0, w)
+        }
+        // jawOpen drives the actual jaw bone — without it the Avaturn mesh
+        // barely moves regardless of viseme blendshape weights.
+        // 0.5 gives a natural jaw drop for open vowels without looking extreme.
+        if (arkit.some(s => JAW_OPEN_SHAPES.has(s))) {
+          visemeWeights['jawOpen'] = Math.max(visemeWeights['jawOpen'] ?? 0, 0.5)
         }
       }
       lastVisemeAt.current = now
