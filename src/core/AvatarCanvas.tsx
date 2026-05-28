@@ -137,21 +137,43 @@ export interface AvatarCanvasProps {
    * Default: false (backwards-compatible).
    */
   autoCalibrate?:  boolean
+  /**
+   * Override the camera world-space position. When supplied, takes precedence
+   * over the `cameraPreset` position. Format: [x, y, z].
+   * Example: `cameraPosition={[0, -0.1, 1.4]}` lowers the camera so it looks
+   * up at the avatar's face, achieving natural eye contact.
+   */
+  cameraPosition?: [number, number, number]
+  /**
+   * Override the camera look-at target. When supplied, takes precedence over
+   * the `cameraPreset` target. Format: [x, y, z].
+   */
+  cameraTarget?:   [number, number, number]
   className?:      string
 }
 
 // ── Camera setup ──────────────────────────────────────────────────────────────
 
-function CameraSetup({ preset }: { preset: CameraPreset }) {
+function CameraSetup({
+  preset,
+  positionOverride,
+  targetOverride,
+}: {
+  preset: CameraPreset
+  positionOverride?: [number, number, number]
+  targetOverride?: [number, number, number]
+}) {
   const { camera } = useThree()
   const cfg = CAMERA_PRESETS[preset]
 
   useEffect(() => {
-    camera.position.set(...cfg.position)
+    const pos = positionOverride ?? cfg.position
+    const tgt = targetOverride   ?? cfg.target
+    camera.position.set(...pos)
     ;(camera as THREE.PerspectiveCamera).fov = cfg.fov
     ;(camera as THREE.PerspectiveCamera).updateProjectionMatrix()
-    camera.lookAt(...cfg.target)
-  }, [camera, cfg])
+    camera.lookAt(...tgt)
+  }, [camera, cfg, positionOverride, targetOverride])
 
   return null
 }
@@ -394,6 +416,8 @@ export function AvatarCanvas({
   avatarXOffset  = 0,
   applyTPoseFix  = true,
   autoCalibrate  = false,
+  cameraPosition,
+  cameraTarget,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -408,10 +432,10 @@ export function AvatarCanvas({
     <div className={className}>
       <Canvas
         gl={{ antialias: true, alpha: true }}
-        camera={{ position: CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
+        camera={{ position: cameraPosition ?? CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
         shadows
       >
-        <CameraSetup preset={cameraPreset} />
+        <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
         <Lighting preset={lightingPreset} />
         <Suspense fallback={null}>
           <AvatarScene
