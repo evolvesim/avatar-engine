@@ -177,7 +177,10 @@ function Lighting({ preset }: { preset: LightingPreset }) {
 // ── Avatar scene ──────────────────────────────────────────────────────────────
 
 const HEAD_BONE_NAMES = ['head', 'mixamorighead', 'bip001_head']
-const CAMERA_TARGET_Y = 1.6
+// Camera target Y for the 'head-and-shoulders' preset (see CAMERA_PRESETS in types.ts).
+// autoCalibrate shifts the avatar so the head bone sits at this Y in world space,
+// putting the head at the camera's look-at point and framing it correctly.
+const CAMERA_TARGET_Y = 0.1
 
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
