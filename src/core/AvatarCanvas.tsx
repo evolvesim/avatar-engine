@@ -352,8 +352,8 @@ function AvatarScene({
       for (const shapeName of arkit) {
         targetW.current[shapeName] = w
       }
-      // jawOpen: 0.3 gives natural jaw movement without looking exaggerated
-      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.3 : 0
+      // jawOpen: 0.2 gives subtle jaw movement
+      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.2 : 0
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
     }
