@@ -347,13 +347,13 @@ function AvatarScene({
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
       }
-      // Scale to 0.7 — full weight (1.0) is too strong on Avaturn meshes
-      const w = 0.7 / arkit.length
+      // Scale to 0.6 — moderate lip movement on Avaturn meshes
+      const w = 0.6 / arkit.length
       for (const shapeName of arkit) {
         targetW.current[shapeName] = w
       }
-      // jawOpen: 0.2 gives subtle jaw movement
-      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.2 : 0
+      // jawOpen: 0.3 gives natural jaw movement
+      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.3 : 0
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
     }
@@ -366,7 +366,7 @@ function AvatarScene({
     // recentlyFired gate: keep mouth open between closely spaced visemes.
     // Only zero targetW when there are no future events AND no recent fire.
     const hasFuture     = queue.length > 0
-    const recentlyFired = (nowMs - lastApplyAt.current) < 300
+    const recentlyFired = (nowMs - lastApplyAt.current) < 500
     if (!hasFuture && !recentlyFired) {
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
