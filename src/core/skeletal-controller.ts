@@ -1,7 +1,7 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Architecture (0.3.55):
+ * Architecture (0.3.56 — DIAGNOSTIC BUILD):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
  *                 Full body including arms — drives natural rest arm pose.
@@ -9,24 +9,112 @@
  *
  *   TOP layer (idle + gesture) — entry.clip used DIRECTLY, NO filtering.
  *                 Clips in animations.glb already contain only spine/head tracks.
- *                 headSpineOnly filter was stripping too aggressively (regex missed
- *                 Spine2/Spine3 variants, left some clips with 0–1 tracks → no motion).
  *                 Since clips have no arm tracks, base exclusively owns arm bones.
- *                 No filtering needed — just play the clips as authored.
  *
  *   OUT layer   — previous top action fading weight 1→0 then stopped.
  *
- * History of T-pose fixes:
- *   0.3.52: base filtered to lower-body-only → arm tracks stripped → zero arm driver → T-pose
- *   0.3.53: base=full (correct) but base zeroed during gesture → gesture had no arms either → T-pose
- *   0.3.54: base never zeroed (correct) but headSpineOnly over-filtered clips → no visible motion
- *   0.3.55: no filtering at all — clips played as-is, base owns arms always
+ * 0.3.56 adds heavy console diagnostics to identify why arms T-pose:
+ *   - Full track list logged for every clip played (idle + gesture)
+ *   - Arm bone quaternions at frame 10, 60, 120
+ *   - All active mixer actions + weights at frame 10
+ *   - avaturn_animation frame-0 keyframe values for LeftArm + RightArm
+ *   - Three.js normalisation analysis: which bones have >1 driver
  */
 
 import * as THREE from 'three'
 import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
+
+// ── Arm bone names to watch ───────────────────────────────────────────────────
+const ARM_BONES = [
+  'LeftShoulder', 'RightShoulder',
+  'LeftArm',      'RightArm',
+  'LeftForeArm',  'RightForeArm',
+]
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Log all track names in a clip, flagging any arm tracks */
+function logClipTracks(label: string, clip: THREE.AnimationClip): void {
+  const allBones = [...new Set(clip.tracks.map(t => t.name.split('.')[0]))]
+  const armTracks = clip.tracks.filter(t => /Shoulder|Arm|ForeArm|Hand/i.test(t.name))
+  console.log(
+    `[Clip] ${label} "${clip.name}": ${clip.tracks.length} tracks, dur=${clip.duration.toFixed(2)}s`,
+    '\n  bones:', allBones.join(', '),
+    armTracks.length > 0
+      ? `\n  ⚠️ ARM TRACKS (${armTracks.length}): ${armTracks.map(t => t.name).join(', ')}`
+      : '\n  ✅ no arm tracks'
+  )
+}
+
+/** Log arm bone world quaternions from the scene */
+function logArmBoneQuats(label: string, root: THREE.Object3D): void {
+  const lines: string[] = []
+  root.traverse((obj) => {
+    if (ARM_BONES.includes(obj.name)) {
+      const q = obj.quaternion
+      lines.push(`  ${obj.name}: [${q.x.toFixed(3)}, ${q.y.toFixed(3)}, ${q.z.toFixed(3)}, ${q.w.toFixed(3)}]`)
+    }
+  })
+  if (lines.length === 0) {
+    console.warn(`[ArmBones] ${label}: none of the expected arm bones found in scene graph`)
+  } else {
+    console.log(`[ArmBones] ${label}:\n${lines.join('\n')}`)
+  }
+}
+
+/** Log frame-0 keyframe values for arm bones from avaturn_animation */
+function logBaseClipArmKeyframes(clip: THREE.AnimationClip): void {
+  const armTracks = clip.tracks.filter(t => /Shoulder|Arm|ForeArm/.test(t.name) && t.name.includes('.quaternion'))
+  if (armTracks.length === 0) {
+    console.warn('[BaseClip] No arm quaternion tracks found in avaturn_animation!')
+    console.log('[BaseClip] All track names:', clip.tracks.map(t => t.name).join(', '))
+    return
+  }
+  console.log(`[BaseClip] avaturn_animation arm quaternion tracks (frame-0 values):`)
+  for (const track of armTracks) {
+    const vals = (track as THREE.QuaternionKeyframeTrack).values
+    if (vals && vals.length >= 4) {
+      console.log(`  ${track.name.split('.')[0]}: [${vals[0].toFixed(3)}, ${vals[1].toFixed(3)}, ${vals[2].toFixed(3)}, ${vals[3].toFixed(3)}]`)
+    }
+  }
+}
+
+/** Analyse all active mixer actions and which bones they compete on */
+function logMixerState(label: string, mixer: THREE.AnimationMixer): void {
+  // Access internal _actions array (undocumented but stable in Three.js r150+)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actions: THREE.AnimationAction[] = (mixer as any)._actions ?? []
+  console.log(`[Mixer] ${label}: ${actions.length} active action(s)`)
+  for (const action of actions) {
+    const clip = action.getClip()
+    const bones = [...new Set(clip.tracks.map((t: THREE.KeyframeTrack) => t.name.split('.')[0]))]
+    const armBones = bones.filter(b => /Shoulder|Arm|ForeArm|Hand/i.test(b))
+    console.log(
+      `  action "${clip.name}": w=${action.getEffectiveWeight().toFixed(3)} running=${action.isRunning()} enabled=${action.enabled}`,
+      `\n    bones (${bones.length}):`, bones.join(', '),
+      armBones.length > 0 ? `\n    ⚠️ arm bones: ${armBones.join(', ')}` : '\n    ✅ no arm bones'
+    )
+  }
+
+  // Check for arm bone competition (>1 action driving same bone)
+  const boneCounts: Record<string, number> = {}
+  for (const action of actions) {
+    if (!action.isRunning()) continue
+    for (const track of action.getClip().tracks) {
+      const bone = track.name.split('.')[0]
+      boneCounts[bone] = (boneCounts[bone] ?? 0) + 1
+    }
+  }
+  const competing = Object.entries(boneCounts).filter(([, c]) => c > 1)
+  if (competing.length > 0) {
+    console.warn(`[Mixer] ⚠️ BONE COMPETITION (${competing.length} bones driven by >1 action):`,
+      competing.map(([b, c]) => `${b}×${c}`).join(', '))
+  } else {
+    console.log(`[Mixer] ✅ No bone competition — each bone driven by at most 1 action`)
+  }
+}
 
 // ── Emotion → idle animation pools ───────────────────────────────────────────
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
@@ -88,6 +176,7 @@ export class SkeletalController {
   private topWeightCur: number = 0
 
   private dictionary:        AnimationDictionary
+  private avatarRoot:        THREE.Object3D | null = null
   private pendingCues:       GestureCue[] = []
   private wordCounter:       number       = 0
   private currentEmotion:    EmotionId    = 'neutral'
@@ -106,13 +195,25 @@ export class SkeletalController {
   // ── Init ───────────────────────────────────────────────────────────────────
 
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
-    this.mixer = new THREE.AnimationMixer(avatarRoot)
+    this.mixer      = new THREE.AnimationMixer(avatarRoot)
+    this.avatarRoot = avatarRoot
     console.log('[SkeletalController] init —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] clips provided:', clips?.length ?? 0, clips?.map(c => c.name))
+
+    // Log scene bone structure
+    const boneNames: string[] = []
+    avatarRoot.traverse(obj => { if (obj.name) boneNames.push(obj.name) })
+    const armBonesFound = boneNames.filter(n => /Shoulder|^Left|^Right|Arm|ForeArm/.test(n))
+    console.log('[SkeletalController] arm bones in scene:', armBonesFound.join(', ') || 'NONE FOUND')
 
     // Base layer: full avaturn_animation with morph tracks stripped.
-    // Full body (including arms) so arms always have a driver at rest pose.
     const raw = clips?.find(c => c.name === 'avaturn_animation')
     if (raw) {
+      console.log(`[SkeletalController] avaturn_animation found: ${raw.tracks.length} raw tracks`)
+
+      // Log arm keyframes from raw clip before stripping
+      logBaseClipArmKeyframes(raw)
+
       const stripped = new THREE.AnimationClip(
         raw.name,
         raw.duration,
@@ -120,8 +221,12 @@ export class SkeletalController {
           t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
         )
       )
-      console.log('[SkeletalController] base tracks:', stripped.tracks.length,
-        '— arm tracks:', stripped.tracks.filter(t => /Arm|Shoulder/.test(t.name)).map(t => t.name.split('.')[0]).join(', '))
+
+      const armTracks = stripped.tracks.filter(t => /Arm|Shoulder/.test(t.name))
+      console.log(
+        '[SkeletalController] base stripped tracks:', stripped.tracks.length,
+        '\n  arm tracks:', armTracks.map(t => t.name).join(', ') || 'NONE — arms will T-pose!'
+      )
 
       const base = this.mixer.clipAction(stripped)
       base.blendMode        = THREE.NormalAnimationBlendMode
@@ -130,9 +235,10 @@ export class SkeletalController {
       base.setEffectiveWeight(1)
       base.play()
       this.baseAction = base
-      console.log('[SkeletalController] base layer started: avaturn_animation (full body, morph stripped)')
+      console.log('[SkeletalController] base layer started: avaturn_animation weight=1')
     } else {
-      console.warn('[SkeletalController] avaturn_animation not found — arms will T-pose. Available:', clips?.map(c => c.name))
+      console.warn('[SkeletalController] ❌ avaturn_animation NOT FOUND — arms will T-pose!')
+      console.warn('[SkeletalController] available clips:', clips?.map(c => c.name))
     }
 
     this.pendingIdle = true
@@ -175,17 +281,37 @@ export class SkeletalController {
 
     this.mixer?.update(delta)
 
-    if (++this.diagnosticFrame === 10) {
-      console.log('[SkeletalController] frame-10', {
-        base: this.baseAction
-          ? `w=${this.baseAction.getEffectiveWeight()} running=${this.baseAction.isRunning()}`
-          : 'MISSING',
-        top: this.topAction
-          ? `w=${this.topAction.getEffectiveWeight()}  running=${this.topAction.isRunning()}`
-          : 'none',
-        idle: this.currentIdleClipId,
-        gesture: this.isInGesture,
-      })
+    this.diagnosticFrame++
+
+    // Frame 10: mixer state + arm bone quaternions
+    if (this.diagnosticFrame === 10) {
+      console.log('[SkeletalController] ── FRAME 10 DIAGNOSTIC ──────────────────────')
+      console.log('[SkeletalController] base:', this.baseAction
+        ? `w=${this.baseAction.getEffectiveWeight().toFixed(3)} running=${this.baseAction.isRunning()} enabled=${this.baseAction.enabled}`
+        : '❌ MISSING')
+      console.log('[SkeletalController] top:', this.topAction
+        ? `w=${this.topAction.getEffectiveWeight().toFixed(3)} clip="${this.topAction.getClip().name}" running=${this.topAction.isRunning()}`
+        : 'none')
+      console.log('[SkeletalController] out:', this.outAction
+        ? `w=${this.outAction.getEffectiveWeight().toFixed(3)} clip="${this.outAction.getClip().name}"`
+        : 'none')
+      console.log('[SkeletalController] state: idle=' + this.currentIdleClipId + ' gesture=' + this.isInGesture)
+      if (this.mixer) logMixerState('frame-10', this.mixer)
+      if (this.avatarRoot) logArmBoneQuats('frame-10 (after mixer.update)', this.avatarRoot)
+    }
+
+    // Frame 60: arm bones again (after top action has ramped up)
+    if (this.diagnosticFrame === 60) {
+      console.log('[SkeletalController] ── FRAME 60 DIAGNOSTIC ──────────────────────')
+      if (this.mixer) logMixerState('frame-60', this.mixer)
+      if (this.avatarRoot) logArmBoneQuats('frame-60', this.avatarRoot)
+    }
+
+    // Frame 120: check if arms have stabilised
+    if (this.diagnosticFrame === 120) {
+      console.log('[SkeletalController] ── FRAME 120 DIAGNOSTIC ─────────────────────')
+      if (this.mixer) logMixerState('frame-120', this.mixer)
+      if (this.avatarRoot) logArmBoneQuats('frame-120', this.avatarRoot)
     }
   }
 
@@ -198,12 +324,13 @@ export class SkeletalController {
     if (!entry) return
 
     console.log('[SkeletalController] idle started:', id)
+    logClipTracks('IDLE', entry.clip)
+
     this.pendingIdle       = false
     this.currentIdleClipId = id
     this.isInGesture       = false
-    // Clips already have only spine/head tracks — no filtering needed.
-    const clip   = entry.clip
-    const action = this.mixer.clipAction(clip)
+
+    const action = this.mixer.clipAction(entry.clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
@@ -227,6 +354,9 @@ export class SkeletalController {
     const entry = this.dictionary.get(id)
     if (!entry) return
 
+    console.log('[SkeletalController] playIdle:', id)
+    logClipTracks('IDLE-SWITCH', entry.clip)
+
     this.currentIdleClipId = id
     this.isInGesture       = false
     this.idlePoolTimer     = 0
@@ -236,8 +366,7 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const clip   = entry.clip
-    const action = this.mixer.clipAction(clip)
+    const action = this.mixer.clipAction(entry.clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
@@ -256,6 +385,11 @@ export class SkeletalController {
       return
     }
 
+    console.log('[SkeletalController] playGesture:', animId)
+    logClipTracks('GESTURE', entry.clip)
+    console.log('[SkeletalController] base weight at gesture start:',
+      this.baseAction?.getEffectiveWeight().toFixed(3) ?? 'NO BASE')
+
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
@@ -264,11 +398,9 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    // Base stays at weight=1 — ALWAYS. Gesture clips in animations.glb have only
     // Base stays at weight=1 — never touched, never zeroed.
     // Clips have only spine/head tracks; base exclusively owns arm bones throughout.
-    const clip   = entry.clip
-    const action = this.mixer.clipAction(clip)
+    const action = this.mixer.clipAction(entry.clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
@@ -282,6 +414,9 @@ export class SkeletalController {
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
+
+      console.log('[SkeletalController] gesture finished:', animId)
+      if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
 
       action.setEffectiveWeight(0)
       action.stop()
