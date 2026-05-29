@@ -1,25 +1,32 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Manages the Three.js AnimationMixer and implements the WordBoundary-triggered
- * gesture system from the research spec.
+ * Two-action mixer architecture:
  *
- * Architecture:
+ *   BASE layer  — avaturn_animation (stripped of morph tracks), weight=1 ALWAYS.
+ *                 Drives all 53 body bones including arms, hips, legs, spine.
+ *                 NEVER faded, NEVER stopped, NEVER crossFaded.
+ *                 Arms are always in natural rest pose because base owns them.
  *
+ *   TOP layer   — emotion idle or gesture clip.
+ *                 ARM_SAFE idle clips (head/spine only): NormalBlend, weight lerps 0→1.
+ *                   Base still drives arms — no conflict.
+ *                 ARM_GESTURE clips (full body): AdditiveBlend, weight lerps 0→0.45.
+ *                   Additive deltas are relative to avaturn_animation frame-0, so
+ *                   arms move naturally FROM the rest pose, not from T-pose.
+ *
+ *   OUT layer   — previous top action fading weight 1→0 then stopped.
+ *
+ * Word boundary → gesture flow:
  *   VirtualDirector → PerformanceData.gesture_cues[]
  *                              ↓
- *             SkeletalController.loadPerformance(cues, words)
+ *             SkeletalController.loadPerformance(cues)
  *                              ↓
  *    Azure WordBoundary event → wordIndex increments
  *                              ↓
- *    crossFadeTo(clip, duration) at matching word_index
+ *    playGesture(clip) at matching word_index
  *                              ↓
- *    AnimationMixer.update(delta) in useFrame loop
- *
- * Emotion → idle animation mapping:
- *   When an emotion changes (EmotionStateMachine.set()), the controller
- *   automatically crossfades to the appropriate emotion-tinted idle clip.
- *   This keeps body language consistent with the persistent emotional state.
+ *    LoopOnce gesture finishes → playIdle() returns to idle pool
  */
 
 import * as THREE from 'three'
@@ -29,72 +36,62 @@ import type { GestureCue } from './virtual-director'
 
 // ── Emotion → idle animation pools ───────────────────────────────────────────
 //
-// Every idle clip here MUST have arm bone coverage (LeftArm + RightArm minimum)
-// so the arms never T-pose. The idle is the full-body owner of all bones when no
-// gesture is playing — avaturn_animation (base) no longer drives arms.
-//
-// Pool design rules:
-//   - All clips in a pool must cover both arms
-//   - First clip in each pool is the primary (most played)
-//   - Pool cycles every 8–15 s for natural variation (non-repeating pick)
-//   - Head/spine only (ARM_SAFE) — base action owns arm bones permanently at bind pose
-//   - avaturn_animation arm tracks are frozen at bind-pose quaternions (arms at sides)
-//   - Any clip with arm tracks would fight the base → use ARM_SAFE clips only here
-
-// All clips in these pools are ARM_SAFE (head/spine/neck tracks only).
-// Verified present in animations.glb and confirmed no LeftArm/RightArm tracks.
-// Arms are held at sides by the procedural Z-correction in update().
+// All clips here are ARM_SAFE (head/spine/neck tracks only — no LeftArm/RightArm).
+// The base action (avaturn_animation) permanently owns all arm bones.
+// Adding an ARM_GESTURE clip here would fight the base and cause T-pose flicker.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
-    'quaternius_neutral_idle',              // subtle head/spine sway — confirmed ARM_SAFE
+    'quaternius_neutral_idle',              // subtle head/spine sway
     'mesh2motion_neutral_weight_shift',     // gentle weight shift, spine only
     'evolve_listening_interested_lean',     // slight forward lean, engaged
     'mixamo_neutral_looking_around',        // natural head look-around
   ],
   joy: [
-    'evolve_empathy_gentle_nod',            // warm upbeat nod — ARM_SAFE
+    'evolve_empathy_gentle_nod',            // warm upbeat nod
     'mixamo_neutral_thoughtful_nod',        // lighter nod variation
-    'quaternius_neutral_idle',              // fallback
+    'quaternius_neutral_idle',
   ],
   anger: [
-    'mesh2motion_neutral_weight_shift',     // controlled weight shift — simmering
-    'quaternius_neutral_idle',              // stillness — contained anger
+    'mesh2motion_neutral_weight_shift',
+    'quaternius_neutral_idle',
   ],
   sadness: [
-    'evolve_sadness_resigned_sigh',         // head bow, resigned — ARM_SAFE
-    'quaternius_neutral_idle',              // subdued stillness
+    'evolve_sadness_resigned_sigh',         // head bow, resigned
+    'quaternius_neutral_idle',
   ],
   surprise: [
-    'mixamo_neutral_looking_around',        // rapid head scan — ARM_SAFE
-    'quaternius_neutral_idle',              // frozen moment fallback
+    'mixamo_neutral_looking_around',        // rapid head scan
+    'quaternius_neutral_idle',
   ],
   fear: [
-    'quaternius_neutral_idle',              // frozen, minimal movement — ARM_SAFE
-    'mesh2motion_neutral_weight_shift',     // slight unease
+    'quaternius_neutral_idle',
+    'mesh2motion_neutral_weight_shift',
   ],
   disgust: [
-    'mesh2motion_neutral_weight_shift',     // shifting away — ARM_SAFE
-    'quaternius_neutral_idle',              // recoil stillness
+    'mesh2motion_neutral_weight_shift',
+    'quaternius_neutral_idle',
   ],
   empathy: [
-    'mixamo_empathy_leaning_forward',       // gentle forward lean — ARM_SAFE
-    'evolve_empathy_gentle_nod',            // warm engaged nod
-    'evolve_listening_interested_lean',     // attentive lean
+    'mixamo_empathy_leaning_forward',       // gentle forward lean
+    'evolve_empathy_gentle_nod',
+    'evolve_listening_interested_lean',
   ],
   concentration: [
-    'mixamo_neutral_looking_around',        // scanning/processing look — ARM_SAFE
-    'mixamo_neutral_thoughtful_nod',        // processing nod
-    'evolve_idle_look_down_notes',          // looking down, thinking
+    'mixamo_neutral_looking_around',
+    'mixamo_neutral_thoughtful_nod',
+    'evolve_idle_look_down_notes',
   ],
   confusion: [
-    'evolve_confusion_double_head_tilt',    // double head tilt — ARM_SAFE
-    'mixamo_neutral_looking_around',        // uncertain look-around
-    'quaternius_neutral_idle',              // fallback
+    'evolve_confusion_double_head_tilt',    // double head tilt
+    'mixamo_neutral_looking_around',
+    'quaternius_neutral_idle',
   ],
 }
 
-// Keep ARM_GESTURE_CLIP_IDS for future reference / VD prompt building
-// (no longer used for additive blend logic — all gestures now NormalBlend)
+// ARM_GESTURE clips — these have arm/shoulder/hand tracks.
+// They are played additively on top of the base action at weight ≤ 0.45.
+// The additive delta is computed relative to avaturn_animation frame-0,
+// so gestures move arms FROM the natural rest pose, not from T-pose.
 const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_neutral_explain_both_hands',
   'mixamo_joy_talking_hands',
@@ -120,47 +117,32 @@ const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_professional_authority_stance',
 ])
 
-// Arm bones corrected procedurally each frame toward their avaturn_animation frame-0
-// quaternions — the natural rest pose for this skeleton.
-// Covers shoulders (prevent hunching), upper arms, and forearms (prevent rigid elbows).
-// Correction skipped while isInGesture=true so gesture clips move freely.
-const ARM_BONE_NAMES = ['LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
-
-// Slerp speed — settles in ~0.3s at 60fps
-const ARM_LERP_SPEED = 6
-
-// Target quaternions: avaturn_animation frame-0, extracted from acts-guide.glb.
-// This is exactly the pose that looked natural in the old two-action mixer build.
-const ARM_REST_QUATS: Record<string, [number, number, number, number]> = {
-  LeftShoulder:  [ 0.584305,  0.466298, -0.531432,  0.398415],
-  RightShoulder: [-0.598519,  0.471551, -0.527063, -0.376324],
-  LeftArm:       [ 0.537788,  0.128641, -0.045315,  0.831975],
-  RightArm:      [ 0.522803, -0.096794,  0.055773,  0.845102],
-  LeftForeArm:   [ 0.027497,  0.023706,  0.148167,  0.988296],
-  RightForeArm:  [ 0.014204,  0.006028, -0.169052,  0.985486],
-}
+// Additive gesture weight cap — full weight (1.0) causes arm flapping on clips
+// with large shoulder-abduction keyframes. 0.45 gives visible, natural movement.
+const GESTURE_ADDITIVE_WEIGHT = 0.45
 
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
+  /** avaturn_animation — permanent base, weight=1, NEVER faded */
   private baseAction:    THREE.AnimationAction | null = null
-  private baseClip:      THREE.AnimationClip | null = null  // stripped avaturn_animation
+  /** avaturn_animation stripped of morph tracks — used as additive reference */
+  private baseClip:      THREE.AnimationClip | null = null
   private topAction:     THREE.AnimationAction | null = null
   private outAction:     THREE.AnimationAction | null = null
-  /** Arm bones captured at init — used for procedural arms-at-sides correction */
-  private armBones: Map<string, THREE.Bone> = new Map()
   private topWeightTgt:  number = 0
   private topWeightCur:  number = 0
+  private topWeightMax:  number = 1.0   // 1.0 for idle, GESTURE_ADDITIVE_WEIGHT for gestures
   private dictionary:    AnimationDictionary
   private pendingCues:   GestureCue[] = []
   private wordCounter:   number = 0
   private currentEmotion:    EmotionId = 'neutral'
-  private currentIdleClipId: string    = ''      // which clip is currently the idle
-  private idlePoolTimer:     number    = 0        // seconds since last idle switch
-  private idlePoolInterval:  number    = 10       // randomised 8–15s per cycle
-  private isInGesture:       boolean   = false    // true while a gesture (not idle) is top
-  private pendingIdle:   boolean = false
-  private pendingIdleFrames = 0
-  private diagnosticFrame = 0
+  private currentIdleClipId: string    = ''
+  private idlePoolTimer:     number    = 0
+  private idlePoolInterval:  number    = 10
+  private isInGesture:       boolean   = false
+  private pendingIdle:       boolean   = false
+  private pendingIdleFrames  = 0
+  private diagnosticFrame    = 0
   /** Cache of additive-converted clips keyed by original clip name */
   private additiveCache: Map<string, THREE.AnimationClip> = new Map()
 
@@ -168,35 +150,48 @@ export class SkeletalController {
     this.dictionary = dictionary
   }
 
-  // ── Initialise with a scene object ─────────────────────────────────────────
+  // ── Initialise ─────────────────────────────────────────────────────────────
 
   /**
    * Bind the mixer to the avatar's root scene object.
+   * Starts the avaturn_animation base layer immediately if found in clips.
    * Call this once after the GLB has loaded.
    */
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
     console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)')
 
-    // Capture arm bone references for procedural arms-at-sides correction.
-    // After every mixer tick we slerp arm bones toward their avaturn_animation frame-0
-    // quaternions — the natural rest pose for this skeleton.
-    this.armBones.clear()
-    avatarRoot.traverse((obj) => {
-      if ((obj as THREE.Bone).isBone && ARM_BONE_NAMES.includes(obj.name as typeof ARM_BONE_NAMES[number])) {
-        this.armBones.set(obj.name, obj as THREE.Bone)
-      }
-    })
-    console.log(`[SkeletalController] arm bones captured: ${[...this.armBones.keys()].join(', ')}`)
+    // ── Base layer: avaturn_animation ─────────────────────────────────────
+    // Find avaturn_animation in the provided clips array (comes from gltf.animations).
+    // Strip morph tracks so the avaturn baseline brow/eye values don't bleed through
+    // emotion presets. Keep all bone tracks — these drive arms + full body.
+    const raw = clips?.find(c => c.name === 'avaturn_animation')
+    if (raw) {
+      // Deep copy so we don't mutate the original gltf.animations entry
+      const stripped = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(raw))
+      stripped.tracks = stripped.tracks.filter(
+        t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
+      )
+      this.baseClip = stripped
+
+      const base = this.mixer.clipAction(stripped)
+      base.blendMode = THREE.NormalAnimationBlendMode
+      base.setLoop(THREE.LoopRepeat, Infinity)
+      base.clampWhenFinished = false
+      base.setEffectiveWeight(1)
+      base.play()
+      this.baseAction = base
+      console.log('[SkeletalController] base layer started: avaturn_animation (morph tracks stripped)')
+    } else {
+      console.warn('[SkeletalController] avaturn_animation not found in clips — arms may T-pose. Clips available:', clips?.map(c => c.name))
+    }
 
     this.pendingIdle = true
     this._tryStartIdle()
   }
 
-  /**
-   * Must be called every frame from the useFrame loop.
-   * @param delta  Seconds since last frame (from R3F useFrame state)
-   */
+  // ── Per-frame update ────────────────────────────────────────────────────────
+
   update(delta: number): void {
     if (this.pendingIdle) {
       this._tryStartIdle()
@@ -209,12 +204,12 @@ export class SkeletalController {
       this.pendingIdleFrames = 0
     }
 
-    // Idle pool cycling — only when we are in idle (not mid-gesture) and top is settled
+    // Idle pool cycling — only when in idle (not gesturing) and top is settled
     if (!this.isInGesture && !this.pendingIdle && this.topWeightCur >= 0.99) {
       this.idlePoolTimer += delta
       if (this.idlePoolTimer >= this.idlePoolInterval) {
-        this.idlePoolTimer = 0
-        this.idlePoolInterval = 8 + Math.random() * 7  // 8–15 s
+        this.idlePoolTimer    = 0
+        this.idlePoolInterval = 8 + Math.random() * 7
         const nextId = this._pickNextIdle(this.currentEmotion)
         if (nextId !== this.currentIdleClipId) {
           this.playIdle(this.currentEmotion, nextId)
@@ -222,7 +217,7 @@ export class SkeletalController {
       }
     }
 
-    // Lerp top layer weight in
+    // Lerp top layer weight in (toward topWeightMax — 1.0 for idle, 0.45 for gesture)
     if (this.topAction && this.topWeightCur < this.topWeightTgt) {
       this.topWeightCur = Math.min(this.topWeightTgt, this.topWeightCur + delta * 4)
       this.topAction.setEffectiveWeight(this.topWeightCur)
@@ -230,7 +225,7 @@ export class SkeletalController {
 
     // Lerp outgoing action weight down then stop it
     if (this.outAction) {
-      const w = this.outAction.getEffectiveWeight()
+      const w    = this.outAction.getEffectiveWeight()
       const next = Math.max(0, w - delta * 4)
       this.outAction.setEffectiveWeight(next)
       if (next === 0) {
@@ -241,52 +236,35 @@ export class SkeletalController {
 
     this.mixer?.update(delta)
 
-    // ── Procedural arm rest-pose correction ─────────────────────────────────
-    // After the mixer ticks, slerp each arm/shoulder/forearm bone toward its
-    // avaturn_animation frame-0 quaternion — the natural rest pose.
-    // Skip while a gesture is playing so ARM_GESTURE clips move freely.
-    if (this.armBones.size > 0 && !this.isInGesture) {
-      const t = Math.min(1, ARM_LERP_SPEED * delta)
-      for (const [name, bone] of this.armBones) {
-        const target = ARM_REST_QUATS[name]
-        if (!target) continue
-        const tq = new THREE.Quaternion(target[0], target[1], target[2], target[3])
-        bone.quaternion.slerp(tq, t)
-      }
-    }
-
-    // One-time diagnostic at frame 10
+    // Diagnostic at frame 10
     this.diagnosticFrame++
     if (this.diagnosticFrame === 10) {
-      console.log('[SkeletalController] frame-10 diag — baseAction:', {
-        exists: !!this.baseAction,
-        weight: this.baseAction?.getEffectiveWeight(),
-        enabled: this.baseAction?.enabled,
-        isRunning: this.baseAction?.isRunning(),
-        paused: this.baseAction?.paused,
-        time: this.baseAction?.time,
-      })
-      console.log('[SkeletalController] frame-10 diag — topAction:', {
-        exists: !!this.topAction,
-        weight: this.topAction?.getEffectiveWeight(),
-        isRunning: this.topAction?.isRunning(),
+      console.log('[SkeletalController] frame-10 diag', {
+        baseExists:    !!this.baseAction,
+        baseWeight:    this.baseAction?.getEffectiveWeight(),
+        baseRunning:   this.baseAction?.isRunning(),
+        baseClip:      this.baseClip?.name ?? 'none',
+        topExists:     !!this.topAction,
+        topWeight:     this.topAction?.getEffectiveWeight(),
+        topRunning:    this.topAction?.isRunning(),
+        isInGesture:   this.isInGesture,
       })
     }
   }
 
   private _tryStartIdle(): void {
     if (!this.pendingIdle || !this.mixer) return
-    const id = this._pickNextIdle(this.currentEmotion)
+    const id    = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
-    if (!entry) return  // dict not ready yet — keep pendingIdle=true, retry next frame
+    if (!entry) return   // dict not ready — retry next frame
 
     console.log('[SkeletalController] idle started:', id)
-    this.pendingIdle = false
+    this.pendingIdle       = false
     this.currentIdleClipId = id
-    this.isInGesture = false
+    this.isInGesture       = false
 
     const action = this.mixer.clipAction(entry.clip)
-    action.blendMode = THREE.NormalAnimationBlendMode
+    action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -294,94 +272,38 @@ export class SkeletalController {
     this.topAction    = action
     this.topWeightCur = 0
     this.topWeightTgt = 1.0
+    this.topWeightMax = 1.0
   }
 
-  /** Pick a random clip from the emotion’s pool, avoiding immediate repeat. */
   private _pickNextIdle(emotion: EmotionId): string {
-    const pool = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
+    const pool       = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
     if (pool.length === 1) return pool[0]
     const candidates = pool.filter(id => id !== this.currentIdleClipId)
     return candidates[Math.floor(Math.random() * candidates.length)]
   }
 
-  // ── Performance loading ─────────────────────────────────────────────────────
+  // ── Additive clip conversion ────────────────────────────────────────────────
 
   /**
-   * Load a new set of gesture cues from the Virtual Director.
-   * Resets the word counter — call this when a new TTS utterance begins.
+   * Convert a gesture clip to additive mode relative to avaturn_animation frame-0.
+   * Result is cached — each clip is only converted once.
    *
-   * @param cues    Validated gesture_cues from VirtualDirector.analyse()
-   */
-  loadPerformance(cues: GestureCue[]): void {
-    this.pendingCues  = [...cues].sort((a, b) => a.word_index - b.word_index)
-    this.wordCounter  = 0
-  }
-
-  // ── WordBoundary hook ───────────────────────────────────────────────────────
-
-  /**
-   * Called by the TTS adapter on every WordBoundary event from Azure TTS.
-   * The controller increments an internal word counter and fires any pending
-   * gesture cues whose word_index matches.
-   *
-   * For non-Azure TTS providers (ElevenLabs, Mascotbot), call this at each
-   * sentence chunk boundary with the running word count.
-   */
-  onWordBoundary(): void {
-    const idx = this.wordCounter++
-
-    while (this.pendingCues.length > 0 && this.pendingCues[0].word_index <= idx) {
-      const cue = this.pendingCues.shift()!
-      this.playGesture(cue.anim_id, cue.crossfade_duration)
-    }
-  }
-
-  // ── Emotion-aware idle ──────────────────────────────────────────────────────
-
-  /**
-   * Called by AvatarEngine when EmotionStateMachine.set() fires.
-   * Crossfades the body to the appropriate idle animation for the new emotion.
-   * The avatar's body language will match its persistent emotional state.
-   */
-  onEmotionChange(emotion: EmotionId): void {
-    if (emotion === this.currentEmotion) return
-    this.currentEmotion = emotion
-    // Don’t interrupt a mid-gesture — the gesture’s onFinished will call playIdle
-    if (!this.isInGesture) {
-      this.playIdle(emotion)
-    }
-  }
-
-  // ── Playback helpers ────────────────────────────────────────────────────────
-
-  /**
-   * Convert a clip to additive mode using the base idle clip (avaturn_animation) as
-   * the reference pose. This ensures arm gesture deltas are relative to the avatar's
-   * actual idle pose, not T-pose — so they layer correctly on top of the base action.
-   *
-   * THREE.AnimationUtils.makeClipAdditive(clip, referenceTime, referenceClip) subtracts
-   * referenceClip's pose at referenceTime from every keyframe in clip. Using the base
-   * idle at t=0 as reference means each gesture keyframe stores the delta from idle.
-   * At runtime the additive action adds that delta on top of whatever the base action
-   * is currently playing — giving the intended arm movement without T-flap.
-   *
-   * Results are cached: each source clip is only converted once.
+   * makeClipAdditive(clip, 0, baseClip) subtracts the base pose at t=0 from every
+   * keyframe in the gesture clip. At runtime the additive action adds those deltas
+   * ON TOP of whatever the base action is playing — arms move from natural rest pose,
+   * not from T-pose bind pose.
    */
   private _toAdditive(clip: THREE.AnimationClip): THREE.AnimationClip {
     const cached = this.additiveCache.get(clip.name)
     if (cached) return cached
 
-    // Deep-copy the clip so we don't mutate the original in the dictionary
-    const addClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
-    addClip.name  = clip.name + '__additive'
+    const addClip  = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
+    addClip.name   = clip.name + '__additive'
 
     if (this.baseClip) {
-      // Subtract the idle pose at t=0 from every keyframe of the gesture clip.
-      // This gives arm deltas relative to the avatar's actual idle breathing pose.
       THREE.AnimationUtils.makeClipAdditive(addClip, 0, this.baseClip)
     } else {
-      // No base clip available (no avaturn_animation in GLB) — fall back to
-      // self-reference additive (deltas from the clip's own frame-0).
+      // No base clip — fall back to self-reference (deltas from clip's own frame-0)
       THREE.AnimationUtils.makeClipAdditive(addClip)
     }
 
@@ -389,63 +311,82 @@ export class SkeletalController {
     return addClip
   }
 
+  // ── Playback ────────────────────────────────────────────────────────────────
+
   private playIdle(emotion: EmotionId, idleId?: string): void {
     if (!this.mixer) return
     const id    = idleId ?? this._pickNextIdle(emotion)
     const entry = this.dictionary.get(id)
     if (!entry) return
+
     this.currentIdleClipId = id
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
     if (this.topAction) {
-      if (this.outAction && this.outAction !== this.topAction) {
-        this.outAction.stop()
-      }
+      if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
     }
 
     const action = this.mixer.clipAction(entry.clip)
-    action.blendMode = THREE.NormalAnimationBlendMode
+    action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
     action.play()
-    this.topAction   = action
+    this.topAction    = action
     this.topWeightCur = 0
-    this.topWeightTgt = 1
+    this.topWeightTgt = 1.0
+    this.topWeightMax = 1.0
   }
 
   private playGesture(animId: string, crossfadeDuration: number): void {
     if (!this.mixer) return
     const entry = this.dictionary.get(animId)
     if (!entry) {
-      console.warn(`[SkeletalController] Animation "${animId}" not found in dictionary`)
+      console.warn(`[SkeletalController] "${animId}" not found in dictionary`)
       return
     }
 
     if (this.topAction) {
-      if (this.outAction && this.outAction !== this.topAction) {
-        this.outAction.stop()
-      }
+      if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
     }
 
-    // Normal blend for all gestures. avaturn_animation (base) no longer drives arm
-    // bones (arm tracks stripped from GLB) so gesture clips fully own arm bones at
-    // weight=1 with no conflict. No additive delta correction needed.
-    this.isInGesture = true
-    this.idlePoolTimer = 0  // don’t cycle idle while gesturing
-    const action = this.mixer.clipAction(entry.clip)
-    action.blendMode = THREE.NormalAnimationBlendMode
+    this.isInGesture   = true
+    this.idlePoolTimer = 0
+
+    const isArmGesture = ARM_GESTURE_CLIP_IDS.has(animId)
+
+    let clip: THREE.AnimationClip
+    let blendMode: THREE.AnimationBlendMode
+    let weightMax: number
+
+    if (isArmGesture) {
+      // Additive blend: delta from avaturn_animation frame-0 layered on top of base.
+      // Arms move naturally from rest pose.
+      clip      = this._toAdditive(entry.clip)
+      blendMode = THREE.AdditiveAnimationBlendMode
+      weightMax = GESTURE_ADDITIVE_WEIGHT
+    } else {
+      // Normal blend: head/spine clip on top layer, base still owns arms.
+      clip      = entry.clip
+      blendMode = THREE.NormalAnimationBlendMode
+      weightMax = 1.0
+    }
+
+    const action = this.mixer.clipAction(clip)
+    action.blendMode       = blendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
     action.setEffectiveWeight(0)
     action.play()
+
     this.topAction    = action
     this.topWeightCur = 0
-    this.topWeightTgt = 1
+    this.topWeightTgt = weightMax
+    this.topWeightMax = weightMax
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
@@ -456,10 +397,29 @@ export class SkeletalController {
     this.mixer.addEventListener('finished', onFinished)
   }
 
-  /**
-   * Stop all animations and reset to neutral idle.
-   * Call when the session ends or avatar resets.
-   */
+  // ── Public API ──────────────────────────────────────────────────────────────
+
+  loadPerformance(cues: GestureCue[]): void {
+    this.pendingCues = [...cues].sort((a, b) => a.word_index - b.word_index)
+    this.wordCounter = 0
+  }
+
+  onWordBoundary(): void {
+    const idx = this.wordCounter++
+    while (this.pendingCues.length > 0 && this.pendingCues[0].word_index <= idx) {
+      const cue = this.pendingCues.shift()!
+      this.playGesture(cue.anim_id, cue.crossfade_duration)
+    }
+  }
+
+  onEmotionChange(emotion: EmotionId): void {
+    if (emotion === this.currentEmotion) return
+    this.currentEmotion = emotion
+    if (!this.isInGesture) {
+      this.playIdle(emotion)
+    }
+  }
+
   reset(): void {
     this.mixer?.stopAllAction()
     this.pendingCues       = []
@@ -473,6 +433,7 @@ export class SkeletalController {
     this.baseAction        = null
     this.topWeightCur      = 0
     this.topWeightTgt      = 0
+    this.topWeightMax      = 1.0
     this.pendingIdle       = true
     this._tryStartIdle()
   }
