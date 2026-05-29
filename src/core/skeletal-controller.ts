@@ -120,16 +120,25 @@ const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_professional_authority_stance',
 ])
 
-// Arm bones we procedurally lerp to arms-at-sides pose after every mixer tick.
-// Target: LeftArm/RightArm X → ARM_X_TARGET (≈89°). Shoulder bind Z=±90° means LeftArm X=89° puts arm pointing straight down in world space.
-// Skip while a gesture is playing so ARM_GESTURE clips can move arms freely.
-const ARM_BONE_NAMES = ['LeftArm', 'RightArm'] as const
+// Arm bones corrected procedurally each frame toward their avaturn_animation frame-0
+// quaternions — the natural rest pose for this skeleton.
+// Covers shoulders (prevent hunching), upper arms, and forearms (prevent rigid elbows).
+// Correction skipped while isInGesture=true so gesture clips move freely.
+const ARM_BONE_NAMES = ['LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
 
-// How fast arms lerp to sides pose (~0.6s to fully correct at 60fps)
-const ARM_LERP_SPEED = 8
-// Target X rotation for LeftArm/RightArm — matches avaturn_animation frame-0 pose.
-// Shoulder bind pose (X=97°,Z=-90°) + LeftArm X=31° = arms hanging naturally at sides.
-const ARM_X_TARGET = 1.55  // radians ≈ 89° — puts arm pointing straight down in world space
+// Slerp speed — settles in ~0.3s at 60fps
+const ARM_LERP_SPEED = 6
+
+// Target quaternions: avaturn_animation frame-0, extracted from acts-guide.glb.
+// This is exactly the pose that looked natural in the old two-action mixer build.
+const ARM_REST_QUATS: Record<string, [number, number, number, number]> = {
+  LeftShoulder:  [ 0.584305,  0.466298, -0.531432,  0.398415],
+  RightShoulder: [-0.598519,  0.471551, -0.527063, -0.376324],
+  LeftArm:       [ 0.537788,  0.128641, -0.045315,  0.831975],
+  RightArm:      [ 0.522803, -0.096794,  0.055773,  0.845102],
+  LeftForeArm:   [ 0.027497,  0.023706,  0.148167,  0.988296],
+  RightForeArm:  [ 0.014204,  0.006028, -0.169052,  0.985486],
+}
 
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
@@ -170,8 +179,8 @@ export class SkeletalController {
     console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)')
 
     // Capture arm bone references for procedural arms-at-sides correction.
-    // After every mixer tick we lerp LeftArm/RightArm Z back toward 0°
-    // so arms hang naturally at sides regardless of what the idle clip drives.
+    // After every mixer tick we slerp arm bones toward their avaturn_animation frame-0
+    // quaternions — the natural rest pose for this skeleton.
     this.armBones.clear()
     avatarRoot.traverse((obj) => {
       if ((obj as THREE.Bone).isBone && ARM_BONE_NAMES.includes(obj.name as typeof ARM_BONE_NAMES[number])) {
@@ -232,17 +241,17 @@ export class SkeletalController {
 
     this.mixer?.update(delta)
 
-    // ── Procedural arms-at-sides correction ────────────────────────────────
-    // After the mixer ticks, lerp LeftArm/RightArm X back toward ARM_X_TARGET (≈89° = arm straight down).
-    // The shoulder bind pose (X=97°, Z=-90°) + LeftArm X=31° = arms hanging at sides.
-    // avaturn_animation used to hold LeftArm at exactly this X — we replicate that.
-    // Skip while a gesture is active so ARM_GESTURE clips can move arms freely.
+    // ── Procedural arm rest-pose correction ─────────────────────────────────
+    // After the mixer ticks, slerp each arm/shoulder/forearm bone toward its
+    // avaturn_animation frame-0 quaternion — the natural rest pose.
+    // Skip while a gesture is playing so ARM_GESTURE clips move freely.
     if (this.armBones.size > 0 && !this.isInGesture) {
       const t = Math.min(1, ARM_LERP_SPEED * delta)
-      for (const [, bone] of this.armBones) {
-        const euler = new THREE.Euler().setFromQuaternion(bone.quaternion, 'XYZ')
-        euler.x = THREE.MathUtils.lerp(euler.x, ARM_X_TARGET, t)
-        bone.quaternion.setFromEuler(euler)
+      for (const [name, bone] of this.armBones) {
+        const target = ARM_REST_QUATS[name]
+        if (!target) continue
+        const tq = new THREE.Quaternion(target[0], target[1], target[2], target[3])
+        bone.quaternion.slerp(tq, t)
       }
     }
 
