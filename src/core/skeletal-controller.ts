@@ -1,81 +1,32 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Track-Filtering architecture (0.3.54):
+ * Architecture (0.3.55):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
  *                 Full body including arms — drives natural rest arm pose.
  *                 NEVER faded, NEVER stopped, NEVER zeroed — not even during gestures.
  *
- *   TOP layer (idle + gesture) — HEAD_SPINE_ONLY filtered clip.
- *                 Only Spine/Spine1/Spine2/Neck/Head tracks.
- *                 Arms have NO top-layer tracks → base 100% owns arm bones → no averaging.
- *                 Body sway/nod/gesture animations work; arms stay naturally at sides.
+ *   TOP layer (idle + gesture) — entry.clip used DIRECTLY, NO filtering.
+ *                 Clips in animations.glb already contain only spine/head tracks.
+ *                 headSpineOnly filter was stripping too aggressively (regex missed
+ *                 Spine2/Spine3 variants, left some clips with 0–1 tracks → no motion).
+ *                 Since clips have no arm tracks, base exclusively owns arm bones.
+ *                 No filtering needed — just play the clips as authored.
  *
  *   OUT layer   — previous top action fading weight 1→0 then stopped.
  *
- * Root cause of T-pose (diagnosed from console logs):
- *   animations.glb gesture clips (e.g. mixamo_empathy_leaning_forward) have only
- *   3 tracks: Spine, Spine1, Head — SAME as idle clips. They have NO arm tracks.
- *   0.3.53 zeroed the base during gestures to give gesture exclusive arm control,
- *   but since gesture clips have no arm tracks either, zeroing base left arms with
- *   ZERO driver → bind pose → T-pose.
- *
- *   Confirmed from console: [trackFilter] upperBodyOnly "mixamo_empathy_leaning_forward": 3 tracks
- *
- * Correct architecture (0.3.54):
- *   - Base = full avaturn_animation (arms intact). Arms always have a driver.
- *   - ALL clips (idle + gesture) = HEAD_SPINE_ONLY (no arm tracks → base owns arms).
- *   - Base weight NEVER changes. No zeroing, no restoring. Arms always natural.
- *   - If a future clip has real arm tracks, promote it to additive blend separately.
+ * History of T-pose fixes:
+ *   0.3.52: base filtered to lower-body-only → arm tracks stripped → zero arm driver → T-pose
+ *   0.3.53: base=full (correct) but base zeroed during gesture → gesture had no arms either → T-pose
+ *   0.3.54: base never zeroed (correct) but headSpineOnly over-filtered clips → no visible motion
+ *   0.3.55: no filtering at all — clips played as-is, base owns arms always
  */
 
 import * as THREE from 'three'
 import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
-
-// ── Track filters ─────────────────────────────────────────────────────────────
-
-/**
- * HEAD_SPINE_ONLY: only keep tracks for Spine, Spine1, Spine2, Neck, Head.
- * Everything else (Shoulder, Arm, ForeArm, Hand, Hips, Leg…) is stripped.
- * Applied to idle clips so base layer exclusively drives arm bones.
- */
-const HEAD_SPINE_RE = /^(Spine\d?|Neck|Head)\./i
-
-const headSpineCache = new Map<string, THREE.AnimationClip>()
-function headSpineOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const cached = headSpineCache.get(clip.name)
-  if (cached) return cached
-
-  const tracks = clip.tracks.filter(t => HEAD_SPINE_RE.test(t.name))
-  const filtered = new THREE.AnimationClip(clip.name + '__headspine', clip.duration, tracks)
-  headSpineCache.set(clip.name, filtered)
-
-  console.log(`[trackFilter] headSpineOnly "${clip.name}": ${tracks.length} tracks`,
-    tracks.map(t => t.name.split('.')[0]).join(', '))
-  return filtered
-}
-
-/**
- * UPPER_BODY_ONLY: keep Spine + Shoulder + Arm + ForeArm + Hand + Neck + Head.
- * Applied to gesture clips. Used when base is zeroed so gestures drive arms exclusively.
- */
-const UPPER_BODY_RE = /Spine|Neck|Head|Shoulder|Arm|ForeArm|Hand|Finger|Thumb|Index|Middle|Ring|Pinky/i
-
-const upperBodyCache = new Map<string, THREE.AnimationClip>()
-function upperBodyOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const cached = upperBodyCache.get(clip.name)
-  if (cached) return cached
-
-  const tracks = clip.tracks.filter(t => UPPER_BODY_RE.test(t.name))
-  const filtered = new THREE.AnimationClip(clip.name + '__upper', clip.duration, tracks)
-  upperBodyCache.set(clip.name, filtered)
-
-  console.log(`[trackFilter] upperBodyOnly "${clip.name}": ${tracks.length} tracks`)
-  return filtered
-}
 
 // ── Emotion → idle animation pools ───────────────────────────────────────────
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
@@ -250,10 +201,8 @@ export class SkeletalController {
     this.pendingIdle       = false
     this.currentIdleClipId = id
     this.isInGesture       = false
-
-    // HEAD_SPINE_ONLY: strip arm/shoulder/hand tracks from idle.
-    // Base layer owns arm bones at rest — no competition, no averaging.
-    const clip   = headSpineOnly(entry.clip)
+    // Clips already have only spine/head tracks — no filtering needed.
+    const clip   = entry.clip
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
@@ -287,7 +236,7 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const clip   = headSpineOnly(entry.clip)
+    const clip   = entry.clip
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
@@ -316,12 +265,9 @@ export class SkeletalController {
     this.idlePoolTimer = 0
 
     // Base stays at weight=1 — ALWAYS. Gesture clips in animations.glb have only
-    // Spine/Spine1/Head tracks (confirmed: upperBodyOnly returns 3 tracks, not arm tracks).
-    // Zeroing base would strip the only arm driver → T-pose. Never touch base weight.
-    //
-    // Apply headSpineOnly filter (same as idle) — gestures drive head/spine,
-    // base drives arms exclusively at rest pose throughout.
-    const clip   = headSpineOnly(entry.clip)
+    // Base stays at weight=1 — never touched, never zeroed.
+    // Clips have only spine/head tracks; base exclusively owns arm bones throughout.
+    const clip   = entry.clip
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
