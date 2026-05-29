@@ -120,12 +120,16 @@ const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_professional_authority_stance',
 ])
 
-// Arm bones we procedurally lerp back to sides after every mixer tick.
-// The mixer can drive them wherever it wants — we correct Z toward 0° each frame.
-const ARM_BONE_NAMES = ['LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
+// Arm bones we procedurally lerp to arms-at-sides pose after every mixer tick.
+// Target: LeftArm/RightArm X → ARM_X_TARGET (≈31°), matching avaturn_animation frame-0.
+// Skip while a gesture is playing so ARM_GESTURE clips can move arms freely.
+const ARM_BONE_NAMES = ['LeftArm', 'RightArm'] as const
 
-// How fast arms lerp back to sides (radians per second, ~0.6s to fully correct)
+// How fast arms lerp to sides pose (~0.6s to fully correct at 60fps)
 const ARM_LERP_SPEED = 8
+// Target X rotation for LeftArm/RightArm — matches avaturn_animation frame-0 pose.
+// Shoulder bind pose (X=97°,Z=-90°) + LeftArm X=31° = arms hanging naturally at sides.
+const ARM_X_TARGET = 0.537  // radians ≈ 31°
 
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
@@ -229,18 +233,15 @@ export class SkeletalController {
     this.mixer?.update(delta)
 
     // ── Procedural arms-at-sides correction ────────────────────────────────
-    // After the mixer has written whatever it wants to arm bone rotations,
-    // lerp the Z euler component back toward 0° (arms at sides).
-    // LeftForeArm and RightForeArm also get their Z zeroed — keeps elbows bent
-    // naturally rather than sticking out sideways.
-    // Speed is fast enough to correct within ~2 frames so no visible lag.
-    if (this.armBones.size > 0) {
+    // After the mixer ticks, lerp LeftArm/RightArm X back toward ARM_X_TARGET (≈31°).
+    // The shoulder bind pose (X=97°, Z=-90°) + LeftArm X=31° = arms hanging at sides.
+    // avaturn_animation used to hold LeftArm at exactly this X — we replicate that.
+    // Skip while a gesture is active so ARM_GESTURE clips can move arms freely.
+    if (this.armBones.size > 0 && !this.isInGesture) {
       const t = Math.min(1, ARM_LERP_SPEED * delta)
-      for (const [name, bone] of this.armBones) {
-        // Work in euler space — only zero out Z (abduction/adduction axis).
-        // X and Y drive forward swing and twist — leave those to the mixer.
+      for (const [, bone] of this.armBones) {
         const euler = new THREE.Euler().setFromQuaternion(bone.quaternion, 'XYZ')
-        euler.z = THREE.MathUtils.lerp(euler.z, 0, t)
+        euler.x = THREE.MathUtils.lerp(euler.x, ARM_X_TARGET, t)
         bone.quaternion.setFromEuler(euler)
       }
     }
