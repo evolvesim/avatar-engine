@@ -41,52 +41,55 @@ import type { GestureCue } from './virtual-director'
 //   - avaturn_animation arm tracks are frozen at bind-pose quaternions (arms at sides)
 //   - Any clip with arm tracks would fight the base → use ARM_SAFE clips only here
 
+// All clips in these pools are ARM_SAFE (head/spine/neck tracks only).
+// Verified present in animations.glb and confirmed no LeftArm/RightArm tracks.
+// Arms are held at sides by the procedural Z-correction in update().
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
-    'quaternius_neutral_idle',              // subtle head/spine sway — clean neutral
+    'quaternius_neutral_idle',              // subtle head/spine sway — confirmed ARM_SAFE
     'mesh2motion_neutral_weight_shift',     // gentle weight shift, spine only
     'evolve_listening_interested_lean',     // slight forward lean, engaged
     'mixamo_neutral_looking_around',        // natural head look-around
   ],
   joy: [
-    'quaternius_joy_breathing_idle',        // upbeat chest/head lift
-    'evolve_empathy_gentle_nod',            // warm nod
+    'evolve_empathy_gentle_nod',            // warm upbeat nod — ARM_SAFE
     'mixamo_neutral_thoughtful_nod',        // lighter nod variation
+    'quaternius_neutral_idle',              // fallback
   ],
   anger: [
-    'quaternius_anger_tense_idle',          // tense neck/spine, head forward
-    'mesh2motion_neutral_weight_shift',     // controlled weight — simmering
+    'mesh2motion_neutral_weight_shift',     // controlled weight shift — simmering
+    'quaternius_neutral_idle',              // stillness — contained anger
   ],
   sadness: [
-    'quaternius_sadness_idle',              // slumped spine/head drop
-    'evolve_sadness_resigned_sigh',         // head bow, resigned
+    'evolve_sadness_resigned_sigh',         // head bow, resigned — ARM_SAFE
+    'quaternius_neutral_idle',              // subdued stillness
   ],
   surprise: [
-    'quaternius_surprise_idle',             // head recoil, eyebrows up
-    'mixamo_neutral_looking_around',        // rapid head scan
+    'mixamo_neutral_looking_around',        // rapid head scan — ARM_SAFE
+    'quaternius_neutral_idle',              // frozen moment fallback
   ],
   fear: [
-    'quaternius_fear_idle',                 // frozen posture, minimal movement
-    'quaternius_neutral_idle',              // stillness fallback
+    'quaternius_neutral_idle',              // frozen, minimal movement — ARM_SAFE
+    'mesh2motion_neutral_weight_shift',     // slight unease
   ],
   disgust: [
-    'quaternius_disgust_idle',              // head pull-back, spine lean away
-    'mesh2motion_neutral_weight_shift',     // shifting away
+    'mesh2motion_neutral_weight_shift',     // shifting away — ARM_SAFE
+    'quaternius_neutral_idle',              // recoil stillness
   ],
   empathy: [
-    'mixamo_empathy_leaning_forward',       // gentle forward lean toward person
+    'mixamo_empathy_leaning_forward',       // gentle forward lean — ARM_SAFE
     'evolve_empathy_gentle_nod',            // warm engaged nod
     'evolve_listening_interested_lean',     // attentive lean
   ],
   concentration: [
-    'mixamo_neutral_looking_around',        // scanning/processing look
+    'mixamo_neutral_looking_around',        // scanning/processing look — ARM_SAFE
     'mixamo_neutral_thoughtful_nod',        // processing nod
     'evolve_idle_look_down_notes',          // looking down, thinking
   ],
   confusion: [
-    'evolve_confusion_double_head_tilt',    // double head tilt — confused
+    'evolve_confusion_double_head_tilt',    // double head tilt — ARM_SAFE
     'mixamo_neutral_looking_around',        // uncertain look-around
-    'quaternius_neutral_idle',              // neutral fallback
+    'quaternius_neutral_idle',              // fallback
   ],
 }
 
@@ -117,12 +120,21 @@ const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_professional_authority_stance',
 ])
 
+// Arm bones we procedurally lerp back to sides after every mixer tick.
+// The mixer can drive them wherever it wants — we correct Z toward 0° each frame.
+const ARM_BONE_NAMES = ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
+
+// How fast arms lerp back to sides (radians per second, ~0.6s to fully correct)
+const ARM_LERP_SPEED = 8
+
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
   private baseAction:    THREE.AnimationAction | null = null
   private baseClip:      THREE.AnimationClip | null = null  // stripped avaturn_animation
   private topAction:     THREE.AnimationAction | null = null
   private outAction:     THREE.AnimationAction | null = null
+  /** Arm bones captured at init — used for procedural arms-at-sides correction */
+  private armBones: Map<string, THREE.Bone> = new Map()
   private topWeightTgt:  number = 0
   private topWeightCur:  number = 0
   private dictionary:    AnimationDictionary
@@ -151,38 +163,18 @@ export class SkeletalController {
    */
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
-    console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)', 'clips provided:', clips?.length ?? 0)
+    console.log('[SkeletalController] init — avatarRoot:', avatarRoot.name || '(unnamed)')
 
-    // Extract avaturn_animation embedded in the GLB scene itself
-    // (not in animations.glb — it's baked into every Avaturn export)
-    const animations: THREE.AnimationClip[] =
-      (clips && clips.length > 0)
-        ? clips
-        : ((avatarRoot as THREE.Object3D & { animations?: THREE.AnimationClip[] }).animations ?? [])
-
-    const rawBase = animations.find(c => c.name === 'avaturn_animation')
-
-    if (rawBase) {
-      // Strip morph tracks — applyWeightsToMeshes owns the face.
-      // Arm tracks are already stripped from the GLB itself (process-glb pipeline)
-      // so avaturn_animation only drives body/facing bones (Hips, Spine, Legs, Head).
-      const baseClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(rawBase))
-      const beforeCount = baseClip.tracks.length
-      baseClip.tracks = baseClip.tracks.filter(
-        t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
-      )
-      const afterCount = baseClip.tracks.length
-      console.log(`[SkeletalController] avaturn_animation found — ${afterCount} body tracks (stripped ${beforeCount - afterCount} morph tracks). Arm bones free for gesture clips.`)
-      this.baseClip   = baseClip  // keep reference for makeClipAdditive calls
-      this.baseAction = this.mixer.clipAction(baseClip)
-      this.baseAction.setLoop(THREE.LoopRepeat, Infinity)
-      this.baseAction.clampWhenFinished = false
-      this.baseAction.setEffectiveWeight(1)
-      this.baseAction.play()
-      console.log('[SkeletalController] baseAction playing — weight:', this.baseAction.getEffectiveWeight(), 'enabled:', this.baseAction.enabled, 'isRunning:', this.baseAction.isRunning())
-    } else {
-      console.log('[SkeletalController] No avaturn_animation in GLB — T-pose base mode. Gestures use NormalBlend (all clips share T-pose reference frame).')
-    }
+    // Capture arm bone references for procedural arms-at-sides correction.
+    // After every mixer tick we lerp LeftArm/RightArm Z back toward 0°
+    // so arms hang naturally at sides regardless of what the idle clip drives.
+    this.armBones.clear()
+    avatarRoot.traverse((obj) => {
+      if ((obj as THREE.Bone).isBone && ARM_BONE_NAMES.includes(obj.name as typeof ARM_BONE_NAMES[number])) {
+        this.armBones.set(obj.name, obj as THREE.Bone)
+      }
+    })
+    console.log(`[SkeletalController] arm bones captured: ${[...this.armBones.keys()].join(', ')}`)
 
     this.pendingIdle = true
     this._tryStartIdle()
@@ -235,6 +227,23 @@ export class SkeletalController {
     }
 
     this.mixer?.update(delta)
+
+    // ── Procedural arms-at-sides correction ────────────────────────────────
+    // After the mixer has written whatever it wants to arm bone rotations,
+    // lerp the Z euler component back toward 0° (arms at sides).
+    // LeftForeArm and RightForeArm also get their Z zeroed — keeps elbows bent
+    // naturally rather than sticking out sideways.
+    // Speed is fast enough to correct within ~2 frames so no visible lag.
+    if (this.armBones.size > 0) {
+      const t = Math.min(1, ARM_LERP_SPEED * delta)
+      for (const [name, bone] of this.armBones) {
+        // Work in euler space — only zero out Z (abduction/adduction axis).
+        // X and Y drive forward swing and twist — leave those to the mixer.
+        const euler = new THREE.Euler().setFromQuaternion(bone.quaternion, 'XYZ')
+        euler.z = THREE.MathUtils.lerp(euler.z, 0, t)
+        bone.quaternion.setFromEuler(euler)
+      }
+    }
 
     // One-time diagnostic at frame 10
     this.diagnosticFrame++
