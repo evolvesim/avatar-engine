@@ -122,7 +122,7 @@ const ARM_GESTURE_CLIP_IDS = new Set([
 
 // Arm bones we procedurally lerp back to sides after every mixer tick.
 // The mixer can drive them wherever it wants — we correct Z toward 0° each frame.
-const ARM_BONE_NAMES = ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
+const ARM_BONE_NAMES = ['LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'] as const
 
 // How fast arms lerp back to sides (radians per second, ~0.6s to fully correct)
 const ARM_LERP_SPEED = 8
