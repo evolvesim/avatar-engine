@@ -103,15 +103,23 @@ export class SkeletalController {
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
   private diagnosticFrame    = 0
-  /** Cache of shoulder-patched clips — each gesture clip patched at most once */
-  private shoulderPatchCache: Map<string, THREE.AnimationClip> = new Map()
+  /** Cache of arm-rest-patched clips — each clip is patched at most once */
+  private armRestPatchCache: Map<string, THREE.AnimationClip> = new Map()
 
-  // avaturn_animation frame-0 shoulder quaternions — the natural rest position.
-  // Injected as constant tracks into gesture clips that lack shoulder tracks,
-  // so shoulders never snap to bind pose (Z=90deg T-pose) when base is zeroed.
-  private static readonly SHOULDER_REST: Record<string, [number,number,number,number]> = {
+  // avaturn_animation frame-0 arm/shoulder quaternions — the natural rest position
+  // for acts-guide.glb. Injected as constant tracks into ANY clip that lacks
+  // these bones, so arms always show natural rest pose regardless of base layer.
+  //
+  // LeftShoulder Z≈90° (horizontal) + LeftArm X≈66° (arm bent down from shoulder)
+  // = natural hanging arm position. Without LeftArm the arm stays at T-pose even
+  // though shoulder is correct.
+  private static readonly ARM_REST: Record<string, [number,number,number,number]> = {
     LeftShoulder:  [ 0.584305,  0.466298, -0.531432,  0.398415],
     RightShoulder: [-0.598519,  0.471551, -0.527063, -0.376324],
+    LeftArm:       [ 0.537788,  0.128641, -0.045315,  0.831975],
+    RightArm:      [ 0.522803, -0.096794,  0.055773,  0.845102],
+    LeftForeArm:   [ 0.027497,  0.023706,  0.148167,  0.988296],
+    RightForeArm:  [ 0.014204,  0.006028, -0.169052,  0.985486],
   }
 
   constructor(dictionary: AnimationDictionary) {
@@ -119,42 +127,44 @@ export class SkeletalController {
   }
 
   /**
-   * Return a version of the clip that is guaranteed to have LeftShoulder and
-   * RightShoulder rotation tracks. If the clip already has them, return it as-is.
-   * Otherwise, deep-copy and inject constant QuaternionKeyframeTracks at the
-   * avaturn_animation frame-0 shoulder quaternions.
-   * Results are cached — each clip is only patched once.
+   * Return a version of the clip that is guaranteed to have all arm and shoulder
+   * rotation tracks (LeftShoulder, RightShoulder, LeftArm, RightArm, LeftForeArm,
+   * RightForeArm). If the clip already has a track, it is left untouched. Missing
+   * tracks are injected as constant QuaternionKeyframeTracks at the avaturn_animation
+   * frame-0 rest values, so arms always render at natural rest pose regardless of
+   * whether the base layer is active.
+   *
+   * Applied to EVERY clip (both idles and gestures) before playback.
+   * Results are cached — each clip is only deep-copied once.
    */
-  private _ensureShoulderTracks(clip: THREE.AnimationClip): THREE.AnimationClip {
-    const cached = this.shoulderPatchCache.get(clip.name)
+  private _ensureArmRestTracks(clip: THREE.AnimationClip): THREE.AnimationClip {
+    const cached = this.armRestPatchCache.get(clip.name)
     if (cached) return cached
 
-    const hasLeft  = clip.tracks.some(t => t.name.includes('LeftShoulder.quaternion')  || t.name.includes('LeftShoulder.rotation'))
-    const hasRight = clip.tracks.some(t => t.name.includes('RightShoulder.quaternion') || t.name.includes('RightShoulder.rotation'))
+    const BONES = Object.keys(SkeletalController.ARM_REST)
+    const missing = BONES.filter(
+      bone => !clip.tracks.some(t => t.name === bone + '.quaternion' || t.name === bone + '.rotation')
+    )
 
-    if (hasLeft && hasRight) {
-      this.shoulderPatchCache.set(clip.name, clip)
+    if (missing.length === 0) {
+      // Clip already has all arm tracks — cache and return as-is
+      this.armRestPatchCache.set(clip.name, clip)
       return clip
     }
 
     // Deep-copy so we don't mutate the dictionary entry
     const patched = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
-    patched.name  = clip.name + '__shoulderPatched'
+    patched.name  = clip.name + '__armPatched'
 
     const times = new Float32Array([0, patched.duration])
 
-    if (!hasLeft) {
-      const q = SkeletalController.SHOULDER_REST['LeftShoulder']
+    for (const bone of missing) {
+      const q = SkeletalController.ARM_REST[bone]
       const values = new Float32Array([q[0],q[1],q[2],q[3], q[0],q[1],q[2],q[3]])
-      patched.tracks.push(new THREE.QuaternionKeyframeTrack('LeftShoulder.quaternion', times, values))
-    }
-    if (!hasRight) {
-      const q = SkeletalController.SHOULDER_REST['RightShoulder']
-      const values = new Float32Array([q[0],q[1],q[2],q[3], q[0],q[1],q[2],q[3]])
-      patched.tracks.push(new THREE.QuaternionKeyframeTrack('RightShoulder.quaternion', times, values))
+      patched.tracks.push(new THREE.QuaternionKeyframeTrack(bone + '.quaternion', times, values))
     }
 
-    this.shoulderPatchCache.set(clip.name, patched)
+    this.armRestPatchCache.set(clip.name, patched)
     return patched
   }
 
@@ -255,7 +265,10 @@ export class SkeletalController {
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    const action = this.mixer.clipAction(entry.clip)
+    // Ensure all arm/shoulder bones are covered even if this idle clip
+    // only has head/spine tracks — prevents T-pose when top action wins
+    const clip = this._ensureArmRestTracks(entry.clip)
+    const action = this.mixer.clipAction(clip)
     action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
@@ -288,7 +301,9 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const action = this.mixer.clipAction(entry.clip)
+    // Ensure all arm/shoulder bones are covered — same as _tryStartIdle
+    const clip = this._ensureArmRestTracks(entry.clip)
+    const action = this.mixer.clipAction(clip)
     action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
@@ -323,10 +338,9 @@ export class SkeletalController {
       this.baseAction.setEffectiveWeight(0)
     }
 
-    // Patch missing shoulder tracks so shoulders don't snap to bind pose (T-pose)
-    // when base is zeroed. Clips authored without shoulder tracks inherit bind
-    // pose (LeftShoulder Z=90deg) when they are the only active action.
-    const clip = this._ensureShoulderTracks(entry.clip)
+    // Ensure all arm/shoulder rest tracks are present. Gesture clips that already
+    // have their own arm movement keep it; only missing bones get the rest constant.
+    const clip = this._ensureArmRestTracks(entry.clip)
 
     const action = this.mixer.clipAction(clip)
     action.blendMode       = THREE.NormalAnimationBlendMode
