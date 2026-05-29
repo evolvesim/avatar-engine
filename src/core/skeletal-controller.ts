@@ -121,7 +121,7 @@ const ARM_GESTURE_CLIP_IDS = new Set([
 ])
 
 // Arm bones we procedurally lerp to arms-at-sides pose after every mixer tick.
-// Target: LeftArm/RightArm X → ARM_X_TARGET (≈31°), matching avaturn_animation frame-0.
+// Target: LeftArm/RightArm X → ARM_X_TARGET (≈89°). Shoulder bind Z=±90° means LeftArm X=89° puts arm pointing straight down in world space.
 // Skip while a gesture is playing so ARM_GESTURE clips can move arms freely.
 const ARM_BONE_NAMES = ['LeftArm', 'RightArm'] as const
 
@@ -129,7 +129,7 @@ const ARM_BONE_NAMES = ['LeftArm', 'RightArm'] as const
 const ARM_LERP_SPEED = 8
 // Target X rotation for LeftArm/RightArm — matches avaturn_animation frame-0 pose.
 // Shoulder bind pose (X=97°,Z=-90°) + LeftArm X=31° = arms hanging naturally at sides.
-const ARM_X_TARGET = 0.537  // radians ≈ 31°
+const ARM_X_TARGET = 1.55  // radians ≈ 89° — puts arm pointing straight down in world space
 
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
@@ -233,7 +233,7 @@ export class SkeletalController {
     this.mixer?.update(delta)
 
     // ── Procedural arms-at-sides correction ────────────────────────────────
-    // After the mixer ticks, lerp LeftArm/RightArm X back toward ARM_X_TARGET (≈31°).
+    // After the mixer ticks, lerp LeftArm/RightArm X back toward ARM_X_TARGET (≈89° = arm straight down).
     // The shoulder bind pose (X=97°, Z=-90°) + LeftArm X=31° = arms hanging at sides.
     // avaturn_animation used to hold LeftArm at exactly this X — we replicate that.
     // Skip while a gesture is active so ARM_GESTURE clips can move arms freely.
