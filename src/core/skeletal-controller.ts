@@ -137,7 +137,7 @@ export class SkeletalController {
       this.baseAction.play()
       console.log('[SkeletalController] baseAction playing — weight:', this.baseAction.getEffectiveWeight(), 'enabled:', this.baseAction.enabled, 'isRunning:', this.baseAction.isRunning())
     } else {
-      console.warn('[SkeletalController] avaturn_animation not found in GLB — arms may T-pose')
+      console.log('[SkeletalController] No avaturn_animation in GLB — T-pose base mode. Gestures use NormalBlend (all clips share T-pose reference frame).')
     }
 
     this.pendingIdle = true
@@ -343,10 +343,15 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const isArmGesture = ARM_GESTURE_CLIP_IDS.has(animId)
-    const clip   = isArmGesture ? this._toAdditive(entry.clip) : entry.clip
+    // Additive blend is only needed when avaturn_animation is the base (it holds arms
+    // in a forward pose that conflicts with T-pose-authored gesture clips).
+    // When no baseClip exists (T-pose GLB), all clips share the same reference frame
+    // so normal blend works correctly for arm gestures too.
+    const isArmGesture  = ARM_GESTURE_CLIP_IDS.has(animId)
+    const useAdditive   = isArmGesture && this.baseClip !== null
+    const clip   = useAdditive ? this._toAdditive(entry.clip) : entry.clip
     const action = this.mixer.clipAction(clip)
-    action.blendMode = isArmGesture
+    action.blendMode = useAdditive
       ? THREE.AdditiveAnimationBlendMode
       : THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
@@ -356,8 +361,9 @@ export class SkeletalController {
     action.play()
     this.topAction    = action
     this.topWeightCur = 0
-    // Arm gestures: cap at 0.45 so shoulder-abduction deltas don't flap wildly
-    this.topWeightTgt = isArmGesture ? 0.45 : 1
+    // Additive arm gestures: cap at 0.45 so shoulder-abduction deltas don't flap wildly.
+    // Normal blend gestures (including arm gestures on T-pose GLB): full weight.
+    this.topWeightTgt = useAdditive ? 0.45 : 1
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
