@@ -1,40 +1,33 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Track-Filtering architecture (0.3.53):
+ * Track-Filtering architecture (0.3.54):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
  *                 Full body including arms — drives natural rest arm pose.
- *                 NEVER faded, NEVER stopped, NEVER touched during idles.
+ *                 NEVER faded, NEVER stopped, NEVER zeroed — not even during gestures.
  *
- *   TOP layer (idle) — HEAD_SPINE_ONLY filtered clip.
+ *   TOP layer (idle + gesture) — HEAD_SPINE_ONLY filtered clip.
  *                 Only Spine/Spine1/Spine2/Neck/Head tracks.
- *                 Arms have NO tracks here → base 100% owns arm bones → no averaging.
- *                 Body sway/nod animations work; arms stay naturally at sides.
- *
- *   TOP layer (gesture) — UPPER_BODY filtered clip (Spine + Shoulder + Arm + Hand).
- *                 Gesture clips authored for T-pose BUT now played at weight=1 over
- *                 base weight=1. Because gesture HAS arm tracks and base also has arm
- *                 tracks, Three.js normalises them 50/50 → mid-pose.
- *                 Solution: zero base weight for the gesture duration only, restore after.
+ *                 Arms have NO top-layer tracks → base 100% owns arm bones → no averaging.
+ *                 Body sway/nod/gesture animations work; arms stay naturally at sides.
  *
  *   OUT layer   — previous top action fading weight 1→0 then stopped.
  *
- * Root cause of T-pose (all versions up to 0.3.52):
- *   Idle clips (quaternius_neutral_idle etc.) only have Spine/Spine1/Head tracks.
- *   When played as top action at weight=1, arm bones have NO top-layer driver.
- *   Three.js normalises: base_arm_weight / (base + top) = 1/2 if top action exists
- *   even though top has no arm track? No — actually Three.js only normalises bones
- *   that HAVE competing tracks. Arm bones with only base driving them should be fine.
+ * Root cause of T-pose (diagnosed from console logs):
+ *   animations.glb gesture clips (e.g. mixamo_empathy_leaning_forward) have only
+ *   3 tracks: Spine, Spine1, Head — SAME as idle clips. They have NO arm tracks.
+ *   0.3.53 zeroed the base during gestures to give gesture exclusive arm control,
+ *   but since gesture clips have no arm tracks either, zeroing base left arms with
+ *   ZERO driver → bind pose → T-pose.
  *
- *   REAL cause: avaturn_animation was being filtered to lower-body-only in 0.3.52,
- *   stripping the arm tracks from the base. Then idle top = 3 tracks (no arms) and
- *   base = 0 arm tracks → no driver → bind pose T-pose.
+ *   Confirmed from console: [trackFilter] upperBodyOnly "mixamo_empathy_leaning_forward": 3 tracks
  *
- * Correct architecture:
+ * Correct architecture (0.3.54):
  *   - Base = full avaturn_animation (arms intact). Arms always have a driver.
- *   - Idle top = HEAD_SPINE_ONLY (no arm tracks → base wins arms, no averaging).
- *   - Gesture top = upper body clip, base weight zeroed during gesture, restored after.
+ *   - ALL clips (idle + gesture) = HEAD_SPINE_ONLY (no arm tracks → base owns arms).
+ *   - Base weight NEVER changes. No zeroing, no restoring. Arms always natural.
+ *   - If a future clip has real arm tracks, promote it to additive blend separately.
  */
 
 import * as THREE from 'three'
@@ -289,9 +282,6 @@ export class SkeletalController {
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
-    // Ensure base is at full weight when returning to idle
-    if (this.baseAction) this.baseAction.setEffectiveWeight(1)
-
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
@@ -325,13 +315,13 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    // Zero base so gesture has exclusive control of arm bones.
-    // Gesture clip authored for T-pose: with base at w=1, Three.js averages
-    // avaturn-rest-arms and T-pose-arms → 45° flap. Zeroing base eliminates this.
-    if (this.baseAction) this.baseAction.setEffectiveWeight(0)
-
-    // Upper-body-only gesture (strips leg/hips tracks — legs hold last pose via clamp)
-    const clip   = upperBodyOnly(entry.clip)
+    // Base stays at weight=1 — ALWAYS. Gesture clips in animations.glb have only
+    // Spine/Spine1/Head tracks (confirmed: upperBodyOnly returns 3 tracks, not arm tracks).
+    // Zeroing base would strip the only arm driver → T-pose. Never touch base weight.
+    //
+    // Apply headSpineOnly filter (same as idle) — gestures drive head/spine,
+    // base drives arms exclusively at rest pose throughout.
+    const clip   = headSpineOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
@@ -351,9 +341,6 @@ export class SkeletalController {
       action.stop()
       if (this.outAction === action) this.outAction = null
       if (this.topAction === action) this.topAction = null
-
-      // Restore base weight before returning to idle
-      if (this.baseAction) this.baseAction.setEffectiveWeight(1)
 
       this.isInGesture = false
       this.playIdle(this.currentEmotion)
