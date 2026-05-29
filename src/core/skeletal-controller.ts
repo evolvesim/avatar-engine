@@ -265,12 +265,14 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    // Normal blend at weight=1.
-    // Base (avaturn_animation) also runs at weight=1 for all bones.
-    // Three.js mixer normalises: both contributions sum to 1 per bone,
-    // but the gesture authored poses take precedence visually because
-    // they define the intended movement. When the gesture finishes,
-    // the top fades out and the base reclaims arms to natural rest.
+    // Drop base weight to 0 so gesture has EXCLUSIVE control of all bones.
+    // With two NormalBlend actions at weight=1, Three.js normalises each bone
+    // to 0.5 each — averaging T-pose shoulders (bind) with avaturn rest = 45°
+    // flap. Zero the base weight; restore it after gesture finishes.
+    if (this.baseAction) {
+      this.baseAction.setEffectiveWeight(0)
+    }
+
     const action = this.mixer.clipAction(entry.clip)
     action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
@@ -285,6 +287,10 @@ export class SkeletalController {
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
+      // Restore base layer then return to idle
+      if (this.baseAction) {
+        this.baseAction.setEffectiveWeight(1)
+      }
       this.isInGesture = false
       this.playIdle(this.currentEmotion)
     }
