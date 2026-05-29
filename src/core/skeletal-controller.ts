@@ -103,9 +103,59 @@ export class SkeletalController {
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
   private diagnosticFrame    = 0
+  /** Cache of shoulder-patched clips — each gesture clip patched at most once */
+  private shoulderPatchCache: Map<string, THREE.AnimationClip> = new Map()
+
+  // avaturn_animation frame-0 shoulder quaternions — the natural rest position.
+  // Injected as constant tracks into gesture clips that lack shoulder tracks,
+  // so shoulders never snap to bind pose (Z=90deg T-pose) when base is zeroed.
+  private static readonly SHOULDER_REST: Record<string, [number,number,number,number]> = {
+    LeftShoulder:  [ 0.584305,  0.466298, -0.531432,  0.398415],
+    RightShoulder: [-0.598519,  0.471551, -0.527063, -0.376324],
+  }
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
+  }
+
+  /**
+   * Return a version of the clip that is guaranteed to have LeftShoulder and
+   * RightShoulder rotation tracks. If the clip already has them, return it as-is.
+   * Otherwise, deep-copy and inject constant QuaternionKeyframeTracks at the
+   * avaturn_animation frame-0 shoulder quaternions.
+   * Results are cached — each clip is only patched once.
+   */
+  private _ensureShoulderTracks(clip: THREE.AnimationClip): THREE.AnimationClip {
+    const cached = this.shoulderPatchCache.get(clip.name)
+    if (cached) return cached
+
+    const hasLeft  = clip.tracks.some(t => t.name.includes('LeftShoulder.quaternion')  || t.name.includes('LeftShoulder.rotation'))
+    const hasRight = clip.tracks.some(t => t.name.includes('RightShoulder.quaternion') || t.name.includes('RightShoulder.rotation'))
+
+    if (hasLeft && hasRight) {
+      this.shoulderPatchCache.set(clip.name, clip)
+      return clip
+    }
+
+    // Deep-copy so we don't mutate the dictionary entry
+    const patched = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
+    patched.name  = clip.name + '__shoulderPatched'
+
+    const times = new Float32Array([0, patched.duration])
+
+    if (!hasLeft) {
+      const q = SkeletalController.SHOULDER_REST['LeftShoulder']
+      const values = new Float32Array([q[0],q[1],q[2],q[3], q[0],q[1],q[2],q[3]])
+      patched.tracks.push(new THREE.QuaternionKeyframeTrack('LeftShoulder.quaternion', times, values))
+    }
+    if (!hasRight) {
+      const q = SkeletalController.SHOULDER_REST['RightShoulder']
+      const values = new Float32Array([q[0],q[1],q[2],q[3], q[0],q[1],q[2],q[3]])
+      patched.tracks.push(new THREE.QuaternionKeyframeTrack('RightShoulder.quaternion', times, values))
+    }
+
+    this.shoulderPatchCache.set(clip.name, patched)
+    return patched
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
@@ -273,7 +323,12 @@ export class SkeletalController {
       this.baseAction.setEffectiveWeight(0)
     }
 
-    const action = this.mixer.clipAction(entry.clip)
+    // Patch missing shoulder tracks so shoulders don't snap to bind pose (T-pose)
+    // when base is zeroed. Clips authored without shoulder tracks inherit bind
+    // pose (LeftShoulder Z=90deg) when they are the only active action.
+    const clip = this._ensureShoulderTracks(entry.clip)
+
+    const action = this.mixer.clipAction(clip)
     action.blendMode       = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
@@ -288,15 +343,14 @@ export class SkeletalController {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
 
-      // Stop and zero the gesture action immediately — do NOT leave it as
-      // outAction to fade, because a clamped gesture at its last frame + base
-      // weight=1 both driving arm bones = normalised average = T-pose flicker.
+      // Hard-stop the gesture immediately — don't fade as outAction.
+      // Clamped gesture + base both driving arms = normalised average = T-pose.
       action.setEffectiveWeight(0)
       action.stop()
       if (this.outAction === action) this.outAction = null
       if (this.topAction === action) this.topAction = null
 
-      // Restore base, then start idle
+      // Restore base then return to idle
       if (this.baseAction) {
         this.baseAction.setEffectiveWeight(1)
       }
