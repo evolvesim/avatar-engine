@@ -286,6 +286,16 @@ function AvatarScene({
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
 
+  // ── Word boundary estimation from viseme drain ─────────────────────────────
+  // Azure offline synthesis has no live wordBoundary events — the synthesizer is
+  // already closed before audio plays. We estimate word boundaries by counting
+  // drained visemes: every ~3 non-silence visemes ≈ 1 spoken word. This drives
+  // SkeletalController.onWordBoundary() so gesture cues fire at roughly the right
+  // word in the utterance without needing real Azure wordBoundary events.
+  const visemeDrainCountRef   = useRef<number>(0)  // total visemes drained this utterance
+  const wordBoundaryCountRef  = useRef<number>(0)  // word boundaries fired this utterance
+  const VISEMES_PER_WORD      = 3                  // tunable: 3 phonemes ≈ 1 word
+
   // ── Initialise on scene load ───────────────────────────────────────────────
   useEffect(() => {
     if (!scene) return
@@ -339,6 +349,8 @@ function AvatarScene({
     // ── 1. Drain viseme queue (targetW/currentW pattern with recentlyFired guard)
     // applyViseme: zeros all viseme shapes, then sets only the fired one.
     // Skip id=0 (silence) — it would snap the mouth shut mid-sentence.
+    // Word boundary estimation: every VISEMES_PER_WORD non-silence visemes drained
+    // we call engine.skeletal.onWordBoundary() to advance gesture cue timing.
     const applyViseme = (id: number) => {
       if (id === 0) return
       const arkit = VISEME_TO_ARKIT[id]
@@ -356,12 +368,34 @@ function AvatarScene({
       targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.3 : 0
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
+
+      // Word boundary estimation: count non-silence visemes; every VISEMES_PER_WORD
+      // phonemes ≈ one spoken word. Call onWordBoundary() to advance gesture cue timing.
+      visemeDrainCountRef.current++
+      const expectedWords = Math.floor(visemeDrainCountRef.current / VISEMES_PER_WORD)
+      while (wordBoundaryCountRef.current < expectedWords) {
+        engine.skeletal.onWordBoundary()
+        wordBoundaryCountRef.current++
+      }
     }
 
     // Guard: startTime===0 means no audio is playing yet (reset state between sentences).
     // elapsed would be ~millions of ms → all visemes drain instantly in frame 1 → mouth
     // twitches once then closes. Skip the drain entirely until startTime is stamped.
+    //
+    // Also reset word boundary counters at the start of each new utterance so
+    // gesture cue word_index counts restart from 0 for every sentence.
     const elapsed = startTime > 0 ? now - startTime : -1
+    if (startTime > 0 && visemeDrainCountRef.current === 0 && queue.length > 0) {
+      // New utterance just started (counters at 0, queue non-empty, audio running).
+      // wordBoundaryCountRef already 0 — nothing to reset, but ensure skeletal counter
+      // is also fresh. loadPerformance() already resets wordCounter in the controller.
+    }
+    // Reset counters when audio stops (startTime goes back to 0)
+    if (startTime === 0 && visemeDrainCountRef.current > 0) {
+      visemeDrainCountRef.current  = 0
+      wordBoundaryCountRef.current = 0
+    }
     while (queue.length > 0 && queue[0].audioOffset <= elapsed) {
       applyViseme(queue.shift()!.visemeId)
     }
