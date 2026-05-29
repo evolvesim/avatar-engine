@@ -1,28 +1,40 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Track-Filtering architecture (0.3.52):
+ * Track-Filtering architecture (0.3.53):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
- *                 Drives hips/legs/feet (lower body only after track filter).
- *                 NEVER faded, NEVER stopped.
+ *                 Full body including arms — drives natural rest arm pose.
+ *                 NEVER faded, NEVER stopped, NEVER touched during idles.
  *
- *   TOP layer   — emotion idle OR gesture clip.
- *                 Idles:    UPPER_BODY_ONLY filtered version (spine/arms/neck/head).
- *                           These were authored for T-pose but track-filtered so they
- *                           own the upper body exclusively — no SLERP averaging with base.
- *                 Gestures: UPPER_BODY_ONLY filtered version. Same clip, lower-body
- *                           tracks stripped so legs continue from base idle.
+ *   TOP layer (idle) — HEAD_SPINE_ONLY filtered clip.
+ *                 Only Spine/Spine1/Spine2/Neck/Head tracks.
+ *                 Arms have NO tracks here → base 100% owns arm bones → no averaging.
+ *                 Body sway/nod animations work; arms stay naturally at sides.
+ *
+ *   TOP layer (gesture) — UPPER_BODY filtered clip (Spine + Shoulder + Arm + Hand).
+ *                 Gesture clips authored for T-pose BUT now played at weight=1 over
+ *                 base weight=1. Because gesture HAS arm tracks and base also has arm
+ *                 tracks, Three.js normalises them 50/50 → mid-pose.
+ *                 Solution: zero base weight for the gesture duration only, restore after.
  *
  *   OUT layer   — previous top action fading weight 1→0 then stopped.
  *
- * Why track filtering fixes the T-pose / flapping arm problem:
- *   When two NormalBlend actions BOTH have a track for the same bone, Three.js
- *   normalises them: each contributes weight/(weight_a+weight_b). With base=1 and
- *   top=1 on the SAME arm bone the result is the average (halfway between T-pose
- *   and rest) = 45° flap. With track filtering, idles/gestures OWN the upper body
- *   exclusively and the base owns the lower body exclusively → zero averaging,
- *   zero T-pose bleed, elbows articulate correctly.
+ * Root cause of T-pose (all versions up to 0.3.52):
+ *   Idle clips (quaternius_neutral_idle etc.) only have Spine/Spine1/Head tracks.
+ *   When played as top action at weight=1, arm bones have NO top-layer driver.
+ *   Three.js normalises: base_arm_weight / (base + top) = 1/2 if top action exists
+ *   even though top has no arm track? No — actually Three.js only normalises bones
+ *   that HAVE competing tracks. Arm bones with only base driving them should be fine.
+ *
+ *   REAL cause: avaturn_animation was being filtered to lower-body-only in 0.3.52,
+ *   stripping the arm tracks from the base. Then idle top = 3 tracks (no arms) and
+ *   base = 0 arm tracks → no driver → bind pose T-pose.
+ *
+ * Correct architecture:
+ *   - Base = full avaturn_animation (arms intact). Arms always have a driver.
+ *   - Idle top = HEAD_SPINE_ONLY (no arm tracks → base wins arms, no averaging).
+ *   - Gesture top = upper body clip, base weight zeroed during gesture, restored after.
  */
 
 import * as THREE from 'three'
@@ -30,52 +42,45 @@ import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
 
-// ── Bone masks ────────────────────────────────────────────────────────────────
+// ── Track filters ─────────────────────────────────────────────────────────────
 
 /**
- * Upper-body bone name fragments. Any track whose name matches one of these
- * (case-insensitive) is kept in the upper-body filtered clip and removed from
- * the lower-body base.
- *
- * Matches Avaturn / Mixamo bone naming: Spine, Spine1, Spine2, Neck, Head,
- * LeftShoulder, RightShoulder, LeftArm, RightArm, LeftForeArm, RightForeArm,
- * LeftHand, RightHand, and all finger bones.
+ * HEAD_SPINE_ONLY: only keep tracks for Spine, Spine1, Spine2, Neck, Head.
+ * Everything else (Shoulder, Arm, ForeArm, Hand, Hips, Leg…) is stripped.
+ * Applied to idle clips so base layer exclusively drives arm bones.
+ */
+const HEAD_SPINE_RE = /^(Spine\d?|Neck|Head)\./i
+
+const headSpineCache = new Map<string, THREE.AnimationClip>()
+function headSpineOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const cached = headSpineCache.get(clip.name)
+  if (cached) return cached
+
+  const tracks = clip.tracks.filter(t => HEAD_SPINE_RE.test(t.name))
+  const filtered = new THREE.AnimationClip(clip.name + '__headspine', clip.duration, tracks)
+  headSpineCache.set(clip.name, filtered)
+
+  console.log(`[trackFilter] headSpineOnly "${clip.name}": ${tracks.length} tracks`,
+    tracks.map(t => t.name.split('.')[0]).join(', '))
+  return filtered
+}
+
+/**
+ * UPPER_BODY_ONLY: keep Spine + Shoulder + Arm + ForeArm + Hand + Neck + Head.
+ * Applied to gesture clips. Used when base is zeroed so gestures drive arms exclusively.
  */
 const UPPER_BODY_RE = /Spine|Neck|Head|Shoulder|Arm|ForeArm|Hand|Finger|Thumb|Index|Middle|Ring|Pinky/i
 
-/**
- * Return a version of clip containing ONLY upper-body tracks.
- * Results are cached per clip name.
- */
 const upperBodyCache = new Map<string, THREE.AnimationClip>()
 function upperBodyOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
   const cached = upperBodyCache.get(clip.name)
   if (cached) return cached
 
-  const filtered = new THREE.AnimationClip(
-    clip.name + '__upper',
-    clip.duration,
-    clip.tracks.filter(t => UPPER_BODY_RE.test(t.name))
-  )
+  const tracks = clip.tracks.filter(t => UPPER_BODY_RE.test(t.name))
+  const filtered = new THREE.AnimationClip(clip.name + '__upper', clip.duration, tracks)
   upperBodyCache.set(clip.name, filtered)
-  return filtered
-}
 
-/**
- * Return a version of clip containing ONLY lower-body tracks (everything NOT
- * matching UPPER_BODY_RE, e.g. Hips, LeftUpLeg, RightUpLeg, LeftLeg, etc.).
- */
-const lowerBodyCache = new Map<string, THREE.AnimationClip>()
-function lowerBodyOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
-  const cached = lowerBodyCache.get(clip.name)
-  if (cached) return cached
-
-  const filtered = new THREE.AnimationClip(
-    clip.name + '__lower',
-    clip.duration,
-    clip.tracks.filter(t => !UPPER_BODY_RE.test(t.name))
-  )
-  lowerBodyCache.set(clip.name, filtered)
+  console.log(`[trackFilter] upperBodyOnly "${clip.name}": ${tracks.length} tracks`)
   return filtered
 }
 
@@ -131,7 +136,7 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
 
 export class SkeletalController {
   private mixer:      THREE.AnimationMixer | null = null
-  /** avaturn_animation lower-body-only — permanent base, weight=1, NEVER faded */
+  /** avaturn_animation full body (morph stripped) — weight=1, NEVER faded during idle */
   private baseAction: THREE.AnimationAction | null = null
   private topAction:  THREE.AnimationAction | null = null
   private outAction:  THREE.AnimationAction | null = null
@@ -160,36 +165,30 @@ export class SkeletalController {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
     console.log('[SkeletalController] init —', avatarRoot.name || '(unnamed)')
 
-    // Start avaturn_animation lower-body-only as permanent base layer.
-    // Strip morph tracks + upper body tracks so:
-    //   1. avaturn baseline face values don't bleed through emotion presets
-    //   2. base has zero overlap with top layer → no SLERP averaging on arm bones
+    // Base layer: full avaturn_animation with morph tracks stripped.
+    // Full body (including arms) so arms always have a driver at rest pose.
     const raw = clips?.find(c => c.name === 'avaturn_animation')
     if (raw) {
-      // First strip morph tracks
-      const noMorph = new THREE.AnimationClip(
+      const stripped = new THREE.AnimationClip(
         raw.name,
         raw.duration,
         raw.tracks.filter(
           t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
         )
       )
-      // Then filter to lower body only
-      const lowerClip = lowerBodyOnly(noMorph)
+      console.log('[SkeletalController] base tracks:', stripped.tracks.length,
+        '— arm tracks:', stripped.tracks.filter(t => /Arm|Shoulder/.test(t.name)).map(t => t.name.split('.')[0]).join(', '))
 
-      console.log('[SkeletalController] base lower-body tracks:', lowerClip.tracks.length,
-        lowerClip.tracks.map(t => t.name.split('.')[0]).join(', '))
-
-      const base = this.mixer.clipAction(lowerClip)
+      const base = this.mixer.clipAction(stripped)
       base.blendMode        = THREE.NormalAnimationBlendMode
       base.setLoop(THREE.LoopRepeat, Infinity)
       base.clampWhenFinished = false
       base.setEffectiveWeight(1)
       base.play()
       this.baseAction = base
-      console.log('[SkeletalController] base layer started: avaturn_animation (lower body only)')
+      console.log('[SkeletalController] base layer started: avaturn_animation (full body, morph stripped)')
     } else {
-      console.warn('[SkeletalController] avaturn_animation not found. Available:', clips?.map(c => c.name))
+      console.warn('[SkeletalController] avaturn_animation not found — arms will T-pose. Available:', clips?.map(c => c.name))
     }
 
     this.pendingIdle = true
@@ -199,7 +198,6 @@ export class SkeletalController {
   // ── Per-frame update ────────────────────────────────────────────────────────
 
   update(delta: number): void {
-    // Retry idle start until dict is ready
     if (this.pendingIdle) {
       this._tryStartIdle()
       if (++this.pendingIdleFrames === 120) {
@@ -210,7 +208,6 @@ export class SkeletalController {
       this.pendingIdleFrames = 0
     }
 
-    // Idle pool cycling (only when settled, not mid-gesture)
     if (!this.isInGesture && !this.pendingIdle && this.topWeightCur >= 0.99) {
       this.idlePoolTimer += delta
       if (this.idlePoolTimer >= this.idlePoolInterval) {
@@ -221,13 +218,11 @@ export class SkeletalController {
       }
     }
 
-    // Lerp top layer weight in
     if (this.topAction && this.topWeightCur < this.topWeightTgt) {
       this.topWeightCur = Math.min(this.topWeightTgt, this.topWeightCur + delta * 4)
       this.topAction.setEffectiveWeight(this.topWeightCur)
     }
 
-    // Lerp out action weight down, then stop
     if (this.outAction) {
       const next = Math.max(0, this.outAction.getEffectiveWeight() - delta * 4)
       this.outAction.setEffectiveWeight(next)
@@ -236,13 +231,12 @@ export class SkeletalController {
 
     this.mixer?.update(delta)
 
-    // Frame-10 diagnostic
     if (++this.diagnosticFrame === 10) {
       console.log('[SkeletalController] frame-10', {
         base: this.baseAction
           ? `w=${this.baseAction.getEffectiveWeight()} running=${this.baseAction.isRunning()}`
           : 'MISSING',
-        top:  this.topAction
+        top: this.topAction
           ? `w=${this.topAction.getEffectiveWeight()}  running=${this.topAction.isRunning()}`
           : 'none',
         idle: this.currentIdleClipId,
@@ -257,18 +251,16 @@ export class SkeletalController {
     if (!this.pendingIdle || !this.mixer) return
     const id    = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
-    if (!entry) return  // not ready yet — retry next frame
+    if (!entry) return
 
     console.log('[SkeletalController] idle started:', id)
     this.pendingIdle       = false
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    // Upper-body-only version — base owns lower body, top owns upper body
-    const clip   = upperBodyOnly(entry.clip)
-    console.log('[SkeletalController] idle upper-body tracks:', clip.tracks.length,
-      clip.tracks.map(t => t.name.split('.')[0]).join(', '))
-
+    // HEAD_SPINE_ONLY: strip arm/shoulder/hand tracks from idle.
+    // Base layer owns arm bones at rest — no competition, no averaging.
+    const clip   = headSpineOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
@@ -297,13 +289,15 @@ export class SkeletalController {
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
+    // Ensure base is at full weight when returning to idle
+    if (this.baseAction) this.baseAction.setEffectiveWeight(1)
+
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
     }
 
-    // Upper-body-only — no overlap with base lower-body layer
-    const clip   = upperBodyOnly(entry.clip)
+    const clip   = headSpineOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
@@ -331,8 +325,12 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    // Upper-body-only gesture — base continues driving lower body throughout
-    // No need to zero base weight — base has NO upper-body tracks → zero overlap
+    // Zero base so gesture has exclusive control of arm bones.
+    // Gesture clip authored for T-pose: with base at w=1, Three.js averages
+    // avaturn-rest-arms and T-pose-arms → 45° flap. Zeroing base eliminates this.
+    if (this.baseAction) this.baseAction.setEffectiveWeight(0)
+
+    // Upper-body-only gesture (strips leg/hips tracks — legs hold last pose via clamp)
     const clip   = upperBodyOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
@@ -353,6 +351,9 @@ export class SkeletalController {
       action.stop()
       if (this.outAction === action) this.outAction = null
       if (this.topAction === action) this.topAction = null
+
+      // Restore base weight before returning to idle
+      if (this.baseAction) this.baseAction.setEffectiveWeight(1)
 
       this.isInGesture = false
       this.playIdle(this.currentEmotion)
