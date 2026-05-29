@@ -287,7 +287,16 @@ export class SkeletalController {
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
-      // Restore base layer then return to idle
+
+      // Stop and zero the gesture action immediately — do NOT leave it as
+      // outAction to fade, because a clamped gesture at its last frame + base
+      // weight=1 both driving arm bones = normalised average = T-pose flicker.
+      action.setEffectiveWeight(0)
+      action.stop()
+      if (this.outAction === action) this.outAction = null
+      if (this.topAction === action) this.topAction = null
+
+      // Restore base, then start idle
       if (this.baseAction) {
         this.baseAction.setEffectiveWeight(1)
       }
