@@ -121,14 +121,16 @@ export class SkeletalController {
     const rawBase = animations.find(c => c.name === 'avaturn_animation')
 
     if (rawBase) {
-      // Strip morph tracks — applyWeightsToMeshes owns the face; avaturn baseline brow values bleed through otherwise
+      // Strip morph tracks — applyWeightsToMeshes owns the face.
+      // Arm tracks are already stripped from the GLB itself (process-glb pipeline)
+      // so avaturn_animation only drives body/facing bones (Hips, Spine, Legs, Head).
       const baseClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(rawBase))
       const beforeCount = baseClip.tracks.length
       baseClip.tracks = baseClip.tracks.filter(
         t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
       )
       const afterCount = baseClip.tracks.length
-      console.log(`[SkeletalController] avaturn_animation found — ${afterCount} bone tracks (stripped ${beforeCount - afterCount} morph tracks)`)
+      console.log(`[SkeletalController] avaturn_animation found — ${afterCount} body tracks (stripped ${beforeCount - afterCount} morph tracks). Arm bones free for gesture clips.`)
       this.baseClip   = baseClip  // keep reference for makeClipAdditive calls
       this.baseAction = this.mixer.clipAction(baseClip)
       this.baseAction.setLoop(THREE.LoopRepeat, Infinity)
@@ -343,17 +345,11 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    // Additive blend is only needed when avaturn_animation is the base (it holds arms
-    // in a forward pose that conflicts with T-pose-authored gesture clips).
-    // When no baseClip exists (T-pose GLB), all clips share the same reference frame
-    // so normal blend works correctly for arm gestures too.
-    const isArmGesture  = ARM_GESTURE_CLIP_IDS.has(animId)
-    const useAdditive   = isArmGesture && this.baseClip !== null
-    const clip   = useAdditive ? this._toAdditive(entry.clip) : entry.clip
-    const action = this.mixer.clipAction(clip)
-    action.blendMode = useAdditive
-      ? THREE.AdditiveAnimationBlendMode
-      : THREE.NormalAnimationBlendMode
+    // Normal blend for all gestures. avaturn_animation (base) no longer drives arm
+    // bones (arm tracks stripped from GLB) so gesture clips fully own arm bones at
+    // weight=1 with no conflict. No additive delta correction needed.
+    const action = this.mixer.clipAction(entry.clip)
+    action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
@@ -361,9 +357,7 @@ export class SkeletalController {
     action.play()
     this.topAction    = action
     this.topWeightCur = 0
-    // Additive arm gestures: cap at 0.45 so shoulder-abduction deltas don't flap wildly.
-    // Normal blend gestures (including arm gestures on T-pose GLB): full weight.
-    this.topWeightTgt = useAdditive ? 0.45 : 1
+    this.topWeightTgt = 1
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
