@@ -27,33 +27,69 @@ import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
 
-// ── Emotion → idle animation mapping ─────────────────────────────────────────
+// ── Emotion → idle animation pools ───────────────────────────────────────────
+//
+// Every idle clip here MUST have arm bone coverage (LeftArm + RightArm minimum)
+// so the arms never T-pose. The idle is the full-body owner of all bones when no
+// gesture is playing — avaturn_animation (base) no longer drives arms.
+//
+// Pool design rules:
+//   - All clips in a pool must cover both arms
+//   - First clip in each pool is the primary (most played)
+//   - Pool cycles every 8–15 s for natural variation (non-repeating pick)
+//   - Emotion-appropriate body language — not just head/spine movement
 
-/**
- * Primary idle clip per emotion. The controller crossfades to this when
- * the emotion state changes and no gesture is queued.
- */
-const EMOTION_IDLE_MAP: Record<EmotionId, string> = {
-  neutral:       'quaternius_neutral_idle',
-  joy:           'quaternius_joy_breathing_idle',
-  anger:         'quaternius_anger_tense_idle',
-  sadness:       'quaternius_sadness_slumped',
-  surprise:      'quaternius_neutral_idle',   // short-lived — falls back to neutral
-  fear:          'quaternius_neutral_idle',
-  disgust:       'quaternius_anger_tense_idle',
-  empathy:       'mixamo_empathy_leaning_forward',
-  concentration: 'quaternius_concentration_idle',
-  confusion:     'quaternius_neutral_idle',
+const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
+  neutral: [
+    'evolve_listening_attentive_still',    // composed, arms at sides — clean neutral standing
+    'evolve_professional_authority_stance', // grounded, slight arm tension
+    'evolve_rapport_calm_reassurance',      // open, gentle arm position
+  ],
+  joy: [
+    'quaternius_joy_breathing_idle',        // upright, arms slightly raised
+    'evolve_joy_enthusiastic_agree',        // warm, expressive arms
+    'evolve_rapport_inclusive_gesture',     // open arms, inviting
+  ],
+  anger: [
+    'quaternius_anger_tense_idle',          // tense stance, arms stiff
+    'evolve_anger_controlled_release',      // controlled but charged
+    'mixamo_anger_arms_crossed',            // defensive/guarded crossed arms
+  ],
+  sadness: [
+    'quaternius_sadness_slumped',           // slumped shoulders
+    'evolve_stress_self_anchor',            // arms drawn in, self-soothing
+  ],
+  surprise: [
+    'evolve_surprise_lean_in',              // leaning forward, arms up
+    'quaternius_fear_frozen_idle',          // startled freeze — arms raised
+  ],
+  fear: [
+    'quaternius_fear_frozen_idle',          // frozen, arms slightly raised
+    'evolve_fear_shrink_back',              // protective arm position
+    'evolve_stress_self_anchor',            // drawn in, self-protective
+  ],
+  disgust: [
+    'quaternius_disgust_recoil_idle',       // leaning back, arms back
+    'evolve_disgust_lean_back_cross',       // crossed arms, recoil
+  ],
+  empathy: [
+    'evolve_rapport_calm_reassurance',      // open, reaching forward gently
+    'evolve_rapport_inclusive_gesture',     // arms open and welcoming
+    'evolve_coaching_invite_reflection',    // gentle arms-open invitation
+  ],
+  concentration: [
+    'evolve_concentration_arms_folded_think', // arms folded, thinking
+    'evolve_professional_steeple_fingers',    // steeple — deep consideration
+    'evolve_thinking_weigh_options',          // weighing, arms gesture
+  ],
+  confusion: [
+    'evolve_concentration_arms_folded_think', // uncertain, arms folded
+    'evolve_rapport_calm_reassurance',        // open, trying to connect
+  ],
 }
 
-// ── Controller ────────────────────────────────────────────────────────────────
-
-// ── ARM_GESTURE_CLIPS — clips that have arm bone tracks requiring additive blend ─
-// These clips are authored from a T-pose / neutral-arms reference. Playing them as
-// Normal blend on top of avaturn_animation causes sideways T-flap because both actions
-// drive the same arm bones with conflicting absolute rotations.
-// Fix: convert to additive using the base idle clip as the reference pose, then play
-// at AdditiveAnimationBlendMode so the delta is added on top of the running idle.
+// Keep ARM_GESTURE_CLIP_IDS for future reference / VD prompt building
+// (no longer used for additive blend logic — all gestures now NormalBlend)
 const ARM_GESTURE_CLIP_IDS = new Set([
   'evolve_neutral_explain_both_hands',
   'mixamo_joy_talking_hands',
@@ -90,7 +126,11 @@ export class SkeletalController {
   private dictionary:    AnimationDictionary
   private pendingCues:   GestureCue[] = []
   private wordCounter:   number = 0
-  private currentEmotion: EmotionId = 'neutral'
+  private currentEmotion:    EmotionId = 'neutral'
+  private currentIdleClipId: string    = ''      // which clip is currently the idle
+  private idlePoolTimer:     number    = 0        // seconds since last idle switch
+  private idlePoolInterval:  number    = 10       // randomised 8–15s per cycle
+  private isInGesture:       boolean   = false    // true while a gesture (not idle) is top
   private pendingIdle:   boolean = false
   private pendingIdleFrames = 0
   private diagnosticFrame = 0
@@ -155,11 +195,24 @@ export class SkeletalController {
       this._tryStartIdle()
       this.pendingIdleFrames++
       if (this.pendingIdleFrames === 120) {
-        const id = EMOTION_IDLE_MAP[this.currentEmotion] ?? 'quaternius_neutral_idle'
-        console.warn('[SkeletalController] pendingIdle still true after 120 frames — dict never resolved clip:', id)
+        const pool = EMOTION_IDLE_POOLS[this.currentEmotion] ?? EMOTION_IDLE_POOLS.neutral
+        console.warn('[SkeletalController] pendingIdle still true after 120 frames — dict never resolved pool[0]:', pool[0])
       }
     } else {
       this.pendingIdleFrames = 0
+    }
+
+    // Idle pool cycling — only when we are in idle (not mid-gesture) and top is settled
+    if (!this.isInGesture && !this.pendingIdle && this.topWeightCur >= 0.99) {
+      this.idlePoolTimer += delta
+      if (this.idlePoolTimer >= this.idlePoolInterval) {
+        this.idlePoolTimer = 0
+        this.idlePoolInterval = 8 + Math.random() * 7  // 8–15 s
+        const nextId = this._pickNextIdle(this.currentEmotion)
+        if (nextId !== this.currentIdleClipId) {
+          this.playIdle(this.currentEmotion, nextId)
+        }
+      }
     }
 
     // Lerp top layer weight in
@@ -202,25 +255,32 @@ export class SkeletalController {
 
   private _tryStartIdle(): void {
     if (!this.pendingIdle || !this.mixer) return
-    const id    = EMOTION_IDLE_MAP[this.currentEmotion] ?? 'quaternius_neutral_idle'
+    const id = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
-    if (!entry) return
+    if (!entry) return  // dict not ready yet — keep pendingIdle=true, retry next frame
 
     console.log('[SkeletalController] idle started:', id)
     this.pendingIdle = false
+    this.currentIdleClipId = id
+    this.isInGesture = false
 
-    // topAction runs in Normal mode. topAction clips have only head/spine tracks
-    // so arms are driven 100% by baseAction (avaturn_animation). SkeletonUtils.clone
-    // ensures the SkinnedMesh skeleton is rebound to cloned bones so the mixer
-    // drives the correct objects.
     const action = this.mixer.clipAction(entry.clip)
     action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
     action.play()
-    this.topAction = action
+    this.topAction    = action
+    this.topWeightCur = 0
     this.topWeightTgt = 1.0
+  }
+
+  /** Pick a random clip from the emotion’s pool, avoiding immediate repeat. */
+  private _pickNextIdle(emotion: EmotionId): string {
+    const pool = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
+    if (pool.length === 1) return pool[0]
+    const candidates = pool.filter(id => id !== this.currentIdleClipId)
+    return candidates[Math.floor(Math.random() * candidates.length)]
   }
 
   // ── Performance loading ─────────────────────────────────────────────────────
@@ -265,8 +325,10 @@ export class SkeletalController {
   onEmotionChange(emotion: EmotionId): void {
     if (emotion === this.currentEmotion) return
     this.currentEmotion = emotion
-    const idleId = EMOTION_IDLE_MAP[emotion] ?? EMOTION_IDLE_MAP.neutral
-    this.playIdle(emotion, idleId)
+    // Don’t interrupt a mid-gesture — the gesture’s onFinished will call playIdle
+    if (!this.isInGesture) {
+      this.playIdle(emotion)
+    }
   }
 
   // ── Playback helpers ────────────────────────────────────────────────────────
@@ -308,9 +370,12 @@ export class SkeletalController {
 
   private playIdle(emotion: EmotionId, idleId?: string): void {
     if (!this.mixer) return
-    const id    = idleId ?? EMOTION_IDLE_MAP[emotion] ?? 'quaternius_neutral_idle'
+    const id    = idleId ?? this._pickNextIdle(emotion)
     const entry = this.dictionary.get(id)
     if (!entry) return
+    this.currentIdleClipId = id
+    this.isInGesture       = false
+    this.idlePoolTimer     = 0
 
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) {
@@ -348,6 +413,8 @@ export class SkeletalController {
     // Normal blend for all gestures. avaturn_animation (base) no longer drives arm
     // bones (arm tracks stripped from GLB) so gesture clips fully own arm bones at
     // weight=1 with no conflict. No additive delta correction needed.
+    this.isInGesture = true
+    this.idlePoolTimer = 0  // don’t cycle idle while gesturing
     const action = this.mixer.clipAction(entry.clip)
     action.blendMode = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
@@ -362,6 +429,7 @@ export class SkeletalController {
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
+      this.isInGesture = false
       this.playIdle(this.currentEmotion)
     }
     this.mixer.addEventListener('finished', onFinished)
@@ -373,15 +441,18 @@ export class SkeletalController {
    */
   reset(): void {
     this.mixer?.stopAllAction()
-    this.pendingCues    = []
-    this.wordCounter    = 0
-    this.currentEmotion = 'neutral'
-    this.topAction      = null
-    this.outAction      = null
-    this.baseAction     = null
-    this.topWeightCur   = 0
-    this.topWeightTgt   = 0
-    this.pendingIdle    = true
+    this.pendingCues       = []
+    this.wordCounter       = 0
+    this.currentEmotion    = 'neutral'
+    this.currentIdleClipId = ''
+    this.isInGesture       = false
+    this.idlePoolTimer     = 0
+    this.topAction         = null
+    this.outAction         = null
+    this.baseAction        = null
+    this.topWeightCur      = 0
+    this.topWeightTgt      = 0
+    this.pendingIdle       = true
     this._tryStartIdle()
   }
 
