@@ -1,26 +1,28 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Two-action mixer architecture:
+ * Track-Filtering architecture (0.3.52):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
- *                 Drives all 53 body bones including arms, hips, spine.
- *                 NEVER faded, NEVER stopped. Arms stay in natural rest pose.
+ *                 Drives hips/legs/feet (lower body only after track filter).
+ *                 NEVER faded, NEVER stopped.
  *
- *   TOP layer   — emotion idle OR gesture clip, NormalBlend, weight lerps 0→1.
- *                 ARM_SAFE idle clips (head/spine only): base still owns arms.
- *                 ARM_GESTURE clips (full body): top drives arms during gesture,
- *                 then fades out → base reclaims arms back to rest automatically.
+ *   TOP layer   — emotion idle OR gesture clip.
+ *                 Idles:    UPPER_BODY_ONLY filtered version (spine/arms/neck/head).
+ *                           These were authored for T-pose but track-filtered so they
+ *                           own the upper body exclusively — no SLERP averaging with base.
+ *                 Gestures: UPPER_BODY_ONLY filtered version. Same clip, lower-body
+ *                           tracks stripped so legs continue from base idle.
  *
  *   OUT layer   — previous top action fading weight 1→0 then stopped.
  *
- * Why Normal blend (not Additive) for gestures:
- *   Gesture clips in animations.glb were authored against bind pose
- *   (LeftArm ≈ identity quaternion). avaturn_animation frame-0 has large
- *   shoulder/arm quaternions. makeClipAdditive(gesture, 0, avaturn) subtracts
- *   those large values → produces large negative deltas → arms flap sideways.
- *   Normal blend sidesteps this: gesture drives bones directly as authored,
- *   base reclaims them cleanly when the gesture finishes.
+ * Why track filtering fixes the T-pose / flapping arm problem:
+ *   When two NormalBlend actions BOTH have a track for the same bone, Three.js
+ *   normalises them: each contributes weight/(weight_a+weight_b). With base=1 and
+ *   top=1 on the SAME arm bone the result is the average (halfway between T-pose
+ *   and rest) = 45° flap. With track filtering, idles/gestures OWN the upper body
+ *   exclusively and the base owns the lower body exclusively → zero averaging,
+ *   zero T-pose bleed, elbows articulate correctly.
  */
 
 import * as THREE from 'three'
@@ -28,10 +30,56 @@ import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
 
+// ── Bone masks ────────────────────────────────────────────────────────────────
+
+/**
+ * Upper-body bone name fragments. Any track whose name matches one of these
+ * (case-insensitive) is kept in the upper-body filtered clip and removed from
+ * the lower-body base.
+ *
+ * Matches Avaturn / Mixamo bone naming: Spine, Spine1, Spine2, Neck, Head,
+ * LeftShoulder, RightShoulder, LeftArm, RightArm, LeftForeArm, RightForeArm,
+ * LeftHand, RightHand, and all finger bones.
+ */
+const UPPER_BODY_RE = /Spine|Neck|Head|Shoulder|Arm|ForeArm|Hand|Finger|Thumb|Index|Middle|Ring|Pinky/i
+
+/**
+ * Return a version of clip containing ONLY upper-body tracks.
+ * Results are cached per clip name.
+ */
+const upperBodyCache = new Map<string, THREE.AnimationClip>()
+function upperBodyOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const cached = upperBodyCache.get(clip.name)
+  if (cached) return cached
+
+  const filtered = new THREE.AnimationClip(
+    clip.name + '__upper',
+    clip.duration,
+    clip.tracks.filter(t => UPPER_BODY_RE.test(t.name))
+  )
+  upperBodyCache.set(clip.name, filtered)
+  return filtered
+}
+
+/**
+ * Return a version of clip containing ONLY lower-body tracks (everything NOT
+ * matching UPPER_BODY_RE, e.g. Hips, LeftUpLeg, RightUpLeg, LeftLeg, etc.).
+ */
+const lowerBodyCache = new Map<string, THREE.AnimationClip>()
+function lowerBodyOnly(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const cached = lowerBodyCache.get(clip.name)
+  if (cached) return cached
+
+  const filtered = new THREE.AnimationClip(
+    clip.name + '__lower',
+    clip.duration,
+    clip.tracks.filter(t => !UPPER_BODY_RE.test(t.name))
+  )
+  lowerBodyCache.set(clip.name, filtered)
+  return filtered
+}
+
 // ── Emotion → idle animation pools ───────────────────────────────────────────
-// All clips here are ARM_SAFE (head/spine/neck tracks only — no arm tracks).
-// The base action permanently drives arm bones; adding arm clips here would
-// cause competition between top and base → T-pose flicker during transitions.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
     'quaternius_neutral_idle',
@@ -83,10 +131,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
 
 export class SkeletalController {
   private mixer:      THREE.AnimationMixer | null = null
-  /** avaturn_animation — permanent base, weight=1, NEVER faded */
+  /** avaturn_animation lower-body-only — permanent base, weight=1, NEVER faded */
   private baseAction: THREE.AnimationAction | null = null
-  /** stripped avaturn_animation clip (stored for diagnostics) */
-  private baseClip:   THREE.AnimationClip  | null = null
   private topAction:  THREE.AnimationAction | null = null
   private outAction:  THREE.AnimationAction | null = null
   private topWeightTgt: number = 0
@@ -103,69 +149,9 @@ export class SkeletalController {
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
   private diagnosticFrame    = 0
-  /** Cache of arm-rest-patched clips — each clip is patched at most once */
-  private armRestPatchCache: Map<string, THREE.AnimationClip> = new Map()
-
-  // avaturn_animation frame-0 arm/shoulder quaternions — the natural rest position
-  // for acts-guide.glb. Injected as constant tracks into ANY clip that lacks
-  // these bones, so arms always show natural rest pose regardless of base layer.
-  //
-  // LeftShoulder Z≈90° (horizontal) + LeftArm X≈66° (arm bent down from shoulder)
-  // = natural hanging arm position. Without LeftArm the arm stays at T-pose even
-  // though shoulder is correct.
-  private static readonly ARM_REST: Record<string, [number,number,number,number]> = {
-    LeftShoulder:  [ 0.584305,  0.466298, -0.531432,  0.398415],
-    RightShoulder: [-0.598519,  0.471551, -0.527063, -0.376324],
-    LeftArm:       [ 0.537788,  0.128641, -0.045315,  0.831975],
-    RightArm:      [ 0.522803, -0.096794,  0.055773,  0.845102],
-    LeftForeArm:   [ 0.027497,  0.023706,  0.148167,  0.988296],
-    RightForeArm:  [ 0.014204,  0.006028, -0.169052,  0.985486],
-  }
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
-  }
-
-  /**
-   * Return a version of the clip that is guaranteed to have all arm and shoulder
-   * rotation tracks (LeftShoulder, RightShoulder, LeftArm, RightArm, LeftForeArm,
-   * RightForeArm). If the clip already has a track, it is left untouched. Missing
-   * tracks are injected as constant QuaternionKeyframeTracks at the avaturn_animation
-   * frame-0 rest values, so arms always render at natural rest pose regardless of
-   * whether the base layer is active.
-   *
-   * Applied to EVERY clip (both idles and gestures) before playback.
-   * Results are cached — each clip is only deep-copied once.
-   */
-  private _ensureArmRestTracks(clip: THREE.AnimationClip): THREE.AnimationClip {
-    const cached = this.armRestPatchCache.get(clip.name)
-    if (cached) return cached
-
-    const BONES = Object.keys(SkeletalController.ARM_REST)
-    const missing = BONES.filter(
-      bone => !clip.tracks.some(t => t.name === bone + '.quaternion' || t.name === bone + '.rotation')
-    )
-
-    if (missing.length === 0) {
-      // Clip already has all arm tracks — cache and return as-is
-      this.armRestPatchCache.set(clip.name, clip)
-      return clip
-    }
-
-    // Deep-copy so we don't mutate the dictionary entry
-    const patched = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
-    patched.name  = clip.name + '__armPatched'
-
-    const times = new Float32Array([0, patched.duration])
-
-    for (const bone of missing) {
-      const q = SkeletalController.ARM_REST[bone]
-      const values = new Float32Array([q[0],q[1],q[2],q[3], q[0],q[1],q[2],q[3]])
-      patched.tracks.push(new THREE.QuaternionKeyframeTrack(bone + '.quaternion', times, values))
-    }
-
-    this.armRestPatchCache.set(clip.name, patched)
-    return patched
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
@@ -174,27 +160,36 @@ export class SkeletalController {
     this.mixer = new THREE.AnimationMixer(avatarRoot)
     console.log('[SkeletalController] init —', avatarRoot.name || '(unnamed)')
 
-    // Start avaturn_animation as permanent base layer.
-    // Strip morph tracks so the avaturn baseline face values (brow, squint etc.)
-    // don't bleed through emotion presets every frame.
+    // Start avaturn_animation lower-body-only as permanent base layer.
+    // Strip morph tracks + upper body tracks so:
+    //   1. avaturn baseline face values don't bleed through emotion presets
+    //   2. base has zero overlap with top layer → no SLERP averaging on arm bones
     const raw = clips?.find(c => c.name === 'avaturn_animation')
     if (raw) {
-      const stripped = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(raw))
-      stripped.tracks = stripped.tracks.filter(
-        t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
+      // First strip morph tracks
+      const noMorph = new THREE.AnimationClip(
+        raw.name,
+        raw.duration,
+        raw.tracks.filter(
+          t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
+        )
       )
-      this.baseClip = stripped
+      // Then filter to lower body only
+      const lowerClip = lowerBodyOnly(noMorph)
 
-      const base = this.mixer.clipAction(stripped)
-      base.blendMode       = THREE.NormalAnimationBlendMode
+      console.log('[SkeletalController] base lower-body tracks:', lowerClip.tracks.length,
+        lowerClip.tracks.map(t => t.name.split('.')[0]).join(', '))
+
+      const base = this.mixer.clipAction(lowerClip)
+      base.blendMode        = THREE.NormalAnimationBlendMode
       base.setLoop(THREE.LoopRepeat, Infinity)
       base.clampWhenFinished = false
       base.setEffectiveWeight(1)
       base.play()
       this.baseAction = base
-      console.log('[SkeletalController] base layer started: avaturn_animation')
+      console.log('[SkeletalController] base layer started: avaturn_animation (lower body only)')
     } else {
-      console.warn('[SkeletalController] avaturn_animation not found — arms may T-pose. Available:', clips?.map(c => c.name))
+      console.warn('[SkeletalController] avaturn_animation not found. Available:', clips?.map(c => c.name))
     }
 
     this.pendingIdle = true
@@ -244,8 +239,12 @@ export class SkeletalController {
     // Frame-10 diagnostic
     if (++this.diagnosticFrame === 10) {
       console.log('[SkeletalController] frame-10', {
-        base: this.baseAction ? `w=${this.baseAction.getEffectiveWeight()} running=${this.baseAction.isRunning()}` : 'MISSING',
-        top:  this.topAction  ? `w=${this.topAction.getEffectiveWeight()}  running=${this.topAction.isRunning()}` : 'none',
+        base: this.baseAction
+          ? `w=${this.baseAction.getEffectiveWeight()} running=${this.baseAction.isRunning()}`
+          : 'MISSING',
+        top:  this.topAction
+          ? `w=${this.topAction.getEffectiveWeight()}  running=${this.topAction.isRunning()}`
+          : 'none',
         idle: this.currentIdleClipId,
         gesture: this.isInGesture,
       })
@@ -265,11 +264,13 @@ export class SkeletalController {
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    // Ensure all arm/shoulder bones are covered even if this idle clip
-    // only has head/spine tracks — prevents T-pose when top action wins
-    const clip = this._ensureArmRestTracks(entry.clip)
+    // Upper-body-only version — base owns lower body, top owns upper body
+    const clip   = upperBodyOnly(entry.clip)
+    console.log('[SkeletalController] idle upper-body tracks:', clip.tracks.length,
+      clip.tracks.map(t => t.name.split('.')[0]).join(', '))
+
     const action = this.mixer.clipAction(clip)
-    action.blendMode       = THREE.NormalAnimationBlendMode
+    action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -301,10 +302,10 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    // Ensure all arm/shoulder bones are covered — same as _tryStartIdle
-    const clip = this._ensureArmRestTracks(entry.clip)
+    // Upper-body-only — no overlap with base lower-body layer
+    const clip   = upperBodyOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
-    action.blendMode       = THREE.NormalAnimationBlendMode
+    action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
     action.setEffectiveWeight(0)
@@ -330,20 +331,11 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    // Drop base weight to 0 so gesture has EXCLUSIVE control of all bones.
-    // With two NormalBlend actions at weight=1, Three.js normalises each bone
-    // to 0.5 each — averaging T-pose shoulders (bind) with avaturn rest = 45°
-    // flap. Zero the base weight; restore it after gesture finishes.
-    if (this.baseAction) {
-      this.baseAction.setEffectiveWeight(0)
-    }
-
-    // Ensure all arm/shoulder rest tracks are present. Gesture clips that already
-    // have their own arm movement keep it; only missing bones get the rest constant.
-    const clip = this._ensureArmRestTracks(entry.clip)
-
+    // Upper-body-only gesture — base continues driving lower body throughout
+    // No need to zero base weight — base has NO upper-body tracks → zero overlap
+    const clip   = upperBodyOnly(entry.clip)
     const action = this.mixer.clipAction(clip)
-    action.blendMode       = THREE.NormalAnimationBlendMode
+    action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
@@ -357,17 +349,11 @@ export class SkeletalController {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
 
-      // Hard-stop the gesture immediately — don't fade as outAction.
-      // Clamped gesture + base both driving arms = normalised average = T-pose.
       action.setEffectiveWeight(0)
       action.stop()
       if (this.outAction === action) this.outAction = null
       if (this.topAction === action) this.topAction = null
 
-      // Restore base then return to idle
-      if (this.baseAction) {
-        this.baseAction.setEffectiveWeight(1)
-      }
       this.isInGesture = false
       this.playIdle(this.currentEmotion)
     }
