@@ -358,7 +358,10 @@ function AvatarScene({
       lastVisemeAt.current = now
     }
 
-    const elapsed = now - startTime
+    // Guard: startTime===0 means no audio is playing yet (reset state between sentences).
+    // elapsed would be ~millions of ms → all visemes drain instantly in frame 1 → mouth
+    // twitches once then closes. Skip the drain entirely until startTime is stamped.
+    const elapsed = startTime > 0 ? now - startTime : -1
     while (queue.length > 0 && queue[0].audioOffset <= elapsed) {
       applyViseme(queue.shift()!.visemeId)
     }
