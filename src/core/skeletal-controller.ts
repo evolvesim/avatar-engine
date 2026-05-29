@@ -48,9 +48,41 @@ const EMOTION_IDLE_MAP: Record<EmotionId, string> = {
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
+// ── ARM_GESTURE_CLIPS — clips that have arm bone tracks requiring additive blend ─
+// These clips are authored from a T-pose / neutral-arms reference. Playing them as
+// Normal blend on top of avaturn_animation causes sideways T-flap because both actions
+// drive the same arm bones with conflicting absolute rotations.
+// Fix: convert to additive using the base idle clip as the reference pose, then play
+// at AdditiveAnimationBlendMode so the delta is added on top of the running idle.
+const ARM_GESTURE_CLIP_IDS = new Set([
+  'evolve_neutral_explain_both_hands',
+  'mixamo_joy_talking_hands',
+  'mixamo_joy_thumbs_up',
+  'evolve_joy_present_good_news',
+  'mixamo_anger_pointing',
+  'evolve_anger_finger_wag',
+  'mixamo_sadness_apologetic_hands',
+  'evolve_surprise_lean_in',
+  'mixamo_empathy_open_hands',
+  'evolve_empathy_reach_out',
+  'evolve_empathy_hand_over_heart',
+  'mixamo_concentration_chin_stroke',
+  'evolve_concentration_finger_tap_temple',
+  'evolve_concentration_deliberate_point',
+  'evolve_confusion_shrug',
+  'evolve_professional_present_data',
+  'evolve_professional_steeple_fingers',
+  'mesh2motion_joy_celebratory_clap',
+  'mixamo_anger_dismissive_wave',
+  'evolve_anger_emphatic_table',
+  'evolve_surprise_hands_on_face',
+  'evolve_professional_authority_stance',
+])
+
 export class SkeletalController {
   private mixer:         THREE.AnimationMixer | null = null
   private baseAction:    THREE.AnimationAction | null = null
+  private baseClip:      THREE.AnimationClip | null = null  // stripped avaturn_animation
   private topAction:     THREE.AnimationAction | null = null
   private outAction:     THREE.AnimationAction | null = null
   private topWeightTgt:  number = 0
@@ -62,6 +94,8 @@ export class SkeletalController {
   private pendingIdle:   boolean = false
   private pendingIdleFrames = 0
   private diagnosticFrame = 0
+  /** Cache of additive-converted clips keyed by original clip name */
+  private additiveCache: Map<string, THREE.AnimationClip> = new Map()
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -95,6 +129,7 @@ export class SkeletalController {
       )
       const afterCount = baseClip.tracks.length
       console.log(`[SkeletalController] avaturn_animation found — ${afterCount} bone tracks (stripped ${beforeCount - afterCount} morph tracks)`)
+      this.baseClip   = baseClip  // keep reference for makeClipAdditive calls
       this.baseAction = this.mixer.clipAction(baseClip)
       this.baseAction.setLoop(THREE.LoopRepeat, Infinity)
       this.baseAction.clampWhenFinished = false
@@ -234,6 +269,41 @@ export class SkeletalController {
 
   // ── Playback helpers ────────────────────────────────────────────────────────
 
+  /**
+   * Convert a clip to additive mode using the base idle clip (avaturn_animation) as
+   * the reference pose. This ensures arm gesture deltas are relative to the avatar's
+   * actual idle pose, not T-pose — so they layer correctly on top of the base action.
+   *
+   * THREE.AnimationUtils.makeClipAdditive(clip, referenceTime, referenceClip) subtracts
+   * referenceClip's pose at referenceTime from every keyframe in clip. Using the base
+   * idle at t=0 as reference means each gesture keyframe stores the delta from idle.
+   * At runtime the additive action adds that delta on top of whatever the base action
+   * is currently playing — giving the intended arm movement without T-flap.
+   *
+   * Results are cached: each source clip is only converted once.
+   */
+  private _toAdditive(clip: THREE.AnimationClip): THREE.AnimationClip {
+    const cached = this.additiveCache.get(clip.name)
+    if (cached) return cached
+
+    // Deep-copy the clip so we don't mutate the original in the dictionary
+    const addClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
+    addClip.name  = clip.name + '__additive'
+
+    if (this.baseClip) {
+      // Subtract the idle pose at t=0 from every keyframe of the gesture clip.
+      // This gives arm deltas relative to the avatar's actual idle breathing pose.
+      THREE.AnimationUtils.makeClipAdditive(addClip, 0, this.baseClip)
+    } else {
+      // No base clip available (no avaturn_animation in GLB) — fall back to
+      // self-reference additive (deltas from the clip's own frame-0).
+      THREE.AnimationUtils.makeClipAdditive(addClip)
+    }
+
+    this.additiveCache.set(clip.name, addClip)
+    return addClip
+  }
+
   private playIdle(emotion: EmotionId, idleId?: string): void {
     if (!this.mixer) return
     const id    = idleId ?? EMOTION_IDLE_MAP[emotion] ?? 'quaternius_neutral_idle'
@@ -273,16 +343,21 @@ export class SkeletalController {
       this.outAction = this.topAction
     }
 
-    const action = this.mixer.clipAction(entry.clip)
-    action.blendMode = THREE.NormalAnimationBlendMode
+    const isArmGesture = ARM_GESTURE_CLIP_IDS.has(animId)
+    const clip   = isArmGesture ? this._toAdditive(entry.clip) : entry.clip
+    const action = this.mixer.clipAction(clip)
+    action.blendMode = isArmGesture
+      ? THREE.AdditiveAnimationBlendMode
+      : THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
     action.setEffectiveWeight(0)
     action.play()
-    this.topAction   = action
+    this.topAction    = action
     this.topWeightCur = 0
-    this.topWeightTgt = 1
+    // Arm gestures: cap at 0.45 so shoulder-abduction deltas don't flap wildly
+    this.topWeightTgt = isArmGesture ? 0.45 : 1
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return

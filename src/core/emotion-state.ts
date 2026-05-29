@@ -161,7 +161,7 @@ export class EmotionStateMachine {
     id:                'neutral',
     intensity:          0,
     weights:           {},
-    speechAttenuation:  0.65,
+    speechAttenuation:  1.0,   // no attenuation — emotions show fully while speaking
   }
 
   /**
@@ -180,7 +180,7 @@ export class EmotionStateMachine {
    * The emotion STAYS until this is called again — it does not reset between
    * utterances. An angry avatar stays angry.
    */
-  set(id: EmotionId, intensity: number, speechAttenuation = 0.65): void {
+  set(id: EmotionId, intensity: number, speechAttenuation = 1.0): void {
     const preset = EMOTION_PRESETS[id] ?? {}
     const scaled: ARKitWeights = {}
     for (const [key, base] of Object.entries(preset)) {
