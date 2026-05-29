@@ -37,54 +37,56 @@ import type { GestureCue } from './virtual-director'
 //   - All clips in a pool must cover both arms
 //   - First clip in each pool is the primary (most played)
 //   - Pool cycles every 8–15 s for natural variation (non-repeating pick)
-//   - Emotion-appropriate body language — not just head/spine movement
+//   - Head/spine only (ARM_SAFE) — base action owns arm bones permanently at bind pose
+//   - avaturn_animation arm tracks are frozen at bind-pose quaternions (arms at sides)
+//   - Any clip with arm tracks would fight the base → use ARM_SAFE clips only here
 
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
-    'evolve_listening_attentive_still',    // composed, arms at sides — clean neutral standing
-    'evolve_professional_authority_stance', // grounded, slight arm tension
-    'evolve_rapport_calm_reassurance',      // open, gentle arm position
+    'quaternius_neutral_idle',              // subtle head/spine sway — clean neutral
+    'mesh2motion_neutral_weight_shift',     // gentle weight shift, spine only
+    'evolve_listening_interested_lean',     // slight forward lean, engaged
+    'mixamo_neutral_looking_around',        // natural head look-around
   ],
   joy: [
-    'quaternius_joy_breathing_idle',        // upright, arms slightly raised
-    'evolve_joy_enthusiastic_agree',        // warm, expressive arms
-    'evolve_rapport_inclusive_gesture',     // open arms, inviting
+    'quaternius_joy_breathing_idle',        // upbeat chest/head lift
+    'evolve_empathy_gentle_nod',            // warm nod
+    'mixamo_neutral_thoughtful_nod',        // lighter nod variation
   ],
   anger: [
-    'quaternius_anger_tense_idle',          // tense stance, arms stiff
-    'evolve_anger_controlled_release',      // controlled but charged
-    'mixamo_anger_arms_crossed',            // defensive/guarded crossed arms
+    'quaternius_anger_tense_idle',          // tense neck/spine, head forward
+    'mesh2motion_neutral_weight_shift',     // controlled weight — simmering
   ],
   sadness: [
-    'quaternius_sadness_slumped',           // slumped shoulders
-    'evolve_stress_self_anchor',            // arms drawn in, self-soothing
+    'quaternius_sadness_idle',              // slumped spine/head drop
+    'evolve_sadness_resigned_sigh',         // head bow, resigned
   ],
   surprise: [
-    'evolve_surprise_lean_in',              // leaning forward, arms up
-    'quaternius_fear_frozen_idle',          // startled freeze — arms raised
+    'quaternius_surprise_idle',             // head recoil, eyebrows up
+    'mixamo_neutral_looking_around',        // rapid head scan
   ],
   fear: [
-    'quaternius_fear_frozen_idle',          // frozen, arms slightly raised
-    'evolve_fear_shrink_back',              // protective arm position
-    'evolve_stress_self_anchor',            // drawn in, self-protective
+    'quaternius_fear_idle',                 // frozen posture, minimal movement
+    'quaternius_neutral_idle',              // stillness fallback
   ],
   disgust: [
-    'quaternius_disgust_recoil_idle',       // leaning back, arms back
-    'evolve_disgust_lean_back_cross',       // crossed arms, recoil
+    'quaternius_disgust_idle',              // head pull-back, spine lean away
+    'mesh2motion_neutral_weight_shift',     // shifting away
   ],
   empathy: [
-    'evolve_rapport_calm_reassurance',      // open, reaching forward gently
-    'evolve_rapport_inclusive_gesture',     // arms open and welcoming
-    'evolve_coaching_invite_reflection',    // gentle arms-open invitation
+    'mixamo_empathy_leaning_forward',       // gentle forward lean toward person
+    'evolve_empathy_gentle_nod',            // warm engaged nod
+    'evolve_listening_interested_lean',     // attentive lean
   ],
   concentration: [
-    'evolve_concentration_arms_folded_think', // arms folded, thinking
-    'evolve_professional_steeple_fingers',    // steeple — deep consideration
-    'evolve_thinking_weigh_options',          // weighing, arms gesture
+    'mixamo_neutral_looking_around',        // scanning/processing look
+    'mixamo_neutral_thoughtful_nod',        // processing nod
+    'evolve_idle_look_down_notes',          // looking down, thinking
   ],
   confusion: [
-    'evolve_concentration_arms_folded_think', // uncertain, arms folded
-    'evolve_rapport_calm_reassurance',        // open, trying to connect
+    'evolve_confusion_double_head_tilt',    // double head tilt — confused
+    'mixamo_neutral_looking_around',        // uncertain look-around
+    'quaternius_neutral_idle',              // neutral fallback
   ],
 }
 
