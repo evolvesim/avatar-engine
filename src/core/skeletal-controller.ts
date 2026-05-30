@@ -1,7 +1,7 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Architecture (0.3.58 — additive gestures referenced against avaturn base):
+ * Architecture (0.3.59 — additive gestures with UUID fix for mixer action cache):
  *
  *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
  *                 Full body including arms — drives natural rest arm pose.
@@ -28,6 +28,7 @@
  */
 
 import * as THREE from 'three'
+import { MathUtils } from 'three'
 import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
@@ -284,12 +285,20 @@ export class SkeletalController {
       return clip
     }
 
-    // Deep-copy the gesture clip (preserve original in dictionary)
+    // Deep-copy the gesture clip (preserve original in dictionary).
+    // CRITICAL: assign a new UUID — AnimationClip.parse/toJSON preserves the original UUID,
+    // which causes mixer.clipAction(addClip) to return the SAME cached action as the original
+    // non-additive clip. That action's interpolants are bound to the original absolute-value
+    // tracks, so the additive conversion has no effect — absolute values are fed into
+    // accumulateAdditive → double-rotation = arm flapping.
+    // A fresh UUID forces the mixer to create a new action bound to the additive track data.
     const addClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
+    addClip.uuid = MathUtils.generateUUID()
     // Compute additive deltas using avaturn_animation frame-0 as the reference pose
     THREE.AnimationUtils.makeClipAdditive(addClip, 0, this.baseClip)
 
-    console.log(`[SkeletalController] converted "${clip.name}" to additive (ref=avaturn frame-0)`)
+    console.log(`[SkeletalController] converted "${clip.name}" to additive (ref=avaturn frame-0) [new uuid: ${addClip.uuid.slice(0,8)}]`)
+    console.log(`  (UUID fixed: original=${clip.uuid.slice(0,8)}, additive=${addClip.uuid.slice(0,8)})`)
     const armTracks = addClip.tracks.filter(t => /Shoulder|Arm|ForeArm/i.test(t.name))
     if (armTracks.length > 0) {
       // Log first delta value for diagnosis
