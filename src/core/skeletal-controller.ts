@@ -1,6 +1,19 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
+ * Architecture (0.3.64 — smooth arm return via clamp+fade overlap):
+ *
+ *   FIX 6 — Arm snap on gesture end (0.3.64):
+ *     All gesture clips are single-frame static poses. With clampWhenFinished=false
+ *     (0.3.62), Three.js released arm PropertyMixers the instant LoopOnce ended.
+ *     Arms had no driver for the entire fadeOut window while base-full ramped back
+ *     from 0 → snap to bind pose.
+ *     Fix: clampWhenFinished=true for arm gestures. The clamp holds the final pose
+ *     while fadeOut(0.6s) runs. base-full simultaneously ramps 0→1 via playIdle().
+ *     Both actions drive arm bones together: gesture fades 1→0, base grows 0→1 —
+ *     smooth interpolation from gesture pose to rest. No driver gap at any point.
+ *     Head/spine gestures retain clampWhenFinished=false with 0.25s fade (safe).
+ *
  * Architecture (0.3.62 — UUID binding + full arm mask + de-clamping):
  *
  *   FIX 1 — UUID binding (Strategic Fix 1 from deep research):
@@ -606,9 +619,20 @@ export class SkeletalController {
     const action = this.mixer.clipAction(retargetedClip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
-    // FIX 5: clampWhenFinished = false — prevents frozen near-straight quaternions
-    // accumulating in PropertyMixer buffers and stiffening subsequent gestures.
-    action.clampWhenFinished = false
+    // ARM GESTURE SNAP FIX (0.3.64):
+    // Root cause: all gesture clips are single-frame static poses.
+    // With clampWhenFinished=false, Three.js releases the arm PropertyMixers the
+    // instant LoopOnce ends. Arms have NO driver for the entire fadeOut window
+    // while base-full ramps back up → snap to bind pose.
+    //
+    // Fix: clampWhenFinished=true for arm gestures holds the final pose through
+    // fadeOut. base-full simultaneously ramps from 0→1 (started in playIdle below).
+    // Three.js normalises both contributors: gesture fades 1→0, base grows 0→1,
+    // producing a smooth interpolation from gesture pose → rest. No driver gap.
+    //
+    // Head/spine gestures: clampWhenFinished=false is safe — base-full always
+    // owns arm bones regardless, only spine/head return to rest which is smooth.
+    action.clampWhenFinished = hasArmTracks
     action.reset()
     action.setEffectiveWeight(0)
     action.play()
@@ -616,36 +640,38 @@ export class SkeletalController {
     this.topWeightCur = 0
     this.topWeightTgt = 1.0
 
+    // Arm gestures: 0.6s fade — long enough for base-full to ramp to weight≈1
+    //   before the clamp releases. Also slow the base swap-back rate for arm
+    //   gestures so base-full is still rising during the overlap window.
+    // Head/spine gestures: 0.25s fade — no arm snap risk, shorter = snappier feel.
+    const fadeDuration = hasArmTracks ? 0.6 : 0.25
+    const fadeMs       = Math.round(fadeDuration * 1000) + 50
+
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
       this.mixer!.removeEventListener('finished', onFinished)
 
-      console.log('[SkeletalController] gesture finished:', animId)
+      console.log('[SkeletalController] gesture finished:', animId,
+        hasArmTracks ? '(arm — clamp+fade ' + fadeDuration + 's)' : '(head/spine — fade ' + fadeDuration + 's)')
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
 
-      // FIX 5: programmatic fade-out instead of instant stop.
-      // Smooth 0.3s fade prevents abrupt snap and clears PropertyMixer buffer cleanly.
-      //
-      // ARM SNAP FIX (0.3.63):
-      // The snap happened because playIdle() called _swapBaseToFull() immediately
-      // while the gesture's fadeOut was still in progress. For ~300ms both the
-      // gesture (fading) and base-full (ramping back from 0) were at partial weight,
-      // leaving a brief window with no full arm authority → snap to rest.
-      //
-      // Solution: delay playIdle() by the FULL fade duration (350ms) so that
-      // _swapBaseToFull() fires AFTER the gesture arm tracks are gone.
-      // At t=0:   action.fadeOut(0.3) starts, _swapBaseToFull() queued for t=350ms
-      // At t=350ms: action.stop() + _swapBaseToFull() fire together — base is
-      //             already ramping back to 1 with no competition from the gesture.
       this.isInGesture = false
-      action.fadeOut(0.3)
+
+      // Fade the gesture out. For arm gestures, clampWhenFinished=true keeps
+      // the final pose driving the bones throughout the fade so there is never
+      // a window with zero arm authority.
+      action.fadeOut(fadeDuration)
+
+      // Start the idle (and base-full swap-back) immediately — now safe because
+      // the gesture clamp keeps arm bones driven throughout the fade overlap.
+      this.playIdle(this.currentEmotion)
+
+      // Stop after fade completes — clamp hold no longer needed at this point.
       setTimeout(() => {
         action.stop()
         if (this.outAction === action) this.outAction = null
         if (this.topAction === action) this.topAction = null
-        // Swap base back to full ONLY after gesture arm tracks are gone
-        this.playIdle(this.currentEmotion)
-      }, 350)
+      }, fadeMs)
     }
     this.mixer.addEventListener('finished', onFinished)
   }
