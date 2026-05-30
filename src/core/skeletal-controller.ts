@@ -1,34 +1,48 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
- * Architecture (0.3.59 — additive gestures with UUID fix for mixer action cache):
+ * Architecture (0.3.60 — re-baked GLB + dual-base masked swap):
  *
- *   BASE layer  — avaturn_animation (morph tracks stripped), weight=1 ALWAYS.
- *                 Full body including arms — drives natural rest arm pose.
- *                 NEVER faded, NEVER stopped. Arms stay in avaturn rest pose at all times.
+ *   BASE FULL layer  — avaturn_animation (morph tracks stripped, arm tracks KEPT).
+ *                      weight=1, LoopRepeat. Default state during idle.
+ *                      Drives ALL 53 bones including arms → avaturn rest arm pose.
+ *                      NEVER cross-faded. Only swapped out during arm gestures.
  *
- *   IDLE TOP layer — idle clips (head/spine only) at NormalBlend weight=1.
- *                 No arm tracks → base owns arms during idle. No competition.
+ *   BASE ARM-STRIPPED layer — avaturn_animation (morph tracks stripped AND arm tracks stripped).
+ *                      weight=0 at rest. Fades IN during arm gestures, replacing baseActionFull.
+ *                      No arm tracks → gesture clip is the sole driver of arm bones.
+ *                      Drives head/spine/hips/legs only.
  *
- *   GESTURE TOP layer — gesture clips converted to ADDITIVE using avaturn_animation
- *                 as the reference pose. Deltas = gesture_absolute - avaturn_rest.
- *                 Applied ON TOP of base: result = base_pose + delta = exact gesture pose.
- *                 Weight capped at 0.9 for smooth transitions.
- *                 When gesture ends, additive action removed → base reclaims arms.
+ *   IDLE TOP layer — idle clips (head/spine only, no arm tracks), NormalBlend w=1.
+ *                    Base-full owns arms during idle. No competition.
  *
- * WHY additive with avaturn reference works (vs 0.3.10 failure):
- *   0.3.10 used makeClipAdditive(gestureClip) — reference = gesture's own frame-0 ≈ T-pose.
- *   Deltas from T-pose ≈ zero for arm bones already near T-pose → arms didn't move.
- *   0.3.58 uses makeClipAdditive(gestureClip, 0, avaturnClip) — reference = avaturn frame-0.
- *   Deltas = (gesture absolute pose) - (avaturn rest pose).
- *   When added to base (already at avaturn rest), result = intended absolute gesture pose.
+ *   GESTURE TOP layer — re-baked gesture clip, NormalBlend w=1.
+ *                    During arm gestures: base swapped to arm-stripped version first.
+ *                    Re-baked clip authored in avaturn rest frame → correct absolute pose
+ *                    when base-arm-stripped is the only other action (which has NO arm tracks).
+ *                    Result: gesture clip drives arms 100% at weight=1. No 50/50 split.
  *
- * PDF Section 5 reference: Track Filtering and Sub-Skeletal Masking.
- * The base/top architecture is our equivalent of Unity Avatar Masks.
+ *   BASE SWAP sequence:
+ *     gesture start → fade baseActionFull 1→0, fade baseActionArmStripped 0→1
+ *                   → play re-baked gesture clip NormalBlend w=1
+ *     gesture end   → fade baseActionArmStripped 1→0, fade baseActionFull 0→1
+ *                   → return to idle
+ *
+ * WHY NOT additive (0.3.59):
+ *   Re-baked clips express poses in avaturn rest frame — they are already "absolute" poses
+ *   relative to the rest. Playing them as NormalBlend while base is arm-stripped gives
+ *   full 100% override of arm bones. No additive math needed.
+ *   Additive required the base to be present; that caused 50/50 NormalBlend weight split
+ *   when both base (arm tracks) and gesture (arm tracks) played simultaneously at w=1.
+ *
+ * WHY re-baked clips work:
+ *   Original clips authored from T-pose bind. avaturn rest arms are 66° from bind.
+ *   Additive delta = orig - bind ≈ orig (since bind≈identity) → only ~half the correction.
+ *   Re-baked formula: q_rebaked = q_avaturn_rest * inv(q_bind) * q_gesture_original
+ *   → full arm pose in avaturn rest frame → plays correctly with NormalBlend.
  */
 
 import * as THREE from 'three'
-import { MathUtils } from 'three'
 import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
@@ -115,17 +129,30 @@ function logArmBoneQuats(label: string, root: THREE.Object3D): void {
   }
 }
 
+// ── Arm bone name pattern ─────────────────────────────────────────────────────
+const ARM_BONE_RE = /Shoulder|(?<![a-z])Arm(?![a-z])|ForeArm/i
+
 export class SkeletalController {
-  private mixer:      THREE.AnimationMixer | null = null
-  /** Full avaturn_animation (morph stripped) — weight=1, NEVER faded */
-  private baseAction: THREE.AnimationAction | null = null
-  /** Stored stripped base clip — used as additive reference for gesture clips */
-  private baseClip:   THREE.AnimationClip  | null = null
+  private mixer: THREE.AnimationMixer | null = null
+
+  /** Full avaturn_animation (morph stripped, arm tracks KEPT) — default idle state */
+  private baseActionFull:       THREE.AnimationAction | null = null
+  /** Arm-stripped avaturn_animation (morph + arm tracks stripped) — active during arm gestures */
+  private baseActionArmStripped: THREE.AnimationAction | null = null
+
+  /** The stripped-full clip — stored for diagnostic reference */
+  private baseClipFull: THREE.AnimationClip | null = null
 
   private topAction:  THREE.AnimationAction | null = null
   private outAction:  THREE.AnimationAction | null = null
   private topWeightTgt: number = 0
   private topWeightCur: number = 0
+
+  /** True while baseActionArmStripped is active (swap in progress or arm gesture playing) */
+  private baseSwapped = false
+  /** Lerp targets for base swap. 0=full active, 1=arm-stripped active */
+  private baseSwapCur = 0   // tracks baseActionFull weight (starts at 1)
+  private baseSwapTgt = 0   // 0 = full base dominant, 1 = arm-stripped dominant
 
   private dictionary:        AnimationDictionary
   private avatarRoot:        THREE.Object3D | null = null
@@ -140,9 +167,6 @@ export class SkeletalController {
   private pendingIdleFrames  = 0
   private diagnosticFrame    = 0
 
-  /** Cache of additive-converted clips: original clip name → additive version */
-  private additiveCache = new Map<string, THREE.AnimationClip>()
-
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
   }
@@ -152,51 +176,83 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.60 —', avatarRoot.name || '(unnamed)')
     console.log('[SkeletalController] clips provided:', clips?.length ?? 0, clips?.map(c => c.name))
 
     const raw = clips?.find(c => c.name === 'avaturn_animation')
     if (raw) {
       console.log(`[SkeletalController] avaturn_animation found: ${raw.tracks.length} raw tracks`)
 
-      // Strip morph tracks — applyWeightsToMeshes owns the face
-      // Keep ALL bone tracks including arm tracks — base drives full body
-      const stripped = new THREE.AnimationClip(
-        raw.name,
+      // ── BASE FULL: morph tracks stripped, arm tracks KEPT ─────────────────
+      const strippedFull = new THREE.AnimationClip(
+        raw.name + '_full',
         raw.duration,
         raw.tracks.filter(
           t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
         )
       )
-      this.baseClip = stripped
+      this.baseClipFull = strippedFull
 
-      const armTracks = stripped.tracks.filter(t => /Shoulder|Arm|ForeArm/i.test(t.name))
+      const armTracksFull = strippedFull.tracks.filter(t => ARM_BONE_RE.test(t.name))
       console.log(
-        `[SkeletalController] base: ${stripped.tracks.length} bone tracks`,
-        `\n  arm tracks: ${armTracks.map(t => t.name).join(', ') || 'NONE — arms will T-pose!'}`
+        `[SkeletalController] baseClipFull: ${strippedFull.tracks.length} bone tracks`,
+        `\n  arm tracks (${armTracksFull.length}):`,
+        armTracksFull.length > 0
+          ? armTracksFull.map(t => t.name.split('.')[0]).join(', ')
+          : '❌ NONE — arms will T-pose!'
       )
 
-      // Log frame-0 arm values for reference
-      for (const t of armTracks.slice(0, 6)) {
+      // Log frame-0 arm quaternions from the full base
+      for (const t of armTracksFull.slice(0, 6)) {
         const vals = (t as THREE.QuaternionKeyframeTrack).values
         if (vals?.length >= 4) {
-          console.log(`  [BaseArmQ] ${t.name.split('.')[0]}: [${vals[0].toFixed(3)}, ${vals[1].toFixed(3)}, ${vals[2].toFixed(3)}, ${vals[3].toFixed(3)}]`)
+          console.log(`  [BaseFullArmQ] ${t.name.split('.')[0]}: [${vals[0].toFixed(3)}, ${vals[1].toFixed(3)}, ${vals[2].toFixed(3)}, ${vals[3].toFixed(3)}]`)
         }
       }
 
-      const base = this.mixer.clipAction(stripped)
-      base.blendMode        = THREE.NormalAnimationBlendMode
-      base.setLoop(THREE.LoopRepeat, Infinity)
-      base.clampWhenFinished = false
-      base.setEffectiveWeight(1)
-      base.play()
-      this.baseAction = base
-      console.log('[SkeletalController] base layer started: avaturn_animation weight=1 NormalBlend')
+      const baseFull = this.mixer.clipAction(strippedFull)
+      baseFull.blendMode        = THREE.NormalAnimationBlendMode
+      baseFull.setLoop(THREE.LoopRepeat, Infinity)
+      baseFull.clampWhenFinished = false
+      baseFull.setEffectiveWeight(1)
+      baseFull.play()
+      this.baseActionFull = baseFull
+      console.log('[SkeletalController] baseActionFull started: weight=1 NormalBlend (full arms)')
+
+      // ── BASE ARM-STRIPPED: morph AND arm tracks stripped ──────────────────
+      const strippedArms = new THREE.AnimationClip(
+        raw.name + '_armstripped',
+        raw.duration,
+        raw.tracks.filter(
+          t =>
+            !t.name.includes('.morphTargetInfluences') &&
+            !t.name.endsWith('.weights') &&
+            !ARM_BONE_RE.test(t.name)
+        )
+      )
+
+      const armTracksStripped = strippedFull.tracks.filter(t => ARM_BONE_RE.test(t.name))
+      console.log(
+        `[SkeletalController] baseClipArmStripped: ${strippedArms.tracks.length} bone tracks`,
+        `(stripped ${armTracksStripped.length} arm tracks)`
+      )
+
+      const baseArmStripped = this.mixer.clipAction(strippedArms)
+      baseArmStripped.blendMode        = THREE.NormalAnimationBlendMode
+      baseArmStripped.setLoop(THREE.LoopRepeat, Infinity)
+      baseArmStripped.clampWhenFinished = false
+      baseArmStripped.setEffectiveWeight(0)  // starts at 0 — only active during arm gestures
+      baseArmStripped.play()
+      this.baseActionArmStripped = baseArmStripped
+      console.log('[SkeletalController] baseActionArmStripped ready: weight=0 (standby)')
     } else {
       console.warn('[SkeletalController] ❌ avaturn_animation NOT FOUND — arms will T-pose!')
     }
 
-    this.pendingIdle = true
+    this.baseSwapped  = false
+    this.baseSwapCur  = 0   // tracks distance to arm-stripped: 0=full, 1=stripped
+    this.baseSwapTgt  = 0
+    this.pendingIdle  = true
     this._tryStartIdle()
   }
 
@@ -213,7 +269,8 @@ export class SkeletalController {
       this.pendingIdleFrames = 0
     }
 
-    if (!this.isInGesture && !this.pendingIdle && this.topWeightCur >= 0.99) {
+    // ── Idle pool cycling (only when fully idle, base not swapped) ────────────
+    if (!this.isInGesture && !this.pendingIdle && !this.baseSwapped && this.topWeightCur >= 0.99) {
       this.idlePoolTimer += delta
       if (this.idlePoolTimer >= this.idlePoolInterval) {
         this.idlePoolTimer    = 0
@@ -223,15 +280,35 @@ export class SkeletalController {
       }
     }
 
+    // ── Top layer weight lerp ─────────────────────────────────────────────────
     if (this.topAction && this.topWeightCur < this.topWeightTgt) {
       this.topWeightCur = Math.min(this.topWeightTgt, this.topWeightCur + delta * 4)
       this.topAction.setEffectiveWeight(this.topWeightCur)
     }
 
+    // ── Out layer fade out ────────────────────────────────────────────────────
     if (this.outAction) {
       const next = Math.max(0, this.outAction.getEffectiveWeight() - delta * 4)
       this.outAction.setEffectiveWeight(next)
       if (next === 0) { this.outAction.stop(); this.outAction = null }
+    }
+
+    // ── Base swap lerp ────────────────────────────────────────────────────────
+    // baseSwapCur: 0 = baseActionFull dominant (weight=1), 1 = baseActionArmStripped dominant (weight=1)
+    if (this.baseSwapCur !== this.baseSwapTgt) {
+      const speed = delta * 5  // swap completes in ~0.2s
+      if (this.baseSwapTgt > this.baseSwapCur) {
+        this.baseSwapCur = Math.min(this.baseSwapTgt, this.baseSwapCur + speed)
+      } else {
+        this.baseSwapCur = Math.max(this.baseSwapTgt, this.baseSwapCur - speed)
+      }
+      const wFull    = 1 - this.baseSwapCur
+      const wStripped = this.baseSwapCur
+      this.baseActionFull?.setEffectiveWeight(wFull)
+      this.baseActionArmStripped?.setEffectiveWeight(wStripped)
+
+      // Track whether swap is "complete enough" for the gesture to have full arm ownership
+      this.baseSwapped = this.baseSwapCur >= 0.95
     }
 
     this.mixer?.update(delta)
@@ -240,13 +317,22 @@ export class SkeletalController {
 
     // Frame 10: log full state
     if (this.diagnosticFrame === 10) {
-      console.log('[SkeletalController] ── FRAME 10 ──────────────────────────────')
-      console.log('[SkeletalController] base:', this.baseAction
-        ? `w=${this.baseAction.getEffectiveWeight().toFixed(3)} blendMode=${this.baseAction.blendMode} running=${this.baseAction.isRunning()}`
-        : '❌ MISSING')
-      console.log('[SkeletalController] top:', this.topAction
-        ? `w=${this.topAction.getEffectiveWeight().toFixed(3)} clip="${this.topAction.getClip().name}" blendMode=${this.topAction.blendMode} running=${this.topAction.isRunning()}`
-        : 'none')
+      console.log('[SkeletalController] ── FRAME 10 (0.3.60) ────────────────────────')
+      console.log('[SkeletalController] baseActionFull:',
+        this.baseActionFull
+          ? `w=${this.baseActionFull.getEffectiveWeight().toFixed(3)} blendMode=${this.baseActionFull.blendMode} running=${this.baseActionFull.isRunning()}`
+          : '❌ MISSING')
+      console.log('[SkeletalController] baseActionArmStripped:',
+        this.baseActionArmStripped
+          ? `w=${this.baseActionArmStripped.getEffectiveWeight().toFixed(3)} blendMode=${this.baseActionArmStripped.blendMode} running=${this.baseActionArmStripped.isRunning()}`
+          : '❌ MISSING')
+      console.log('[SkeletalController] topAction:',
+        this.topAction
+          ? `w=${this.topAction.getEffectiveWeight().toFixed(3)} clip="${this.topAction.getClip().name}" blendMode=${this.topAction.blendMode} running=${this.topAction.isRunning()}`
+          : 'none')
+      console.log('[SkeletalController] baseSwapCur:', this.baseSwapCur.toFixed(3),
+        '| baseSwapped:', this.baseSwapped,
+        '| isInGesture:', this.isInGesture)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allActions: THREE.AnimationAction[] = (this.mixer as any)?._actions ?? []
       console.log(`[SkeletalController] mixer._actions count: ${allActions.length}`)
@@ -258,7 +344,7 @@ export class SkeletalController {
 
     // Frame 120
     if (this.diagnosticFrame === 120) {
-      console.log('[SkeletalController] ── FRAME 120 ─────────────────────────────')
+      console.log('[SkeletalController] ── FRAME 120 ────────────────────────────────')
       if (this.avatarRoot) logArmBoneQuats('frame-120', this.avatarRoot)
     }
   }
@@ -266,51 +352,23 @@ export class SkeletalController {
   // ── Internal helpers ────────────────────────────────────────────────────────
 
   /**
-   * Convert a gesture clip to additive mode referenced against the avaturn base clip.
-   * makeClipAdditive(gestureClip, 0, avaturnClip) computes per-track deltas:
-   *   delta[bone] = gesture[bone] - avaturn_frame0[bone]
-   * When played additively on top of base (which plays avaturn_animation),
-   * the result is: avaturn_pose + delta = gesture intended absolute pose.
-   *
-   * For idle clips (no arm tracks), there's nothing to subtract from — they're
-   * played as NormalBlend and don't affect arm bones.
+   * Swap base to arm-stripped version.
+   * Called before an arm gesture starts so the gesture clip fully owns arm bones.
    */
-  private _toAdditiveGesture(clip: THREE.AnimationClip): THREE.AnimationClip {
-    const cached = this.additiveCache.get(clip.name)
-    if (cached) return cached
+  private _swapBaseToArmStripped(): void {
+    if (this.baseSwapTgt === 1) return  // already swapping/swapped
+    console.log('[SkeletalController] BASE SWAP → arm-stripped (gesture starting)')
+    this.baseSwapTgt = 1
+  }
 
-    if (!this.baseClip) {
-      // No base clip — can't compute additive. Fall back to normal blend.
-      console.warn(`[SkeletalController] no baseClip for additive conversion of "${clip.name}" — using clip as-is`)
-      return clip
-    }
-
-    // Deep-copy the gesture clip (preserve original in dictionary).
-    // CRITICAL: assign a new UUID — AnimationClip.parse/toJSON preserves the original UUID,
-    // which causes mixer.clipAction(addClip) to return the SAME cached action as the original
-    // non-additive clip. That action's interpolants are bound to the original absolute-value
-    // tracks, so the additive conversion has no effect — absolute values are fed into
-    // accumulateAdditive → double-rotation = arm flapping.
-    // A fresh UUID forces the mixer to create a new action bound to the additive track data.
-    const addClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
-    addClip.uuid = MathUtils.generateUUID()
-    // Compute additive deltas using avaturn_animation frame-0 as the reference pose
-    THREE.AnimationUtils.makeClipAdditive(addClip, 0, this.baseClip)
-
-    console.log(`[SkeletalController] converted "${clip.name}" to additive (ref=avaturn frame-0) [new uuid: ${addClip.uuid.slice(0,8)}]`)
-    console.log(`  (UUID fixed: original=${clip.uuid.slice(0,8)}, additive=${addClip.uuid.slice(0,8)})`)
-    const armTracks = addClip.tracks.filter(t => /Shoulder|Arm|ForeArm/i.test(t.name))
-    if (armTracks.length > 0) {
-      // Log first delta value for diagnosis
-      const t = armTracks[0] as THREE.QuaternionKeyframeTrack
-      const v = t.values
-      if (v?.length >= 4) {
-        console.log(`  first arm delta "${t.name.split('.')[0]}": [${v[0].toFixed(3)}, ${v[1].toFixed(3)}, ${v[2].toFixed(3)}, ${v[3].toFixed(3)}]`)
-      }
-    }
-
-    this.additiveCache.set(clip.name, addClip)
-    return addClip
+  /**
+   * Swap base back to full version.
+   * Called when an arm gesture ends.
+   */
+  private _swapBaseToFull(): void {
+    if (this.baseSwapTgt === 0) return  // already full
+    console.log('[SkeletalController] BASE SWAP → full (gesture ended)')
+    this.baseSwapTgt = 0
   }
 
   private _tryStartIdle(): void {
@@ -326,7 +384,7 @@ export class SkeletalController {
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    // Idle clips: NormalBlend, no arm tracks → base owns arms
+    // Idle clips: NormalBlend, no arm tracks → base-full owns arms
     const action = this.mixer.clipAction(entry.clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
@@ -358,12 +416,15 @@ export class SkeletalController {
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
+    // If returning from a gesture, swap base back to full
+    this._swapBaseToFull()
+
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
       this.outAction = this.topAction
     }
 
-    // Idle clips: NormalBlend, no arm tracks — base owns arms during idle
+    // Idle clips: NormalBlend, no arm tracks — base-full owns arms during idle
     const action = this.mixer.clipAction(entry.clip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
@@ -385,8 +446,11 @@ export class SkeletalController {
 
     console.log('[SkeletalController] playGesture:', animId)
     logClipSummary('GESTURE', entry.clip)
-    console.log('[SkeletalController] base weight at gesture start:',
-      this.baseAction?.getEffectiveWeight().toFixed(3) ?? 'NO BASE')
+
+    const hasArmTracks = entry.clip.tracks.some(t => ARM_BONE_RE.test(t.name))
+    console.log('[SkeletalController] gesture hasArmTracks:', hasArmTracks)
+    console.log('[SkeletalController] baseActionFull weight at gesture start:',
+      this.baseActionFull?.getEffectiveWeight().toFixed(3) ?? 'NO BASE')
 
     if (this.topAction) {
       if (this.outAction && this.outAction !== this.topAction) this.outAction.stop()
@@ -396,30 +460,19 @@ export class SkeletalController {
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
-    const hasArmTracks = entry.clip.tracks.some(t => /Shoulder|(?<![a-z])Arm(?![a-z])|ForeArm/i.test(t.name))
-
-    let clip: THREE.AnimationClip
-    let blendMode: THREE.AnimationBlendMode
-    let maxWeight: number
-
-    if (hasArmTracks && this.baseClip) {
-      // Arm gesture: convert to additive using avaturn base as reference.
-      // Additive delta = gesture_absolute - avaturn_rest → when added to base = correct gesture pose.
-      clip      = this._toAdditiveGesture(entry.clip)
-      blendMode = THREE.AdditiveAnimationBlendMode
-      // Cap at 0.9 — smooth feel, avoids over-rotation on large gestures
-      maxWeight = 0.9
-      console.log(`[SkeletalController] gesture "${animId}" → ADDITIVE blend (ref=avaturn), maxW=0.9`)
+    // For arm gestures: swap base to arm-stripped so gesture clip fully owns arm bones
+    if (hasArmTracks) {
+      this._swapBaseToArmStripped()
+      console.log('[SkeletalController] arm gesture → base swapping to arm-stripped. Gesture NormalBlend will own arms 100%.')
     } else {
-      // Head/spine-only gesture: NormalBlend, no arm competition with base
-      clip      = entry.clip
-      blendMode = THREE.NormalAnimationBlendMode
-      maxWeight = 1.0
-      console.log(`[SkeletalController] gesture "${animId}" → NORMAL blend (no arm tracks)`)
+      console.log('[SkeletalController] head/spine gesture → base stays FULL. No arm competition.')
     }
 
-    const action = this.mixer.clipAction(clip)
-    action.blendMode        = blendMode
+    // ALL gestures now use NormalBlend — re-baked clips are in avaturn rest frame.
+    // Arm gestures: base-arm-stripped has no arm tracks → gesture owns arms 100% at w=1.
+    // Head/spine gestures: base-full drives arms, gesture drives head/spine only.
+    const action = this.mixer.clipAction(entry.clip)
+    action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
     action.clampWhenFinished = true
     action.reset()
@@ -427,7 +480,7 @@ export class SkeletalController {
     action.play()
     this.topAction    = action
     this.topWeightCur = 0
-    this.topWeightTgt = maxWeight
+    this.topWeightTgt = 1.0
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       if (e.action !== action) return
@@ -478,9 +531,13 @@ export class SkeletalController {
     this.idlePoolTimer     = 0
     this.topAction         = null
     this.outAction         = null
-    this.baseAction        = null
+    this.baseActionFull    = null
+    this.baseActionArmStripped = null
     this.topWeightCur      = 0
     this.topWeightTgt      = 0
+    this.baseSwapCur       = 0
+    this.baseSwapTgt       = 0
+    this.baseSwapped       = false
     this.pendingIdle       = true
     this._tryStartIdle()
   }
