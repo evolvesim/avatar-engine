@@ -277,21 +277,20 @@ function AvatarScene({
   const mixerHasFired = useRef(false)
 
   // ── Camera-lock: head always faces forward ─────────────────────────────────
-  // The avaturn_animation base clip has a Head track that drifts off-camera at
-  // frame-0 before the idle top layer ramps up to weight=1. The avatar visibly
-  // looks away for ~0.5s at the start of each sim.
+  // Root cause: the avaturn_animation base clip has a Head bone track that holds
+  // the head at the GLB's baked-in off-angle rest pose (~28° sideways) every frame.
+  // A gentle slerp (Phase B alpha=0.06) cannot overcome the mixer driving the bone
+  // back each frame — the mixer wins.
   //
-  // Fix: we run a two-phase correction:
-  //   Phase A (frames 0–30): strong slerp (alpha=0.25) toward identity quaternion
-  //     in parent-relative space. We zero the Head bone's local Y rotation by
-  //     building a "no-yaw" quaternion from the bone's current pitch and roll only.
-  //     This immediately corrects the sideways stare without knowing the GLB's
-  //     internal coordinate frame.
-  //   Phase B (frame 30+): gentle slerp (alpha=0.06) toward the "settled" pose
-  //     captured at frame 30 (idle+base fully blended). This becomes the reference
-  //     for all subsequent frames — keeps the head roughly forward during idle
-  //     variation without fighting intentional head-turn gestures.
-  const headCamQuat    = useRef<THREE.Quaternion | null>(null)
+  // Fix: after the mixer runs each frame, decompose the Head bone's local quaternion
+  // into Euler (YXZ order) and HARD-ZERO the Y component before recomposing.
+  // This zeroes yaw while preserving the X (pitch/nod) and Z (roll/tilt) components
+  // that come from the animation — head nods, tilts, and micro-movement all play
+  // naturally. Only the sideways yaw is stripped.
+  //
+  // Phase A (frames 0–30): still used for fast initial correction (alpha=0.5 slerp
+  //   toward the zero-yaw target) so the transition from bind-pose isn't jarring.
+  // Phase B (frame 30+): hard-zero Y every frame — no slerp, no reference quat.
   const headCamFrame   = useRef(0)  // frame counter for phase transition
 
   // ── Blendshape state (useRef — never triggers re-renders) ──────────────────
@@ -510,32 +509,31 @@ function AvatarScene({
     }
 
     // ── 10b. Head camera-lock — always face the viewer ─────────────────────
+    // Every frame after the mixer runs: decompose the Head bone's local quaternion
+    // into Euler (YXZ), hard-zero the Y (yaw), recompose. The mixer's Head track
+    // drives the bone to the GLB's off-angle rest every frame — we strip the yaw
+    // component AFTER the mixer runs so it never accumulates visually.
+    // X (pitch/nod) and Z (roll/tilt) pass through unmodified — animations play
+    // as designed, only the sideways rotation is removed.
+    // Phase A (frames 0–30): slerp alpha=0.5 toward zero-yaw — smooth entry.
+    // Phase B (frame 30+): hard-zero Y every frame — overrides mixer completely.
     if (headBone.current) {
       const bone  = headBone.current
       const frame = ++headCamFrame.current
 
-      if (frame <= 30) {
-        // Phase A: strong correction — zero the yaw component in local space.
-        // Decompose the bone's local quaternion into pitch (X), yaw (Y), roll (Z)
-        // in the bone's parent-relative Euler, zero the Y component, recompose.
-        // This directly removes sideways head turn without any knowledge of the
-        // GLB's internal bone axes.
-        const e = new THREE.Euler().setFromQuaternion(bone.quaternion, 'YXZ')
-        e.y = 0
-        const targetQ = new THREE.Quaternion().setFromEuler(e)
-        bone.quaternion.slerp(targetQ, 0.25)
+      const e = new THREE.Euler().setFromQuaternion(bone.quaternion, 'YXZ')
+      e.y = 0
+      const targetQ = new THREE.Quaternion().setFromEuler(e)
 
-        // On frame 30, snapshot the now-corrected quaternion as our Phase B reference.
+      if (frame <= 30) {
+        // Phase A: fast slerp toward zero-yaw — smooth initial correction
+        bone.quaternion.slerp(targetQ, 0.5)
         if (frame === 30) {
-          headCamQuat.current = bone.quaternion.clone()
-          console.log('[AvatarCanvas] headCamQuat captured at frame 30')
+          console.log('[AvatarCanvas] headCamLock: Phase B active (hard-zero yaw each frame)')
         }
-      } else if (headCamQuat.current) {
-        // Phase B: gentle pull toward the settled forward-facing reference.
-        // alpha=0.06 ≈ corrects 60% of drift per second at 60fps.
-        // Gesture clips that move the Head bone intentionally will temporarily
-        // override this — the slerp brings the head back smoothly after.
-        bone.quaternion.slerp(headCamQuat.current, 0.06)
+      } else {
+        // Phase B: hard-zero yaw every frame after mixer — mixer cannot win
+        bone.quaternion.copy(targetQ)
       }
     }
 
