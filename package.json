@@ -32,8 +32,6 @@
     "three": ">=0.160.0"
   },
   "dependencies": {
-    "@gltf-transform/core": "^4.3.0",
-    "@gltf-transform/extensions": "^4.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
