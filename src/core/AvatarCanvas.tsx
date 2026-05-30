@@ -79,6 +79,21 @@ import {
   findBone,
 } from './procedural-animations'
 import type { ARKitWeights } from './emotion-state'
+import { hasFaceRig, mergeFaceRig } from './merge-face-rig'
+
+/**
+ * Default URL for the engine-shipped donor face rig (canonical Avaturn face meshes
+ * + ARKit blendshapes + `avaturn_animation` idle). Consumers can override via the
+ * `faceRigUrl` prop, but the typical case is to leave this default — the engine
+ * ships face-rig.glb under /avatar-engine/.
+ *
+ * IMPORTANT: This is a path relative to the host site's public root. The hosting
+ * product (Evolve RPG / ACTS / EvySim) must serve `face-rig.glb` at this URL —
+ * either by copying it from `node_modules/@evolvesim/avatar-engine/public/avatar-engine/`
+ * to its own `public/avatar-engine/` directory, or by setting up a build-time
+ * symlink. See the upload-pipeline section in the 3d-avatar-lipsync skill.
+ */
+export const DEFAULT_FACE_RIG_URL = '/avatar-engine/face-rig.glb'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -94,6 +109,26 @@ export interface AvatarCanvasProps {
   /** Optional VirtualDirector preset — defaults to trainingDirectorConfig in callers. */
   directorConfig?: DirectorConfig
   glbUrl?:         string
+  /**
+   * URL of the canonical face rig GLB used when `mergeFaceRig` is true (or auto-
+   * detected as needed). Defaults to `DEFAULT_FACE_RIG_URL` (engine-shipped asset).
+   * The donor must contain the six face meshes (Head_Mesh, Teeth_Mesh, Tongue_Mesh,
+   * Eye_Mesh, Eyelash_Mesh, EyeAO_Mesh) with ARKit blendshapes and an `avaturn_animation`
+   * clip. See merge-face-rig.ts for the contract.
+   */
+  faceRigUrl?:     string
+  /**
+   * Controls whether the engine merges the face rig (`faceRigUrl`) into the body
+   * GLB at load time.
+   *   - `'auto'` (default): merge only when the body GLB has no ARKit blendshapes
+   *     (i.e. body-only Avaturn exports). Already-rigged GLBs are left untouched.
+   *   - `true`: always merge.
+   *   - `false`: never merge (body GLB must already have face meshes + ARKit shapes).
+   *
+   * The `'auto'` mode is what every product upload pipeline should use — drop
+   * any Avaturn export in and the engine handles the rest.
+   */
+  mergeFaceRig?:   'auto' | boolean
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
   bodyRotationY?:  number
@@ -199,6 +234,10 @@ function Lighting({ preset }: { preset: LightingPreset }) {
 // ── Avatar scene ──────────────────────────────────────────────────────────────
 
 const HEAD_BONE_NAMES = ['head', 'mixamorighead', 'bip001_head']
+
+// Guard against re-running the merge on the same cached GLTF. useLoader returns
+// the same object across re-renders; we mutate it in place once, then skip.
+const mergedBodies = new WeakSet<object>()
 // Camera target Y for the 'head-and-shoulders' preset (see CAMERA_PRESETS in types.ts).
 // autoCalibrate shifts the avatar so the head bone sits at this Y in world space,
 // putting the head at the camera's look-at point and framing it correctly.
@@ -218,21 +257,54 @@ function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
 function AvatarScene({
   engine,
   glbUrl,
+  faceRigUrl,
+  mergeFaceRigMode,
   bodyRotationY,
   avatarYOffset,
   applyTPoseFix,
   avatarXOffset,
   autoCalibrate,
 }: {
-  engine:         AvatarEngine
-  glbUrl:         string
-  bodyRotationY:  number
-  avatarYOffset:  number
-  applyTPoseFix:  boolean
-  avatarXOffset:  number
-  autoCalibrate:  boolean
+  engine:           AvatarEngine
+  glbUrl:           string
+  faceRigUrl:       string
+  mergeFaceRigMode: 'auto' | boolean
+  bodyRotationY:    number
+  avatarYOffset:    number
+  applyTPoseFix:    boolean
+  avatarXOffset:    number
+  autoCalibrate:    boolean
 }) {
-  const gltf  = useLoader(GLTFLoader, glbUrl)
+  // Decide up-front whether we need the donor face rig. When `mergeFaceRigMode`
+  // is explicitly false the donor URL is omitted from the loader call so the
+  // engine never fetches face-rig.glb on already-rigged GLBs.
+  // Parallel load: useLoader accepts an array of URLs and returns an array of
+  // GLTFs, so body + donor stream together when a merge is possible.
+  const loadUrls = mergeFaceRigMode === false ? [glbUrl] : [glbUrl, faceRigUrl]
+  const loaded   = useLoader(GLTFLoader, loadUrls) as unknown as (
+    typeof loadUrls extends string[] ? Array<{ scene: THREE.Group; animations: THREE.AnimationClip[] }> : never
+  )
+  const bodyGltf  = loaded[0] as unknown as { scene: THREE.Group; animations: THREE.AnimationClip[] }
+  const donorGltf = loaded[1] as unknown as { scene: THREE.Group; animations: THREE.AnimationClip[] } | undefined
+
+  // ── Merge face rig (idempotent, runs once per body GLTF instance) ─────────
+  // We mutate the cached bodyGltf so the next time useLoader returns it the merge
+  // is already applied. A WeakSet guards against double-merging on re-render.
+  const gltf = useMemo(() => {
+    if (mergeFaceRigMode === false || !donorGltf) return bodyGltf
+    if (mergedBodies.has(bodyGltf)) return bodyGltf
+    const shouldMerge = mergeFaceRigMode === true ? true : !hasFaceRig(bodyGltf.scene)
+    if (!shouldMerge) {
+      console.info('[AvatarCanvas] face rig already present in body GLB — skipping runtime merge.')
+      mergedBodies.add(bodyGltf)
+      return bodyGltf
+    }
+    console.info('[AvatarCanvas] merging donor face rig into body GLB.')
+    mergeFaceRig(bodyGltf as unknown as Parameters<typeof mergeFaceRig>[0], donorGltf as unknown as Parameters<typeof mergeFaceRig>[1])
+    mergedBodies.add(bodyGltf)
+    return bodyGltf
+  }, [bodyGltf, donorGltf, mergeFaceRigMode])
+
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
@@ -561,6 +633,8 @@ export function AvatarCanvas({
   adapter,
   directorConfig: _directorConfig,
   glbUrl         = '/avatar.glb',
+  faceRigUrl     = DEFAULT_FACE_RIG_URL,
+  mergeFaceRig: mergeFaceRigMode = 'auto',
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
   bodyRotationY  = 0.5,
@@ -593,6 +667,8 @@ export function AvatarCanvas({
           <AvatarScene
             engine={engine}
             glbUrl={glbUrl}
+            faceRigUrl={faceRigUrl}
+            mergeFaceRigMode={mergeFaceRigMode}
             bodyRotationY={bodyRotationY}
             avatarYOffset={avatarYOffset}
             avatarXOffset={avatarXOffset}

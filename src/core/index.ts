@@ -3,8 +3,16 @@
  */
 
 // Primary component + hook
-export { AvatarCanvas }              from './AvatarCanvas'
+export { AvatarCanvas, DEFAULT_FACE_RIG_URL } from './AvatarCanvas'
 export type { AvatarCanvasProps }    from './AvatarCanvas'
+
+// Runtime face-rig merge (consumed by product upload pipelines)
+export {
+  mergeFaceRig,
+  hasFaceRig,
+  FACE_MESH_NAMES,
+  CANONICAL_IDLE_CLIP,
+}                                    from './merge-face-rig'
 export { useAvatarEngine }           from './use-avatar-engine'
 
 // Engine class
