@@ -72,17 +72,28 @@ import type { GestureCue } from './virtual-director'
 // ── Emotion → idle animation pools ───────────────────────────────────────────
 // All idle clips must be ARM-SAFE (no arm/shoulder/forearm tracks).
 // Base owns arm bones; idle clips drive head/spine/neck only.
+//
+// 0.3.63 audit:
+//   REMOVED from idle pools (gesture-only clips):
+//     - evolve_empathy_gentle_nod: is a nodding action — fine as a one-shot
+//       gesture but looks repetitive and unnatural when looped as an idle.
+//       More importantly: after a gesture it was being immediately re-selected
+//       as the idle, so the avatar appeared to loop the nod continuously.
+//     - mixamo_neutral_looking_around: ±6.9° yaw pan — intentional head-turn
+//       gesture, not a resting posture. Use as gesture only via VD.
+//   ADDED:
+//     - evolve_listening_interested_lean promoted into more pools
+//       (subtle Spine/Spine1/Head, 0° yaw — good universal resting posture)
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
     'quaternius_neutral_idle',
     'mesh2motion_neutral_weight_shift',
     'evolve_listening_interested_lean',
-    'mixamo_neutral_looking_around',
   ],
   joy: [
-    'evolve_empathy_gentle_nod',
     'mixamo_neutral_thoughtful_nod',
     'quaternius_neutral_idle',
+    'evolve_listening_interested_lean',
   ],
   anger: [
     'mesh2motion_neutral_weight_shift',
@@ -93,8 +104,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'quaternius_neutral_idle',
   ],
   surprise: [
-    'mixamo_neutral_looking_around',
     'quaternius_neutral_idle',
+    'mesh2motion_neutral_weight_shift',
   ],
   fear: [
     'quaternius_neutral_idle',
@@ -106,18 +117,18 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   empathy: [
     'mixamo_empathy_leaning_forward',
-    'evolve_empathy_gentle_nod',
     'evolve_listening_interested_lean',
+    'quaternius_neutral_idle',
   ],
   concentration: [
-    'mixamo_neutral_looking_around',
     'mixamo_neutral_thoughtful_nod',
     'evolve_idle_look_down_notes',
+    'quaternius_neutral_idle',
   ],
   confusion: [
-    'evolve_confusion_double_head_tilt',
-    'mixamo_neutral_looking_around',
     'quaternius_neutral_idle',
+    'mesh2motion_neutral_weight_shift',
+    'evolve_listening_interested_lean',
   ],
 }
 
@@ -614,15 +625,27 @@ export class SkeletalController {
 
       // FIX 5: programmatic fade-out instead of instant stop.
       // Smooth 0.3s fade prevents abrupt snap and clears PropertyMixer buffer cleanly.
+      //
+      // ARM SNAP FIX (0.3.63):
+      // The snap happened because playIdle() called _swapBaseToFull() immediately
+      // while the gesture's fadeOut was still in progress. For ~300ms both the
+      // gesture (fading) and base-full (ramping back from 0) were at partial weight,
+      // leaving a brief window with no full arm authority → snap to rest.
+      //
+      // Solution: delay playIdle() by the FULL fade duration (350ms) so that
+      // _swapBaseToFull() fires AFTER the gesture arm tracks are gone.
+      // At t=0:   action.fadeOut(0.3) starts, _swapBaseToFull() queued for t=350ms
+      // At t=350ms: action.stop() + _swapBaseToFull() fire together — base is
+      //             already ramping back to 1 with no competition from the gesture.
+      this.isInGesture = false
       action.fadeOut(0.3)
       setTimeout(() => {
         action.stop()
         if (this.outAction === action) this.outAction = null
         if (this.topAction === action) this.topAction = null
+        // Swap base back to full ONLY after gesture arm tracks are gone
+        this.playIdle(this.currentEmotion)
       }, 350)
-
-      this.isInGesture = false
-      this.playIdle(this.currentEmotion)
     }
     this.mixer.addEventListener('finished', onFinished)
   }

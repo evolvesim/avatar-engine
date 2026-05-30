@@ -268,6 +268,32 @@ function AvatarScene({
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
 
+  // ── Bind-pose flash guard ──────────────────────────────────────────────────
+  // The GLB is rendered in raw bind pose for the first few frames before the
+  // AnimationMixer fires its first update. For acts-guide.glb, the Armature
+  // root has a 28° Y rotation baked in and the Head bind pose is 0° relative,
+  // so the avatar looks ~28° sideways until avaturn_animation drives the head
+  // to its rest pose (~2.4° yaw). Fix: hide the scene until mixer frame 1.
+  const mixerHasFired = useRef(false)
+
+  // ── Camera-lock: head always faces forward ─────────────────────────────────
+  // The avaturn_animation base clip has a Head track that drifts off-camera at
+  // frame-0 before the idle top layer ramps up to weight=1. The avatar visibly
+  // looks away for ~0.5s at the start of each sim.
+  //
+  // Fix: we run a two-phase correction:
+  //   Phase A (frames 0–30): strong slerp (alpha=0.25) toward identity quaternion
+  //     in parent-relative space. We zero the Head bone's local Y rotation by
+  //     building a "no-yaw" quaternion from the bone's current pitch and roll only.
+  //     This immediately corrects the sideways stare without knowing the GLB's
+  //     internal coordinate frame.
+  //   Phase B (frame 30+): gentle slerp (alpha=0.06) toward the "settled" pose
+  //     captured at frame 30 (idle+base fully blended). This becomes the reference
+  //     for all subsequent frames — keeps the head roughly forward during idle
+  //     variation without fighting intentional head-turn gestures.
+  const headCamQuat    = useRef<THREE.Quaternion | null>(null)
+  const headCamFrame   = useRef(0)  // frame counter for phase transition
+
   // ── Blendshape state (useRef — never triggers re-renders) ──────────────────
   const currentWeights = useRef<ARKitWeights>({})
 
@@ -325,6 +351,12 @@ function AvatarScene({
     // clone's root primitive.
     engine.skeletal.init(gltf.scene, clips)
   }, [scene, gltf, clips, engine, applyTPoseFix])
+
+  // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
+  useEffect(() => {
+    scene.visible = false
+    mixerHasFired.current = false
+  }, [scene])
 
   // Disable frustum culling on all SkinnedMesh nodes.
   // After rebindSkeletons() the mixer drives bones away from bind pose each frame;
@@ -470,6 +502,42 @@ function AvatarScene({
 
     // ── 10. Skeletal animation mixer ───────────────────────────────────────
     engine.skeletal.update(delta)
+
+    // Show avatar only after mixer has fired at least once (hides bind-pose flash)
+    if (!mixerHasFired.current) {
+      mixerHasFired.current = true
+      scene.visible = true
+    }
+
+    // ── 10b. Head camera-lock — always face the viewer ─────────────────────
+    if (headBone.current) {
+      const bone  = headBone.current
+      const frame = ++headCamFrame.current
+
+      if (frame <= 30) {
+        // Phase A: strong correction — zero the yaw component in local space.
+        // Decompose the bone's local quaternion into pitch (X), yaw (Y), roll (Z)
+        // in the bone's parent-relative Euler, zero the Y component, recompose.
+        // This directly removes sideways head turn without any knowledge of the
+        // GLB's internal bone axes.
+        const e = new THREE.Euler().setFromQuaternion(bone.quaternion, 'YXZ')
+        e.y = 0
+        const targetQ = new THREE.Quaternion().setFromEuler(e)
+        bone.quaternion.slerp(targetQ, 0.25)
+
+        // On frame 30, snapshot the now-corrected quaternion as our Phase B reference.
+        if (frame === 30) {
+          headCamQuat.current = bone.quaternion.clone()
+          console.log('[AvatarCanvas] headCamQuat captured at frame 30')
+        }
+      } else if (headCamQuat.current) {
+        // Phase B: gentle pull toward the settled forward-facing reference.
+        // alpha=0.06 ≈ corrects 60% of drift per second at 60fps.
+        // Gesture clips that move the Head bone intentionally will temporarily
+        // override this — the slerp brings the head back smoothly after.
+        bone.quaternion.slerp(headCamQuat.current, 0.06)
+      }
+    }
 
     // ── 11. Propagate bone transforms through original scene ───────────────
     // Apply bodyRotationY to the original scene root so all bone world
