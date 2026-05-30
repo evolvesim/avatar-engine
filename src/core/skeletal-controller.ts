@@ -1,6 +1,28 @@
 /**
  * skeletal-controller.ts — Skeletal animation controller
  *
+ * Architecture (0.3.62 — UUID binding + full arm mask + de-clamping):
+ *
+ *   FIX 1 — UUID binding (Strategic Fix 1 from deep research):
+ *     All gesture/idle clip tracks are retargeted from string names (e.g. "LeftForeArm.quaternion")
+ *     to UUID-based names (e.g. "${uuid}.quaternion") before entering the mixer.
+ *     This bypasses PropertyBinding.findNode string search entirely, which previously fell back
+ *     to rootNode when capitalisation or GLTFLoader sanitisation caused a mismatch.
+ *     The root-node fallback was silently eating all LeftForeArm/RightForeArm keyframes,
+ *     leaving the elbow with no driver → rigid T-pose flap.
+ *
+ *   FIX 2 — Full arm + hand + finger mask (Strategic Fix 2 from deep research):
+ *     ARM_BONE_RE expanded to include Hand, Thumb, Index, Middle, Ring, Pinky.
+ *     The old /Shoulder|Arm/i left LeftHand/RightHand and all finger bones in the base action
+ *     at weight=1, creating interpolative resistance (parent=gesture, child=base) that damped
+ *     elbow flexion. Full kinematic isolation from shoulder to fingertip.
+ *
+ *   FIX 5 — De-clamping (Strategic Fix 5 from deep research):
+ *     clampWhenFinished = false on all gesture actions.
+ *     On finish: fadeOut(0.3) then explicit stop() after fade completes.
+ *     Prevents frozen near-straight quaternions accumulating in PropertyMixer buffers
+ *     and stiffening subsequent gestures over time.
+ *
  * Architecture (0.3.60 — re-baked GLB + dual-base masked swap):
  *
  *   BASE FULL layer  — avaturn_animation (morph tracks stripped, arm tracks KEPT).
@@ -130,15 +152,77 @@ function logArmBoneQuats(label: string, root: THREE.Object3D): void {
 }
 
 // ── Arm bone name pattern ─────────────────────────────────────────────────────
-// Matches: LeftArm, RightArm, LeftForeArm, RightForeArm, LeftShoulder, RightShoulder
-// NOTE: simple /Arm/ covers all three (ForeArm contains 'Arm', Shoulder is separate).
-// The old lookbehind pattern (?<![a-z])Arm failed on LeftArm/RightArm because
-// the preceding 't' is lowercase — causing the base swap to never trigger on
-// clips that only have Arm (not ForeArm) tracks.
-const ARM_BONE_RE = /Shoulder|Arm/i
+// FIX 2 (0.3.62): Expanded to full limb hierarchy — shoulder → fingertips.
+// Old /Shoulder|Arm/i left Hand + all finger bones in base action (weight=1),
+// creating hierarchical interpolative resistance: parent (LeftArm) owned by gesture,
+// child (LeftHand) owned by base → forearm elbow flexion damped to near-zero.
+// New pattern strips ALL bones from clavicle to fingertips from base during arm gestures,
+// giving the gesture clip the sole PropertyMixer authority over the entire limb chain.
+const ARM_BONE_RE = /Shoulder|Arm|Hand|Thumb|Index|Middle|Ring|Pinky/i
+
+// ── UUID-based track retargeting (FIX 1 — 0.3.62) ───────────────────────────
+/**
+ * Rewrites every track.name in a clip from "BoneName.property" to "${uuid}.property".
+ * This forces Three.js PropertyBinding to bind by UUID (direct object reference)
+ * instead of string search — completely bypassing the findNode() root-fallback bug
+ * that silently discards forearm tracks when names are mis-capitalised or
+ * sanitised differently by GLTFLoader (e.g. LeftForearm vs LeftForeArm).
+ *
+ * Call this on EVERY clip (both base and gesture) immediately after loading,
+ * before passing to mixer.clipAction().
+ *
+ * Returns the same clip object (mutated in-place) for chaining.
+ */
+function retargetClipToUUIDs(
+  clip: THREE.AnimationClip,
+  avatarRoot: THREE.Object3D
+): THREE.AnimationClip {
+  // Build case-insensitive normalised name → UUID map
+  const uuidMap = new Map<string, string>()
+  avatarRoot.traverse((obj) => {
+    if (obj.name) {
+      uuidMap.set(obj.name.toLowerCase(), obj.uuid)
+    }
+  })
+
+  let bound = 0
+  let missed = 0
+  const missedNames: string[] = []
+
+  for (const track of clip.tracks) {
+    const dotIdx = track.name.lastIndexOf('.')
+    if (dotIdx === -1) continue
+    const boneName = track.name.slice(0, dotIdx)
+    const property = track.name.slice(dotIdx + 1)
+
+    // Skip tracks that are already UUID-bound (36-char UUID format)
+    if (boneName.length === 36 && boneName.includes('-')) {
+      bound++
+      continue
+    }
+
+    const uuid = uuidMap.get(boneName.toLowerCase())
+    if (uuid) {
+      track.name = `${uuid}.${property}`
+      bound++
+    } else {
+      missed++
+      missedNames.push(boneName)
+    }
+  }
+
+  console.log(
+    `[retargetClipToUUIDs] "${clip.name}": ${bound} bound, ${missed} missed`,
+    missed > 0 ? `\n  missed bones: ${[...new Set(missedNames)].join(', ')}` : ''
+  )
+  return clip
+}
 
 export class SkeletalController {
   private mixer: THREE.AnimationMixer | null = null
+
+  /** Cache of UUID-retargeted clips, keyed by original clip UUID. */
+  private retargetedClipCache = new Map<string, THREE.AnimationClip>()
 
   /** Full avaturn_animation (morph stripped, arm tracks KEPT) — default idle state */
   private baseActionFull:       THREE.AnimationAction | null = null
@@ -181,7 +265,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.60 —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.62 —', avatarRoot.name || '(unnamed)')
     console.log('[SkeletalController] clips provided:', clips?.length ?? 0, clips?.map(c => c.name))
 
     const raw = clips?.find(c => c.name === 'avaturn_animation')
@@ -196,8 +280,7 @@ export class SkeletalController {
           t => !t.name.includes('.morphTargetInfluences') && !t.name.endsWith('.weights')
         )
       )
-      this.baseClipFull = strippedFull
-
+      // Diagnose arm tracks BEFORE retargeting (names are still readable strings)
       const armTracksFull = strippedFull.tracks.filter(t => ARM_BONE_RE.test(t.name))
       console.log(
         `[SkeletalController] baseClipFull: ${strippedFull.tracks.length} bone tracks`,
@@ -206,7 +289,6 @@ export class SkeletalController {
           ? armTracksFull.map(t => t.name.split('.')[0]).join(', ')
           : '❌ NONE — arms will T-pose!'
       )
-
       // Log frame-0 arm quaternions from the full base
       for (const t of armTracksFull.slice(0, 6)) {
         const vals = (t as THREE.QuaternionKeyframeTrack).values
@@ -214,6 +296,10 @@ export class SkeletalController {
           console.log(`  [BaseFullArmQ] ${t.name.split('.')[0]}: [${vals[0].toFixed(3)}, ${vals[1].toFixed(3)}, ${vals[2].toFixed(3)}, ${vals[3].toFixed(3)}]`)
         }
       }
+
+      // FIX 1: retarget base full clip to UUIDs (AFTER diagnostics above)
+      retargetClipToUUIDs(strippedFull, avatarRoot)
+      this.baseClipFull = strippedFull
 
       const baseFull = this.mixer.clipAction(strippedFull)
       baseFull.blendMode        = THREE.NormalAnimationBlendMode
@@ -235,12 +321,14 @@ export class SkeletalController {
             !ARM_BONE_RE.test(t.name)
         )
       )
-
-      const armTracksStripped = strippedFull.tracks.filter(t => ARM_BONE_RE.test(t.name))
+      // armTracksStripped diagnostic: count how many arm tracks were excluded
+      // strippedFull tracks are now UUID-named so we use armTracksFull count from above
       console.log(
         `[SkeletalController] baseClipArmStripped: ${strippedArms.tracks.length} bone tracks`,
-        `(stripped ${armTracksStripped.length} arm tracks)`
+        `(stripped ${armTracksFull.length} arm tracks from base)`
       )
+      // FIX 1: retarget arm-stripped base clip to UUIDs
+      retargetClipToUUIDs(strippedArms, avatarRoot)
 
       const baseArmStripped = this.mixer.clipAction(strippedArms)
       baseArmStripped.blendMode        = THREE.NormalAnimationBlendMode
@@ -322,7 +410,7 @@ export class SkeletalController {
 
     // Frame 10: log full state
     if (this.diagnosticFrame === 10) {
-      console.log('[SkeletalController] ── FRAME 10 (0.3.60) ────────────────────────')
+      console.log('[SkeletalController] ── FRAME 10 (0.3.62) ────────────────────────')
       console.log('[SkeletalController] baseActionFull:',
         this.baseActionFull
           ? `w=${this.baseActionFull.getEffectiveWeight().toFixed(3)} blendMode=${this.baseActionFull.blendMode} running=${this.baseActionFull.isRunning()}`
@@ -357,9 +445,20 @@ export class SkeletalController {
   // ── Internal helpers ────────────────────────────────────────────────────────
 
   /**
-   * Swap base to arm-stripped version.
-   * Called before an arm gesture starts so the gesture clip fully owns arm bones.
+   * Returns a UUID-retargeted clone of a clip, cached by the clip's original uuid.
+   * Safe to call multiple times for the same clip — re-clones only once per source.
+   * This is used for idle clips so their head/spine/neck tracks also bind by UUID.
    */
+  private _getRetargeted(clip: THREE.AnimationClip): THREE.AnimationClip {
+    const cached = this.retargetedClipCache.get(clip.uuid)
+    if (cached) return cached
+    const cloned = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
+    cloned.uuid = THREE.MathUtils.generateUUID()
+    retargetClipToUUIDs(cloned, this.avatarRoot!)
+    this.retargetedClipCache.set(clip.uuid, cloned)
+    return cloned
+  }
+
   private _swapBaseToArmStripped(): void {
     if (this.baseSwapTgt === 1) return  // already swapping/swapped
     console.log('[SkeletalController] BASE SWAP → arm-stripped (gesture starting)')
@@ -390,7 +489,9 @@ export class SkeletalController {
     this.isInGesture       = false
 
     // Idle clips: NormalBlend, no arm tracks → base-full owns arms
-    const action = this.mixer.clipAction(entry.clip)
+    // FIX 1: use UUID-retargeted clip so head/spine/neck tracks bind correctly
+    const idleClip = this._getRetargeted(entry.clip)
+    const action = this.mixer.clipAction(idleClip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopRepeat, Infinity)
     action.clampWhenFinished = false
@@ -430,7 +531,9 @@ export class SkeletalController {
     }
 
     // Idle clips: NormalBlend, no arm tracks — base-full owns arms during idle
-    const action = this.mixer.clipAction(entry.clip)
+    // FIX 1: use UUID-retargeted clip so head/spine/neck tracks bind correctly
+    const idleClip = this._getRetargeted(entry.clip)
+    const action = this.mixer.clipAction(idleClip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(entry.loop, Infinity)
     action.clampWhenFinished = false
@@ -452,6 +555,8 @@ export class SkeletalController {
     console.log('[SkeletalController] playGesture:', animId)
     logClipSummary('GESTURE', entry.clip)
 
+    // Check for arm tracks on the ORIGINAL clip (string-named) BEFORE retargeting.
+    // After retargetClipToUUIDs, track names become UUIDs so ARM_BONE_RE won't match.
     const hasArmTracks = entry.clip.tracks.some(t => ARM_BONE_RE.test(t.name))
     console.log('[SkeletalController] gesture hasArmTracks:', hasArmTracks)
     console.log('[SkeletalController] baseActionFull weight at gesture start:',
@@ -476,10 +581,23 @@ export class SkeletalController {
     // ALL gestures now use NormalBlend — re-baked clips are in avaturn rest frame.
     // Arm gestures: base-arm-stripped has no arm tracks → gesture owns arms 100% at w=1.
     // Head/spine gestures: base-full drives arms, gesture drives head/spine only.
-    const action = this.mixer.clipAction(entry.clip)
+    //
+    // FIX 1: retarget clip tracks to UUIDs before passing to mixer.
+    // Deep-clone so the dictionary entry (original string names) is NOT mutated —
+    // we need the original string names to remain intact for the hasArmTracks check above
+    // on subsequent gesture calls.
+    const retargetedClip = retargetClipToUUIDs(
+      THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(entry.clip)),
+      this.avatarRoot!
+    )
+    retargetedClip.uuid = THREE.MathUtils.generateUUID()  // unique UUID → bypasses mixer cache
+
+    const action = this.mixer.clipAction(retargetedClip)
     action.blendMode        = THREE.NormalAnimationBlendMode
     action.setLoop(THREE.LoopOnce, 1)
-    action.clampWhenFinished = true
+    // FIX 5: clampWhenFinished = false — prevents frozen near-straight quaternions
+    // accumulating in PropertyMixer buffers and stiffening subsequent gestures.
+    action.clampWhenFinished = false
     action.reset()
     action.setEffectiveWeight(0)
     action.play()
@@ -494,10 +612,14 @@ export class SkeletalController {
       console.log('[SkeletalController] gesture finished:', animId)
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
 
-      action.setEffectiveWeight(0)
-      action.stop()
-      if (this.outAction === action) this.outAction = null
-      if (this.topAction === action) this.topAction = null
+      // FIX 5: programmatic fade-out instead of instant stop.
+      // Smooth 0.3s fade prevents abrupt snap and clears PropertyMixer buffer cleanly.
+      action.fadeOut(0.3)
+      setTimeout(() => {
+        action.stop()
+        if (this.outAction === action) this.outAction = null
+        if (this.topAction === action) this.topAction = null
+      }, 350)
 
       this.isInGesture = false
       this.playIdle(this.currentEmotion)
@@ -528,6 +650,7 @@ export class SkeletalController {
 
   reset(): void {
     this.mixer?.stopAllAction()
+    this.retargetedClipCache.clear()
     this.pendingCues       = []
     this.wordCounter       = 0
     this.currentEmotion    = 'neutral'
@@ -549,6 +672,7 @@ export class SkeletalController {
 
   dispose(): void {
     this.mixer?.stopAllAction()
+    this.retargetedClipCache.clear()
     this.mixer = null
   }
 }
