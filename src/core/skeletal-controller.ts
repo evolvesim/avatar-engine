@@ -103,7 +103,7 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
 
 function logClipSummary(label: string, clip: THREE.AnimationClip): void {
   const bones = [...new Set(clip.tracks.map(t => t.name.split('.')[0]))]
-  const armBones = bones.filter(b => /Shoulder|(?<![a-z])Arm(?![a-z])|ForeArm/i.test(b))
+  const armBones = bones.filter(b => ARM_BONE_RE.test(b))
   console.log(
     `[Clip] ${label} "${clip.name}": ${clip.tracks.length} tracks, blendMode=${clip.blendMode ?? 'Normal'}`,
     `\n  bones (${bones.length}):`, bones.join(', '),
@@ -130,7 +130,12 @@ function logArmBoneQuats(label: string, root: THREE.Object3D): void {
 }
 
 // ── Arm bone name pattern ─────────────────────────────────────────────────────
-const ARM_BONE_RE = /Shoulder|(?<![a-z])Arm(?![a-z])|ForeArm/i
+// Matches: LeftArm, RightArm, LeftForeArm, RightForeArm, LeftShoulder, RightShoulder
+// NOTE: simple /Arm/ covers all three (ForeArm contains 'Arm', Shoulder is separate).
+// The old lookbehind pattern (?<![a-z])Arm failed on LeftArm/RightArm because
+// the preceding 't' is lowercase — causing the base swap to never trigger on
+// clips that only have Arm (not ForeArm) tracks.
+const ARM_BONE_RE = /Shoulder|Arm/i
 
 export class SkeletalController {
   private mixer: THREE.AnimationMixer | null = null
