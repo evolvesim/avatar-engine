@@ -147,6 +147,7 @@ export function useSimulation({
   scenarioConfig,
   avatarId,
   ttsOptions,
+  onAvatarText,
 }: UseSimulationOptions): UseSimulationReturn {
 
   // Destructure with defaults so callers can omit optional fields
@@ -189,6 +190,9 @@ export function useSimulation({
   useEffect(() => { statusRef.current = state.status },          [state.status])
   useEffect(() => { simulationIdRef.current = state.simulationId }, [state.simulationId])
   useEffect(() => { transcriptRef.current = state.transcript },   [state.transcript])
+
+  const onAvatarTextRef = useRef<((text: string) => void) | undefined>(onAvatarText)
+  useEffect(() => { onAvatarTextRef.current = onAvatarText }, [onAvatarText])
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
@@ -395,8 +399,17 @@ export function useSimulation({
 
     // Synthesis promises are chained so sentences play in order
     const synthQueue: Promise<void>[] = []
+    // Track whether we’ve fired the pre-speech onAvatarText callback
+    let avatarTextFired = false
 
     const flushSentence = (sentence: string) => {
+      // Fire onAvatarText before queuing the first sentence so emotion
+      // is applied before any audio plays.
+      if (!avatarTextFired) {
+        avatarTextFired = true
+        const snapshot = fullText.trim()
+        if (snapshot) onAvatarTextRef.current?.(snapshot)
+      }
       const prev = synthQueue[synthQueue.length - 1] ?? Promise.resolve()
       const next = prev.then(() =>
         synthesiseAndPlay(sentence, signal).catch((e) => {

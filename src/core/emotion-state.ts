@@ -47,107 +47,107 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
   // Duchenne smile: zygomaticus major + orbicularis oculi (crow's feet)
   // Boosted 0.3.69: smile 0.8→1.0, cheek 0.6→0.85, eyeSquint 0.3→0.5
   joy: {
-    mouthSmileLeft:    1.0,
-    mouthSmileRight:   1.0,
-    cheekSquintLeft:   0.85,
-    cheekSquintRight:  0.85,
-    eyeSquintLeft:     0.5,
-    eyeSquintRight:    0.5,
+    mouthSmileLeft:    0.8,
+    mouthSmileRight:   0.8,
+    cheekSquintLeft:   0.68,
+    cheekSquintRight:  0.68,
+    eyeSquintLeft:     0.4,
+    eyeSquintRight:    0.4,
   },
 
   // Corrugator contraction (brow down) + orbicularis oris (lip press)
   // Boosted 0.3.69: browDown already strong, press 0.5→0.7, squint 0.4→0.6
   anger: {
-    browDownLeft:      1.0,
-    browDownRight:     1.0,
-    mouthPressLeft:    0.7,
-    mouthPressRight:   0.7,
-    eyeSquintLeft:     0.6,
-    eyeSquintRight:    0.6,
-    noseSneerLeft:     0.35,
-    noseSneerRight:    0.35,
+    browDownLeft:      0.8,
+    browDownRight:     0.8,
+    mouthPressLeft:    0.56,
+    mouthPressRight:   0.56,
+    eyeSquintLeft:     0.48,
+    eyeSquintRight:    0.48,
+    noseSneerLeft:     0.28,
+    noseSneerRight:    0.28,
   },
 
   // Medial frontalis (inner brow up) + depressor anguli oris (mouth corners down)
   // Boosted 0.3.69: frown 0.6→0.85, eyeLookDown 0.2→0.35, pucker 0.1→0.2
   sadness: {
-    browInnerUp:       0.9,
-    mouthFrownLeft:    0.85,
-    mouthFrownRight:   0.85,
-    eyeLookDownLeft:   0.35,
-    eyeLookDownRight:  0.35,
-    mouthPucker:       0.2,
+    browInnerUp:       0.72,
+    mouthFrownLeft:    0.68,
+    mouthFrownRight:   0.68,
+    eyeLookDownLeft:   0.28,
+    eyeLookDownRight:  0.28,
+    mouthPucker:       0.16,
   },
 
   // Empathy mirrors sadness with softer mouth, adds attentive gaze
   // Boosted 0.3.69: ALL values doubled — was too subtle at typical intensities
   empathy: {
-    browInnerUp:       0.7,
-    mouthFrownLeft:    0.4,
-    mouthFrownRight:   0.4,
-    eyeLookDownLeft:   0.25,
-    eyeLookDownRight:  0.25,
-    mouthSmileLeft:    0.3,
-    mouthSmileRight:   0.3,
+    browInnerUp:       0.56,
+    mouthFrownLeft:    0.32,
+    mouthFrownRight:   0.32,
+    eyeLookDownLeft:   0.2,
+    eyeLookDownRight:  0.2,
+    mouthSmileLeft:    0.24,
+    mouthSmileRight:   0.24,
   },
 
   // Full frontalis elevation + masseter relaxation (jaw drop)
   // Boosted 0.3.69: jawOpen 0.4→0.55 for more visible open-mouth surprise
   surprise: {
-    browOuterUpLeft:   1.0,
-    browOuterUpRight:  1.0,
-    browInnerUp:       1.0,
-    eyeWideLeft:       0.9,
-    eyeWideRight:      0.9,
-    jawOpen:           0.55,
+    browOuterUpLeft:   0.8,
+    browOuterUpRight:  0.8,
+    browInnerUp:       0.8,
+    eyeWideLeft:       0.72,
+    eyeWideRight:      0.72,
+    jawOpen:           0.44,
   },
 
   // Fear: brow up + wide eyes + slight mouth stretch (fight-or-flight)
   // Boosted 0.3.69: stretch 0.3→0.5, jawOpen 0.2→0.35
   fear: {
-    browOuterUpLeft:   0.85,
-    browOuterUpRight:  0.85,
-    browInnerUp:       0.75,
-    eyeWideLeft:       1.0,
-    eyeWideRight:      1.0,
-    mouthStretchLeft:  0.5,
-    mouthStretchRight: 0.5,
-    jawOpen:           0.35,
+    browOuterUpLeft:   0.68,
+    browOuterUpRight:  0.68,
+    browInnerUp:       0.6,
+    eyeWideLeft:       0.8,
+    eyeWideRight:      0.8,
+    mouthStretchLeft:  0.4,
+    mouthStretchRight: 0.4,
+    jawOpen:           0.28,
   },
 
   // Disgust: levator labii (nose sneer) + brow down asymmetric
   // Boosted 0.3.69: sneer 0.6→0.85, frown 0.4→0.65, shrugUpper 0.3→0.5
   disgust: {
-    noseSneerLeft:     0.85,
-    noseSneerRight:    0.85,
-    browDownLeft:      0.6,
-    browDownRight:     0.6,
-    mouthFrownLeft:    0.65,
-    mouthFrownRight:   0.65,
-    mouthShrugUpper:   0.5,
+    noseSneerLeft:     0.68,
+    noseSneerRight:    0.68,
+    browDownLeft:      0.48,
+    browDownRight:     0.48,
+    mouthFrownLeft:    0.52,
+    mouthFrownRight:   0.52,
+    mouthShrugUpper:   0.4,
   },
 
   // Concentration: brow furrow, slight squint, focused expression
   // Boosted 0.3.69: browDown 0.5→0.75, browInnerUp 0.3→0.5, squint 0.2→0.4, press 0.2→0.4
   concentration: {
-    browDownLeft:      0.75,
-    browDownRight:     0.75,
-    browInnerUp:       0.5,
-    eyeSquintLeft:     0.4,
-    eyeSquintRight:    0.4,
-    mouthPressLeft:    0.4,
-    mouthPressRight:   0.4,
+    browDownLeft:      0.6,
+    browDownRight:     0.6,
+    browInnerUp:       0.4,
+    eyeSquintLeft:     0.32,
+    eyeSquintRight:    0.32,
+    mouthPressLeft:    0.32,
+    mouthPressRight:   0.32,
   },
 
   // Confusion: asymmetric brow raise, slight head tilt implied, mouth open slightly
   // Boosted 0.3.69: browOuterUp 0.6→0.85, browInnerUp 0.4→0.65, eyeWide 0.3→0.55, frown 0.2→0.4, jawOpen 0.1→0.25
   confusion: {
-    browOuterUpLeft:   0.85,
-    browInnerUp:       0.65,
-    eyeWideLeft:       0.55,
-    mouthFrownLeft:    0.4,
-    mouthFrownRight:   0.4,
-    jawOpen:           0.25,
+    browOuterUpLeft:   0.68,
+    browInnerUp:       0.52,
+    eyeWideLeft:       0.44,
+    mouthFrownLeft:    0.32,
+    mouthFrownRight:   0.32,
+    jawOpen:           0.2,
   },
 }
 
@@ -193,7 +193,7 @@ export class EmotionStateMachine {
     const preset = EMOTION_PRESETS[id] ?? {}
     const clamped = Math.max(0, Math.min(1, intensity))
     // 0.3.69: Power-curve lift — raises mid-range intensities so subtle VD calls
-    // are still clearly visible. Formula: intensity^0.6 lifts 0.3→0.46, 0.5→0.66,
+    // are still clearly visible. Formula: intensity^0.6 lifts 0.3→0.46, 0.5→0.53,
     // 0.7→0.79, while preserving 0=0 and 1=1 boundaries.
     // For neutral (no preset keys) this is a no-op.
     const boosted = clamped > 0 ? Math.pow(clamped, 0.6) : 0

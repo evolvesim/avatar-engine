@@ -220,6 +220,12 @@ export interface UseSimulationOptions {
   avatarId: string | null
   /** Azure TTS configuration for this product. */
   ttsOptions: AzureTTSOptions
+  /**
+   * Called as soon as the full avatar response text is known — fires BEFORE
+   * the first TTS sentence plays. Use to apply emotion / VD cues so the
+   * expression is already set when speech begins.
+   */
+  onAvatarText?: (text: string) => void
 }
 
 export type SimulationStatus =
