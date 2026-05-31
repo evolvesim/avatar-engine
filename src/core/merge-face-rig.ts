@@ -11,8 +11,12 @@
 // Contract:
 //   - Body skeleton wins: body bone bind poses and skinning are preserved.
 //   - Face meshes are cloned from the donor and re-skinned to the body skeleton
-//     by bone NAME. Donor inverse-bind-matrices are kept (face proportions follow
-//     the donor's head bone positions, which closely match across Avaturn exports).
+//     by bone NAME. Donor boneInverses are KEPT — the geometry was bound to the
+//     donor skeleton so reusing the donor inverses preserves face proportions.
+//     At render time: boneMatrix = bodyBone.matrixWorld × donorBoneInverse,
+//     which maps each vertex from donor-bone-local space to body-world space,
+//     landing the face at the correct offset from the body's Head bone regardless
+//     of whatever Y-shift or rotation processGlb baked into the body Armature.
 //   - Missing face-specific bones (LeftEye/RightEye) are cloned from the donor and
 //     parented under the body's Head bone so eye blendshapes have somewhere to live.
 //   - Mesh names (Head_Mesh, Teeth_Mesh, Tongue_Mesh, Eye_Mesh, Eyelash_Mesh,
@@ -25,6 +29,9 @@
 //     the Head bone) is stripped so the donor `Head_Mesh` is the only visible
 //     head geometry. Without this, body-only Avaturn exports z-fight a bald body
 //     scalp against the donor face. See `stripBodyHeadRegion()` below.
+//   - NOTE: processGlb (ACTS upload pipeline) also strips the head region
+//     permanently at upload time — this runtime strip is a safety net for GLBs
+//     that reach the browser without going through processGlb.
 
 import * as THREE from 'three'
 
@@ -227,6 +234,19 @@ export function mergeFaceRig(body: LoadedGLTF, donor: LoadedGLTF): LoadedGLTF {
     }
   }
 
+  // 1b. Ensure world matrices are up to date before any world-space queries.
+  body.scene.updateMatrixWorld(true)
+
+  // Diagnostic: confirm the Head bone is where processGlb placed it.
+  if (headBone) {
+    const headWorld = new THREE.Vector3()
+    headBone.getWorldPosition(headWorld)
+    console.info(
+      `[mergeFaceRig] body Head worldY=${headWorld.y.toFixed(4)}` +
+      ` (expected ~0.35 for processGlb-calibrated uploads)`
+    )
+  }
+
   // 2. Collect donor face meshes and clone them onto the body.
   const donorMeshes: THREE.SkinnedMesh[] = []
   donor.scene.traverse((obj: THREE.Object3D) => {
@@ -236,6 +256,7 @@ export function mergeFaceRig(body: LoadedGLTF, donor: LoadedGLTF): LoadedGLTF {
     }
   })
 
+  console.info(`[mergeFaceRig] found ${donorMeshes.length} donor face meshes to graft: ${donorMeshes.map(m=>m.name).join(', ')}`)
   if (donorMeshes.length === 0) {
     console.warn('[mergeFaceRig] donor scene contains no face meshes — nothing to merge.')
   }
@@ -244,8 +265,13 @@ export function mergeFaceRig(body: LoadedGLTF, donor: LoadedGLTF): LoadedGLTF {
     // Clone the mesh (geometry + material refs shared, no skeleton clone).
     const cloned = donorMesh.clone() as THREE.SkinnedMesh
     cloned.name = donorMesh.name
-    // Re-bind to body bones by name. Keep donor's boneInverses (the geometry was
-    // bound to the donor's skeleton; reusing the donor inverses preserves shape).
+    // Re-bind to body bones by name. Donor boneInverses are kept.
+    //
+    // At render time: boneMatrix_i = bodyBone.matrixWorld × donorBoneInverse_i
+    // This maps each vertex from donor-bone-local space → body-world space,
+    // landing the face at the same offset from the body's Head that it had
+    // from the donor's Head — correct regardless of what Y-shift + rotation
+    // processGlb baked into the body Armature.
     const donorJoints = donorMesh.skeleton.bones
     const remapped: THREE.Bone[] = []
     let missing = 0
@@ -254,7 +280,7 @@ export function mergeFaceRig(body: LoadedGLTF, donor: LoadedGLTF): LoadedGLTF {
       if (bodyBone) {
         remapped.push(bodyBone)
       } else {
-        // Use a fallback (root bone) and count. Avoids null entries which break SkinnedMesh.
+        // Fallback: keep donor bone (avoids null entries which break SkinnedMesh).
         remapped.push(donorBone)
         missing++
       }

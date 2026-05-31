@@ -420,6 +420,7 @@ function AvatarScene({
     // references those same bones (shared skeleton), so the clone renders with
     // correct world positions while the avatarYOffset is applied only to the
     // clone's root primitive.
+    console.info('[AvatarCanvas] init — clips count:', clips.length, clips.map(c=>c.name))
     engine.skeletal.init(gltf.scene, clips)
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
