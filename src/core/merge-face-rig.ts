@@ -21,6 +21,10 @@
 //   - The donor's `avaturn_animation` clip is appended to the body's clip list
 //     if the body lacks it — SkeletalController binds clips to bones by name at
 //     mix time, so the same clip works on any Avaturn skeleton.
+//   - The body's pre-existing head skin (vertices in `avaturn_body` weighted to
+//     the Head bone) is stripped so the donor `Head_Mesh` is the only visible
+//     head geometry. Without this, body-only Avaturn exports z-fight a bald body
+//     scalp against the donor face. See `stripBodyHeadRegion()` below.
 
 import * as THREE from 'three'
 
@@ -46,6 +50,18 @@ export const FACE_MESH_NAMES = [
 
 /** Bones the donor face meshes depend on that may be missing from a body-only export. */
 const FACE_ONLY_BONES = ['LeftEye', 'RightEye'] as const
+
+/** Body mesh names produced by Avaturn body-only exports. Triangles whose
+ *  vertices are dominantly skinned to the Head bone (or its face descendants)
+ *  are stripped from these meshes so the donor face isn't z-fighting the
+ *  body's bald scalp. The neck is preserved because its vertices are weighted
+ *  to the `Neck` bone, not `Head`. */
+const BODY_MESH_NAMES = ['avaturn_body'] as const
+
+/** Bones whose skinned vertices form the body's head region — stripped to make
+ *  room for the donor face. Children of `Head` (LeftEye/RightEye if present in
+ *  the body export) are also included by index lookup at runtime. */
+const HEAD_REGION_BONE_NAMES = new Set(['Head'])
 
 /** Canonical idle clip name shipped in the donor face rig. */
 export const CANONICAL_IDLE_CLIP = 'avaturn_animation'
@@ -82,6 +98,99 @@ function buildBoneMap(scene: THREE.Object3D): Map<string, THREE.Bone> {
     if (b.isBone) map.set(b.name, b)
   })
   return map
+}
+
+/**
+ * Remove triangles from a body SkinnedMesh whose vertices are dominantly skinned
+ * to the head region (the `Head` bone and any of its descendant face bones).
+ *
+ * Without this, body-only Avaturn exports leave a bald head-shaped skin under
+ * the donor face: the donor `Head_Mesh` covers most of it but the back of the
+ * scalp pokes out through the donor hair/hood, and lip-sync looks weird because
+ * mouth blendshapes only move the donor mesh while the body skull stays static.
+ *
+ * Algorithm:
+ *   1. Walk the skeleton, mark joint indices that correspond to head-region
+ *      bones (the `Head` bone plus everything parented under it, transitively).
+ *   2. For each vertex, find its dominant joint (highest skin weight). If that
+ *      joint is in the head region, mark the vertex as "head".
+ *   3. Rebuild the index buffer keeping only triangles where NO vertex is
+ *      "head". (Strict to avoid leaving partial polygons around the neckline.)
+ *   4. Replace the geometry's index; original positions/skin attributes are
+ *      untouched so the rest of the body skins identically.
+ *
+ * No-op if the mesh is unindexed, has no skin attributes, or no head bone is
+ * present in the skeleton.
+ */
+function stripBodyHeadRegion(mesh: THREE.SkinnedMesh): { removed: number; kept: number } {
+  const geom = mesh.geometry
+  const index = geom.getIndex()
+  const skinIndex = geom.getAttribute('skinIndex') as THREE.BufferAttribute | undefined
+  const skinWeight = geom.getAttribute('skinWeight') as THREE.BufferAttribute | undefined
+  if (!index || !skinIndex || !skinWeight) return { removed: 0, kept: 0 }
+
+  const bones = mesh.skeleton.bones
+  // Identify head-region bone indices: any bone whose name is in
+  // HEAD_REGION_BONE_NAMES OR whose ancestor chain includes a Head bone.
+  const headIdxSet = new Set<number>()
+  // First, locate the actual Head bone object (case-sensitive name match).
+  const headBones = bones.filter((b) => HEAD_REGION_BONE_NAMES.has(b.name))
+  const isDescendantOfHead = (b: THREE.Object3D): boolean => {
+    let cur: THREE.Object3D | null = b.parent
+    while (cur) {
+      if (headBones.includes(cur as THREE.Bone)) return true
+      cur = cur.parent
+    }
+    return false
+  }
+  for (let i = 0; i < bones.length; i++) {
+    const b = bones[i]
+    if (HEAD_REGION_BONE_NAMES.has(b.name) || isDescendantOfHead(b)) {
+      headIdxSet.add(i)
+    }
+  }
+  if (headIdxSet.size === 0) return { removed: 0, kept: index.count / 3 }
+
+  // Per-vertex: is the dominant joint a head-region joint?
+  const vertCount = skinIndex.count
+  const isHeadVert = new Uint8Array(vertCount)
+  const itemSize = skinIndex.itemSize // typically 4
+  for (let v = 0; v < vertCount; v++) {
+    let bestW = -1
+    let bestJ = -1
+    for (let k = 0; k < itemSize; k++) {
+      const w = skinWeight.getComponent(v, k)
+      if (w > bestW) {
+        bestW = w
+        bestJ = skinIndex.getComponent(v, k)
+      }
+    }
+    if (bestJ >= 0 && headIdxSet.has(bestJ)) isHeadVert[v] = 1
+  }
+
+  // Filter triangles: drop if ANY vertex is head-dominant (strict).
+  const oldIdx = index.array as ArrayLike<number>
+  const triCount = index.count / 3
+  const keepTris: number[] = []
+  let removed = 0
+  for (let t = 0; t < triCount; t++) {
+    const a = oldIdx[t * 3], b = oldIdx[t * 3 + 1], c = oldIdx[t * 3 + 2]
+    if (isHeadVert[a] || isHeadVert[b] || isHeadVert[c]) {
+      removed++
+    } else {
+      keepTris.push(a, b, c)
+    }
+  }
+
+  // Choose appropriate typed array for the new index based on max vertex index.
+  const NewArrayCtor: Uint16ArrayConstructor | Uint32ArrayConstructor =
+    vertCount > 65535 ? Uint32Array : Uint16Array
+  const newIndex = new NewArrayCtor(keepTris)
+  geom.setIndex(new THREE.BufferAttribute(newIndex, 1))
+  // The bounding sphere/box are no longer accurate; recompute (cheap; once at load).
+  geom.computeBoundingBox()
+  geom.computeBoundingSphere()
+  return { removed, kept: keepTris.length / 3 }
 }
 
 /**
@@ -162,7 +271,19 @@ export function mergeFaceRig(body: LoadedGLTF, donor: LoadedGLTF): LoadedGLTF {
     body.scene.add(cloned)
   }
 
-  // 3. Append donor's idle clip if body lacks it.
+  // 3. Strip the body's pre-existing head skin so the donor face is the only
+  //    visible head geometry. Only runs on meshes named in BODY_MESH_NAMES.
+  body.scene.traverse((obj: THREE.Object3D) => {
+    const sm = obj as THREE.SkinnedMesh
+    if (!sm.isSkinnedMesh) return
+    if (!(BODY_MESH_NAMES as readonly string[]).includes(sm.name)) return
+    const { removed, kept } = stripBodyHeadRegion(sm)
+    if (removed > 0) {
+      console.info(`[mergeFaceRig] stripped ${removed} head-region triangles from "${sm.name}" (${kept} kept).`)
+    }
+  })
+
+  // 4. Append donor's idle clip if body lacks it.
   const hasCanonical = body.animations.some((c: THREE.AnimationClip) => c.name === CANONICAL_IDLE_CLIP)
   if (!hasCanonical) {
     const donorClip = donor.animations.find((c: THREE.AnimationClip) => c.name === CANONICAL_IDLE_CLIP)

@@ -8,4 +8,5 @@ coverage/
 *.tsbuildinfo
 pnpm-lock.yaml
 scripts/inspect-*.js
+scripts/test-*.js
 scripts/package-lock.json
