@@ -131,18 +131,31 @@ function retargetClipToUUIDs(
 
   let bound = 0, missed = 0
   const missedNames: string[] = []
+  const keptTracks: typeof clip.tracks = []
   for (const track of clip.tracks) {
     const dotIdx  = track.name.lastIndexOf('.')
     const boneName = track.name.slice(0, dotIdx)
     const prop     = track.name.slice(dotIdx)
     const uuid = nameToUUID.get(boneName.toLowerCase())
-    if (uuid) { track.name = uuid + prop; bound++ }
-    else { missedNames.push(boneName); missed++ }
+    if (uuid) {
+      track.name = uuid + prop
+      keptTracks.push(track)
+      bound++
+    } else {
+      // Drop tracks for bones not present in this avatar (e.g. finger joints
+      // in RPM clips that Avaturn doesn't have). Keeping them causes hundreds
+      // of THREE.PropertyBinding warnings per clip.
+      missedNames.push(boneName)
+      missed++
+    }
   }
-  console.log(
-    `[retargetClipToUUIDs] "${clip.name}": ${bound} bound, ${missed} missed` +
-    (missed > 0 ? `\n  missed: ${[...new Set(missedNames)].join(', ')}` : '')
-  )
+  clip.tracks = keptTracks  // remove unbound tracks
+  if (bound > 0 || missed === 0) {
+    console.log(
+      `[retargetClipToUUIDs] "${clip.name}": ${bound} bound` +
+      (missed > 0 ? `, ${missed} dropped (not in skeleton)` : '')
+    )
+  }
   return clip
 }
 
