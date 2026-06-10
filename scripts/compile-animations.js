@@ -162,6 +162,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'mixamo_neutral_talking_default', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.06)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-bell(t/2)*0.35, 0, -1.0+bell(t/2)*0.2)) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -218,10 +220,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(11, 2.5)
     addClip(doc, boneMap, 'evolve_neutral_explain_both_hands', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2.5)*0.06)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-bell(t/2.5)*0.28, 0, 0.9-bell(t/2.5)*0.25)) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0, bell(t/2.5)*0.3)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2.5)*0.06)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-bell(t/2.5)*0.28, 0, -(0.9-bell(t/2.5)*0.25))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -235,6 +241,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.2, 0.5, 0.8, 1.1, 1.3, 1.5]
     addClip(doc, boneMap, 'evolve_neutral_self_reference', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.17),euler(0,0,-0.22),euler(0,0,-0.22),euler(0,0,-0.22),euler(0,0,-0.18),euler(0,0,-0.15)] },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:[euler(0,0,-1.0),euler(-0.15,0,-0.8),euler(-0.5,-0.3,-0.55),euler(-0.5,-0.3,-0.55),euler(-0.5,-0.3,-0.55),euler(-0.2,0,-0.85),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -267,10 +275,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(11, 2.5)
     addClip(doc, boneMap, 'mixamo_joy_talking_hands', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+Math.sin(t*Math.PI*2/2.5)*0.04)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.2-Math.sin(t*Math.PI*2/2.5)*0.2, 0, 0.9-Math.sin(t*Math.PI*2/2.5)*0.15)) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0, Math.sin(t*Math.PI*2/2.5+0.5)*0.35)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-Math.sin(t*Math.PI*2/2.5+Math.PI)*0.04)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.2-Math.sin(t*Math.PI*2/2.5+Math.PI)*0.2, 0, -0.9+Math.sin(t*Math.PI*2/2.5+Math.PI)*0.15)) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -284,6 +296,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8]
     addClip(doc, boneMap, 'mixamo_joy_thumbs_up', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.19),euler(0,0,-0.24),euler(0,0,-0.24),euler(0,0,-0.24),euler(0,0,-0.20),euler(0,0,-0.15)] },
       { bone:'RightArm', property:'rotation', times:ts,
         values:[euler(0,0,-1.0),euler(-0.5,0.1,-0.7),euler(-0.8,0.15,-0.5),euler(-0.8,0.15,-0.5),euler(-0.8,0.15,-0.5),euler(-0.4,0.05,-0.75),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -336,10 +350,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.2)
     addClip(doc, boneMap, 'evolve_joy_present_good_news', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2.2)*0.08)) },
       { bone:'LeftArm',      property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.35*bell(t/2.2), -0.1*bell(t/2.2), 0.8-0.5*bell(t/2.2))) },
       { bone:'LeftForeArm',  property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0.2*bell(t/2.2), 0.3*bell(t/2.2))) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2.2)*0.08)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.35*bell(t/2.2), 0.1*bell(t/2.2), -(0.8-0.5*bell(t/2.2)))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -373,6 +391,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.15, 0.4, 0.65, 0.9, 1.2, 1.5]
     addClip(doc, boneMap, 'mixamo_anger_dismissive_wave', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.17),euler(0,0,-0.21),euler(0,0,-0.21),euler(0,0,-0.22),euler(0,0,-0.18),euler(0,0,-0.15)] },
       { bone:'RightArm', property:'rotation', times:ts,
         values:[euler(0,0,-1.0),euler(-0.1,0,-0.8),euler(-0.3,0.2,-0.6),euler(-0.3,0.2,-0.6),euler(-0.25,0.35,-0.55),euler(-0.1,0.1,-0.75),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -385,10 +405,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8]
     addClip(doc, boneMap, 'mixamo_anger_pointing', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.19),euler(0,0,-0.23),euler(0,0,-0.23),euler(0,0,-0.23),euler(0,0,-0.20),euler(0,0,-0.15)] },
       { bone:'RightArm', property:'rotation', times:ts,
         values:[euler(0,0,-1.0),euler(-0.3,-0.1,-0.7),euler(-0.6,-0.2,-0.5),euler(-0.65,-0.2,-0.5),euler(-0.65,-0.2,-0.5),euler(-0.35,-0.1,-0.75),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:[euler(0,0,0),euler(0,-0.3,0),euler(0,-0.6,0),euler(0,-0.65,0),euler(0,-0.6,0),euler(0,-0.3,0),euler(0,0,0)] },
+      { bone:'RightHand', property:'rotation', times:ts,
+        values:[euler(0,0,0),euler(0,-0.1,0),euler(0,-0.18,0),euler(0,-0.18,0),euler(0,-0.18,0),euler(0,-0.1,0),euler(0,0,0)] },
       { bone:'Head', property:'rotation', times:ts,
         values:[euler(0.04,0,0),euler(0.06,0.05,0),euler(0.04,0.08,0),euler(0.04,0.08,0),euler(0.04,0.06,0),euler(0.04,0.02,0),euler(0.04,0,0)] },
     ])
@@ -398,8 +422,10 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(5, 2.0)
     addClip(doc, boneMap, 'mixamo_anger_arms_crossed', [
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0, 0, 0.18)) },
       { bone:'LeftArm',     property:'rotation', times:ts, values:ts.map(t=>euler(-0.35+Math.sin(t*Math.PI)*0.01, 0.3, 0.5)) },
       { bone:'LeftForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0, 0.8, 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0, 0, -0.18)) },
       { bone:'RightArm',     property:'rotation', times:ts, values:ts.map(t=>euler(-0.35+Math.sin(t*Math.PI+0.2)*0.01, -0.3, -0.5)) },
       { bone:'RightForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0, -0.8, 0)) },
       { bone:'Spine', property:'rotation', times:ts, values:ts.map(()=>euler(0.05, 0, 0)) },
@@ -442,12 +468,16 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.15, 0.35, 0.55, 0.75, 0.95, 1.2]
     addClip(doc, boneMap, 'evolve_anger_emphatic_table', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,0.15),euler(0,0,0.17),euler(0,0,0.20),euler(0,0,0.21),euler(0,0,0.20),euler(0,0,0.18),euler(0,0,0.15)] },
       { bone:'LeftArm',      property:'rotation', times:ts,
         values:[euler(0,0,1.0),euler(-0.1,0,0.7),euler(-0.2,0.15,0.55),euler(-0.25,0.2,0.5),euler(-0.2,0.15,0.55),euler(-0.1,0.05,0.7),euler(0,0,1.0)] },
-      { bone:'RightArm',     property:'rotation', times:ts,
-        values:[euler(0,0,-1.0),euler(-0.1,0,-0.7),euler(-0.2,-0.15,-0.55),euler(-0.25,-0.2,-0.5),euler(-0.2,-0.15,-0.55),euler(-0.1,-0.05,-0.7),euler(0,0,-1.0)] },
       { bone:'LeftForeArm',  property:'rotation', times:ts,
         values:[euler(0,0,0),euler(0,0.1,0),euler(0,0.35,0.1),euler(0,0.45,0.15),euler(0,0.35,0.1),euler(0,0.15,0.05),euler(0,0,0)] },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.17),euler(0,0,-0.20),euler(0,0,-0.21),euler(0,0,-0.20),euler(0,0,-0.18),euler(0,0,-0.15)] },
+      { bone:'RightArm',     property:'rotation', times:ts,
+        values:[euler(0,0,-1.0),euler(-0.1,0,-0.7),euler(-0.2,-0.15,-0.55),euler(-0.25,-0.2,-0.5),euler(-0.2,-0.15,-0.55),euler(-0.1,-0.05,-0.7),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:[euler(0,0,0),euler(0,-0.1,0),euler(0,-0.35,-0.1),euler(0,-0.45,-0.15),euler(0,-0.35,-0.1),euler(0,-0.15,-0.05),euler(0,0,0)] },
     ])
@@ -476,10 +506,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'mixamo_sadness_apologetic_hands', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2)*0.05)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-bell(t/2)*0.25, 0, 0.9-bell(t/2)*0.2)) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0, bell(t/2)*0.5)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.05)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-bell(t/2)*0.25, 0, -(0.9-bell(t/2)*0.2))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -596,10 +630,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_surprise_hands_on_face', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2)*0.10)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.65*bell(t/2), 0.2*bell(t/2), 0.6-0.4*bell(t/2))) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0.5*bell(t/2), 0.3*bell(t/2))) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.10)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.65*bell(t/2), -0.2*bell(t/2), -(0.6-0.4*bell(t/2)))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -658,10 +696,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_fear_protective_arms', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2)*0.07)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2); return euler(-0.4*s, 0.25*s, 0.65-0.2*s) }) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0.7*bell(t/2), 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.07)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2); return euler(-0.4*s, -0.25*s, -(0.65-0.2*s)) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -730,8 +772,10 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_disgust_lean_back_cross', [
       { bone:'Spine',  property:'rotation', times:ts, values:ts.map(()=>euler(-0.08,0,0)) },
       { bone:'Head',   property:'rotation', times:ts, values:ts.map(()=>euler(-0.04,-0.05,0)) },
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0,0,0.18)) },
       { bone:'LeftArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,0.25,0.55)) },
       { bone:'LeftForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,0.7,0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-0.18)) },
       { bone:'RightArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,-0.25,-0.55)) },
       { bone:'RightForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,-0.7,0)) },
     ])
@@ -756,10 +800,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'mixamo_empathy_open_hands', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const s=bell(t/2)*0.9; return euler(0,0,0.15+s*0.06) }) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2)*0.9; return euler(-s*0.3,-s*0.1,1.0-s*0.35) }) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2); return euler(0,s*0.35,s*0.4) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const s=bell(t/2)*0.9; return euler(0,0,-0.15-s*0.06) }) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2)*0.9; return euler(-s*0.3,s*0.1,-(1.0-s*0.35)) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -797,6 +845,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_empathy_reach_out', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.06)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.5*bell(t/2), -0.15*bell(t/2), -0.85+0.3*bell(t/2))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -812,6 +862,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.5)
     addClip(doc, boneMap, 'evolve_empathy_hand_over_heart', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2.5)*0.07)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.55*bell(t/2.5), -0.2*bell(t/2.5), -0.7+0.15*bell(t/2.5))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -851,10 +903,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = [0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.5]
     addClip(doc, boneMap, 'mixamo_concentration_chin_stroke', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:[euler(0,0,-0.15),euler(0,0,-0.19),euler(0,0,-0.23),euler(0,0,-0.23),euler(0,0,-0.23),euler(0,0,-0.20),euler(0,0,-0.15)] },
       { bone:'RightArm', property:'rotation', times:ts,
         values:[euler(0,0,-1.0),euler(-0.3,-0.1,-0.65),euler(-0.6,-0.15,-0.5),euler(-0.6,-0.15,-0.5),euler(-0.62,-0.12,-0.5),euler(-0.4,-0.1,-0.7),euler(0,0,-1.0)] },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:[euler(0,0,0),euler(0,-0.3,0),euler(0,-0.7,0),euler(0,-0.7,0),euler(0,-0.72,0),euler(0,-0.4,0),euler(0,0,0)] },
+      { bone:'RightHand', property:'rotation', times:ts,
+        values:[euler(0,0,0),euler(0,-0.05,0.02),euler(0,-0.08,0.04),euler(0,-0.1,0.06),euler(0,-0.08,0.04),euler(0,-0.05,0.02),euler(0,0,0)] },
       { bone:'Head', property:'rotation', times:ts,
         values:[euler(0.05,0,0),euler(0.06,0,0.02),euler(0.06,0,0.04),euler(0.06,0,0.05),euler(0.06,0,0.04),euler(0.05,0,0.02),euler(0.05,0,0)] },
     ])
@@ -864,8 +920,10 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(7, 4.0)
     addClip(doc, boneMap, 'evolve_concentration_arms_folded_think', [
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0,0,0.18)) },
       { bone:'LeftArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,0.2,0.5)) },
       { bone:'LeftForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,0.75,0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-0.18)) },
       { bone:'RightArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,-0.2,-0.5)) },
       { bone:'RightForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,-0.75,0)) },
       { bone:'Head', property:'rotation', times:ts,
@@ -902,10 +960,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_concentration_deliberate_point', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.07)) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2); return euler(-0.5*s, -0.1*s, -1.0+0.45*s) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, -0.6*bell(t/2), 0)) },
+      { bone:'RightHand', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, -0.12*bell(t/2), 0)) },
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>euler(0.04+0.02*bell(t/2), 0.06*bell(t/2), 0)) },
     ])
@@ -993,6 +1055,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(11, 2.5)
     addClip(doc, boneMap, 'evolve_professional_present_data', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2.5)*0.07)) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const s=bell(t/2.5); return euler(-0.45*s, -0.15*s, -1.0+0.55*s) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1008,8 +1072,10 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(5, 4.0)
     addClip(doc, boneMap, 'evolve_professional_steeple_fingers', [
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0,0,0.17)) },
       { bone:'LeftArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,0.2,0.45)) },
       { bone:'LeftForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,0.6,0.2)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-0.17)) },
       { bone:'RightArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.3,-0.2,-0.45)) },
       { bone:'RightForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,-0.6,-0.2)) },
       { bone:'Spine',  property:'rotation', times:ts, values:ts.map(()=>euler(-0.02,0,0)) },
@@ -1033,10 +1099,14 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_professional_open_pitch', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, 0.15+bell(t/2)*0.06)) },
       { bone:'LeftArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.25*bell(t/2), -0.08*bell(t/2), 0.85-0.35*bell(t/2))) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0, 0.25*bell(t/2), 0.2*bell(t/2))) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.06)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.25*bell(t/2), 0.08*bell(t/2), -(0.85-0.35*bell(t/2)))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1050,8 +1120,10 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(5, 4.0)
     addClip(doc, boneMap, 'evolve_professional_confident_cross', [
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0,0,0.18)) },
       { bone:'LeftArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.2,0.15,0.55)) },
       { bone:'LeftForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,0.65,0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-0.18)) },
       { bone:'RightArm',     property:'rotation', times:ts, values:ts.map(()=>euler(-0.2,-0.15,-0.55)) },
       { bone:'RightForeArm', property:'rotation', times:ts, values:ts.map(()=>euler(0,-0.65,0)) },
       { bone:'Spine', property:'rotation', times:ts, values:ts.map(()=>euler(-0.01,0,0)) },
@@ -1064,6 +1136,8 @@ function defineClips(doc, boneMap) {
   {
     const ts = times(9, 2.0)
     addClip(doc, boneMap, 'evolve_professional_handshake_prep', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, 0, -0.15-bell(t/2)*0.07)) },
       { bone:'RightArm',     property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.4*bell(t/2), -0.1*bell(t/2), -0.9+0.4*bell(t/2))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1213,6 +1287,8 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_listening_reflective_tilt', [
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; return euler(-0.04*p, 0, 0.14*Math.min(p/0.5,1)*(1-Math.max(0,(p-0.8)/0.2))) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0, 0, -0.15-0.05*Math.min(p/0.5,1)) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; return euler(-0.25*Math.min(p/0.5,1), -0.1, -0.55) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1241,6 +1317,8 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_agreement_warm_verbal_affirm', [
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>euler(0.22*Math.sin(t*3.14), 0, 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const ext=p<0.5?p*2:1-(p-0.5)*2; return euler(0, 0, -0.15-0.05*ext) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const ext=p<0.5?p*2:1-(p-0.5)*2; return euler(-0.2*ext, -0.15*ext, -0.5) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1305,12 +1383,16 @@ function defineClips(doc, boneMap) {
     const dur=2.5, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_coaching_constructive_frame', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0, 0, 0.15+0.05*e) }) },
       { bone:'LeftArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(-0.3*e, 0.3*e, 0.7-0.2*e) }) },
-      { bone:'RightArm', property:'rotation', times:ts,
-        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(-0.3*e, -0.3*e, -(0.7-0.2*e)) }) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0.7*e, 0, 0) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0, 0, -0.15-0.05*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(-0.3*e, -0.3*e, -(0.7-0.2*e)) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=p<0.4?p/0.4:p<0.8?1:(1-p)/0.2; return euler(0.7*e, 0, 0) }) },
     ])
@@ -1323,6 +1405,8 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_coaching_check_understanding', [
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; return euler(-0.04, 0, 0.1*Math.sin(p*Math.PI)) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(0, 0, -0.15-0.04*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.2*e, -0.2*e, -0.5) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1337,12 +1421,14 @@ function defineClips(doc, boneMap) {
     const dur=2.5, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_coaching_summarise_gesture', [
+      { bone:'Head', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0.12*Math.max(0,Math.sin((p-0.75)*Math.PI/0.25)), 0, 0) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; return euler(0, 0, -0.15-0.04*Math.sin(p*Math.PI)) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; return euler(-0.1, Math.sin(p*Math.PI*2)*-0.2, -0.7+Math.sin(p*Math.PI)*0.2) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; return euler(0.4+Math.sin(p*Math.PI)*0.3, 0, 0) }) },
-      { bone:'Head', property:'rotation', times:ts,
-        values:ts.map(t=>{ const p=t/dur; return euler(0.12*Math.max(0,Math.sin((p-0.75)*Math.PI/0.25)), 0, 0) }) },
     ])
   }
 
@@ -1367,6 +1453,8 @@ function defineClips(doc, boneMap) {
     const dur=2, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_professional_invite_to_speak', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(0, 0, -0.15-0.05*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, -0.3*e, -0.75+0.1*e) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1471,12 +1559,16 @@ function defineClips(doc, boneMap) {
     const dur=2.5, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_thinking_weigh_options', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0, 0, 0.15+0.05*e+0.03*Math.sin(t*3.77)*e) }) },
       { bone:'LeftArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.2*e, 0.2*e, 0.7-0.15*Math.sin(t*3.77)) }) },
-      { bone:'RightArm', property:'rotation', times:ts,
-        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.2*e, -0.2*e, -(0.7+0.15*Math.sin(t*3.77))) }) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.55*e, 0, 0) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0, 0, -0.15-0.05*e+0.03*Math.sin(t*3.77)*e) }) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.2*e, -0.2*e, -(0.7+0.15*Math.sin(t*3.77))) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.55*e, 0, 0) }) },
       { bone:'Head', property:'rotation', times:ts,
@@ -1489,6 +1581,8 @@ function defineClips(doc, boneMap) {
     const dur=2.5, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_thinking_calculate_still', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const lift=p<0.4?p/0.4:1; return euler(0, 0, -0.15-0.06*lift) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const lift=p<0.4?p/0.4:1; return euler(-0.3*lift, -0.15, -0.55) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1505,6 +1599,8 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_thinking_decide_forward', [
       { bone:'Spine', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(0.06*e, 0, 0) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(0, 0, -0.15-0.05*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=p>0.5?(p-0.5)/0.5:0; return euler(-0.2*e, -0.3*e, -0.7) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1519,10 +1615,14 @@ function defineClips(doc, boneMap) {
     const dur=3, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_education_step_by_step', [
+      { bone:'LeftShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0, 0, 0.15+0.05*e) }) },
       { bone:'LeftArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.25*e, 0.3*e, 0.75-0.1*e) }) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0.65*e, 0, 0) }) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.3,1); return euler(0, 0, -0.15-0.04*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.3,1); return euler(-0.1*e, -0.15*e, -0.7) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1537,10 +1637,14 @@ function defineClips(doc, boneMap) {
     const dur=3, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_education_point_to_content', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0, 0, -0.15-0.08*extend) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(-0.5*extend, -0.45*extend, -1.0*extend) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0.3*extend, 0, 0) }) },
+      { bone:'RightHand', property:'rotation', times:ts,
+        values:ts.map(t=>{ const p=t/dur; const extend=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0, -0.15*extend, 0) }) },
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const look=p<0.3?p/0.3:p<0.8?1:(1-p)/0.2; return euler(0, -0.2*look, 0) }) },
     ])
@@ -1551,10 +1655,14 @@ function defineClips(doc, boneMap) {
     const dur=2.5, fps=30, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_education_writing_gesture', [
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.min(t/dur/0.25,1); return euler(0, 0, -0.15-0.04*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.1*e, 0, -0.6) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.9*e, 0, 0) }) },
+      { bone:'RightHand', property:'rotation', times:ts,
+        values:ts.map(t=>euler(0, Math.sin(t*4)*0.05, 0)) },
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.min(p/0.25,1); return euler(0.25*e, Math.sin(t*4)*0.05, 0) }) },
       { bone:'Spine', property:'rotation', times:ts,
@@ -1583,6 +1691,8 @@ function defineClips(doc, boneMap) {
     addClip(doc, boneMap, 'evolve_education_encourage_student', [
       { bone:'Head', property:'rotation', times:ts,
         values:ts.map(t=>euler(0.18*Math.sin(t*Math.PI/dur), 0, 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts,
+        values:ts.map(t=>{ const e=Math.sin(t/dur*Math.PI); return euler(0, 0, -0.15-0.04*e) }) },
       { bone:'RightArm', property:'rotation', times:ts,
         values:ts.map(t=>{ const p=t/dur; const e=Math.sin(p*Math.PI); return euler(-0.1*e, -0.25*e, -0.7) }) },
       { bone:'RightForeArm', property:'rotation', times:ts,
@@ -1675,12 +1785,14 @@ function defineClips(doc, boneMap) {
     const dur=4, fps=15, n=dur*fps+1
     const ts=Array.from({length:n},(_,i)=>i/(n-1)*dur)
     addClip(doc, boneMap, 'evolve_stress_self_anchor', [
+      { bone:'LeftShoulder',  property:'rotation', times:ts, values:ts.map(()=>euler(0,0,0.17)) },
       { bone:'LeftArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(-0.05, 0.15, 0.55+Math.sin(t*0.8)*0.02)) },
-      { bone:'RightArm', property:'rotation', times:ts,
-        values:ts.map(t=>euler(-0.05, -0.15, -(0.55+Math.sin(t*0.8)*0.02))) },
       { bone:'LeftForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0.8+Math.sin(t*0.6)*0.02, 0, 0)) },
+      { bone:'RightShoulder', property:'rotation', times:ts, values:ts.map(()=>euler(0,0,-0.17)) },
+      { bone:'RightArm', property:'rotation', times:ts,
+        values:ts.map(t=>euler(-0.05, -0.15, -(0.55+Math.sin(t*0.8)*0.02))) },
       { bone:'RightForeArm', property:'rotation', times:ts,
         values:ts.map(t=>euler(0.8+Math.sin(t*0.6)*0.02, 0, 0)) },
     ])
@@ -1728,8 +1840,12 @@ async function main() {
   const io = new NodeIO()
   const outDir  = path.resolve(__dirname, 'dist')
   const outFile = path.join(outDir, 'animations.glb')
+  const publicFile = path.resolve(__dirname, '..', 'public', 'avatar-engine', 'animations.glb')
   fs.mkdirSync(outDir, { recursive: true })
+  fs.mkdirSync(path.dirname(publicFile), { recursive: true })
   await io.write(outFile, doc)
+  fs.copyFileSync(outFile, publicFile)
+  console.log(`📋  Copied to: ${publicFile}`)
 
   const stats = fs.statSync(outFile)
   const kb    = (stats.size / 1024).toFixed(1)
