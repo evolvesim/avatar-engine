@@ -199,7 +199,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.72 (single-layer RPM) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.78 (single-layer RPM, direct-idle-after-gesture) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -378,15 +378,49 @@ export class SkeletalController {
       console.log('[SkeletalController] gesture done:', animId)
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
       this.isInGesture = false
-      // Return to idle via crossFade
-      this._playIdle(this.currentEmotion)
-      // Clean up old action after fade
-      setTimeout(() => {
-        nextAction.stop()
-        if (this.fadingAction === nextAction) this.fadingAction = null
-      }, 500)
+      // LoopOnce gesture has already stopped (enabled=false) by the time
+      // 'finished' fires with clampWhenFinished=false. crossFadeTo from a
+      // stopped action never ramps the incoming weight up — idle stays at 0
+      // → bind pose. Fix: stop the gesture explicitly then start idle at
+      // weight 1 directly, no crossfade from the dead gesture action.
+      nextAction.stop()
+      this.fadingAction = null
+      this._returnToIdleDirect()
     }
     this.mixer.addEventListener('finished', onFinished)
+  }
+
+  /**
+   * Starts the next idle directly at weight 1 — no crossfade from the
+   * outgoing gesture (which is already stopped/disabled by Three.js when
+   * LoopOnce + clampWhenFinished=false fires 'finished').
+   *
+   * Calling crossFadeTo FROM a stopped action never ramps the incoming
+   * action's weight up → idle stays at 0 → bind pose forever.
+   * This method bypasses that by playing the idle at full weight immediately.
+   */
+  private _returnToIdleDirect(): void {
+    if (!this.mixer) return
+    const id    = this._pickNextIdle(this.currentEmotion)
+    const entry = this.dictionary.get(id)
+    if (!entry) {
+      // Dict not ready — fall back to pendingIdle retry
+      this.pendingIdle = true
+      return
+    }
+
+    console.log('[SkeletalController] _returnToIdleDirect →', id)
+    this.currentIdleClipId = id
+    this.isInGesture       = false
+    this.idlePoolTimer     = 0
+
+    const idleClip = this._getRetargeted(entry.clip)
+    const action   = this.mixer.clipAction(idleClip)
+    action.setLoop(THREE.LoopRepeat, Infinity)
+    action.clampWhenFinished = false
+    action.setEffectiveWeight(1)
+    action.reset().play()
+    this.currentAction = action
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
