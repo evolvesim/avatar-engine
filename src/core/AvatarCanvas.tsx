@@ -619,10 +619,15 @@ function AvatarScene({
     gltf.scene.updateMatrixWorld(true)
   })
 
+  // Apply Y/X offset imperatively — R3F <primitive> position prop is unreliable
+  // for Y on some R3F versions. Set directly on the object so it always applies.
+  useEffect(() => {
+    scene.position.set(avatarXOffset, effectiveYOffset, 0)
+  }, [scene, avatarXOffset, effectiveYOffset])
+
   return (
     <primitive
       object={scene}
-      position={[avatarXOffset, effectiveYOffset, 0]}
     />
   )
 }
