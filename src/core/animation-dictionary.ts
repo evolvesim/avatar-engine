@@ -213,6 +213,49 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'evolve_stress_self_anchor':                  { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.4  },
   'evolve_stress_brief_look_away':              { emotion: 'fear',          loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
   'evolve_stress_micro_tension':                { emotion: 'fear',          loop: THREE.LoopRepeat, defaultCrossfade: 0.3  },
+
+  // ── RPM MOCAP IDLES (0.3.72) — Ready Player Me animation library ─────────
+  // Real mocap, T-pose bind, 52 bones, full elbow articulation (24–121° ForeArm)
+  'rpm_neutral_idle_001':           { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_002':           { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_var_001':       { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_var_002':       { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_var_003':       { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_expressive_001':{ emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm_neutral_idle_expressive_002':{ emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+
+  // ── RPM MOCAP TALKING GESTURES (0.3.72) ─────────────────────────────────
+  // Full-body talking variations — real elbow bend (67–132° ForeArm)
+  'rpm_talking_001': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_002': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_003': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_004': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_005': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_006': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_007': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_008': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_talking_expressive_001': { emotion: 'joy',     loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_talking_expressive_002': { emotion: 'empathy', loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+
+  // ── RPM MOCAP EXPRESSIONS / GESTURES (0.3.72) ───────────────────────────
+  // Standing expressions — full body gesture clips, real elbow bend
+  'rpm_gesture_001':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_002':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_003':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_004':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_005':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_006':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_007':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_008':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_009':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
+  'rpm_gesture_subtle_001':    { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_gesture_subtle_002':    { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3  },
+  'rpm_gesture_expressive_001':{ emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'rpm_gesture_expressive_002':{ emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'rpm_gesture_expressive_003':{ emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+  'rpm_gesture_expressive_004':{ emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'rpm_gesture_expressive_005':{ emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
+  'rpm_gesture_expressive_006':{ emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
