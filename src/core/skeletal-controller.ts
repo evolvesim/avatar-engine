@@ -189,6 +189,9 @@ export class SkeletalController {
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
   private diagnosticFrame    = 0
+  /** Incremented on every new gesture. onFinished handlers compare against
+   *  this token — stale handlers (from interrupted gestures) are no-ops. */
+  private gestureToken       = 0
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -199,7 +202,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.78 (single-layer RPM, direct-idle-after-gesture) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.79 (single-layer RPM, gestureToken + direct-idle) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -347,12 +350,18 @@ export class SkeletalController {
       return
     }
 
-    console.log('[SkeletalController] gesture →', animId)
+    // Mint a new token. Any onFinished handler holding an old token will
+    // see a mismatch and no-op — prevents stale listeners from firing
+    // _returnToIdleDirect multiple times when gestures are interrupted.
+    const token = ++this.gestureToken
+
+    console.log('[SkeletalController] gesture →', animId, `(token ${token})`)
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
     // Deep-clone + retarget for each gesture call (gesture clips play LoopOnce
-    // and may be re-triggered — a fresh clone avoids mixer cache conflicts).
+    // and may be re-triggered — a fresh clone + fresh UUID avoids mixer
+    // returning a cached already-played action for the same clip).
     const gestureClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(entry.clip))
     gestureClip.uuid  = THREE.MathUtils.generateUUID()
     retargetClipToUUIDs(gestureClip, this.avatarRoot!)
@@ -360,6 +369,7 @@ export class SkeletalController {
     const nextAction = this.mixer.clipAction(gestureClip)
     nextAction.setLoop(THREE.LoopOnce, 1)
     nextAction.clampWhenFinished = false
+    nextAction.reset()
     nextAction.setEffectiveWeight(0)
     nextAction.play()
 
@@ -373,18 +383,23 @@ export class SkeletalController {
     this.currentAction = nextAction
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
+      // Guard 1: wrong action (Three.js fires 'finished' for any action that ends)
       if (e.action !== nextAction) return
+      // Guard 2: stale token — this gesture was interrupted by a newer one
+      if (this.gestureToken !== token) {
+        this.mixer!.removeEventListener('finished', onFinished)
+        return
+      }
       this.mixer!.removeEventListener('finished', onFinished)
-      console.log('[SkeletalController] gesture done:', animId)
+      console.log('[SkeletalController] gesture done:', animId, `(token ${token})`)
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
-      this.isInGesture = false
-      // LoopOnce gesture has already stopped (enabled=false) by the time
-      // 'finished' fires with clampWhenFinished=false. crossFadeTo from a
-      // stopped action never ramps the incoming weight up — idle stays at 0
-      // → bind pose. Fix: stop the gesture explicitly then start idle at
-      // weight 1 directly, no crossfade from the dead gesture action.
-      nextAction.stop()
+      this.isInGesture  = false
       this.fadingAction = null
+      // LoopOnce with clampWhenFinished=false: Three.js has already disabled
+      // this action. crossFadeTo FROM a disabled action never ramps the
+      // incoming weight up — idle would stay at 0 → bind pose.
+      // Fix: stop it explicitly then play idle at weight 1 directly.
+      nextAction.stop()
       this._returnToIdleDirect()
     }
     this.mixer.addEventListener('finished', onFinished)
@@ -455,6 +470,7 @@ export class SkeletalController {
     this.idlePoolTimer     = 0
     this.currentAction     = null
     this.fadingAction      = null
+    this.gestureToken      = 0
     this.pendingIdle       = true
     this._tryStartIdle()
   }
