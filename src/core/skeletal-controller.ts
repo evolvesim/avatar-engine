@@ -136,7 +136,16 @@ function retargetClipToUUIDs(
     const dotIdx  = track.name.lastIndexOf('.')
     const boneName = track.name.slice(0, dotIdx)
     const prop     = track.name.slice(dotIdx)
-    const uuid = nameToUUID.get(boneName.toLowerCase())
+
+    // Three.js GLTFLoader deduplicates nodes with identical names by appending
+    // a numeric suffix: "LeftArm" → "LeftArm_1", "LeftArm_2", etc.
+    // When animations.glb contains 34 clips each with a "LeftArm" node,
+    // clip 0 gets track "LeftArm.quaternion" but clip 17 gets "LeftArm_17.quaternion".
+    // The avatar skeleton has no bone named "LeftArm_17" → retargeting drops it → arms frozen.
+    // Fix: strip the _N suffix before UUID lookup so all suffixed names resolve to the real bone.
+    const cleanName = boneName.replace(/_\d+$/, '')
+
+    const uuid = nameToUUID.get(cleanName.toLowerCase())
     if (uuid) {
       track.name = uuid + prop
       keptTracks.push(track)
@@ -150,12 +159,10 @@ function retargetClipToUUIDs(
     }
   }
   clip.tracks = keptTracks  // remove unbound tracks
-  if (bound > 0 || missed === 0) {
-    console.log(
-      `[retargetClipToUUIDs] "${clip.name}": ${bound} bound` +
-      (missed > 0 ? `, ${missed} dropped (not in skeleton)` : '')
-    )
-  }
+  console.log(
+    `[retargetClipToUUIDs] "${clip.name}": ${bound} bound` +
+    (missed > 0 ? `, ${missed} dropped (finger/toe not in skeleton)` : ', 0 dropped ✅')
+  )
   return clip
 }
 
