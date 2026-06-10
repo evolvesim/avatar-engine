@@ -1,6 +1,6 @@
 {
   "name": "@evolvesim/avatar-engine",
-  "version": "0.3.76",
+  "version": "0.3.77",
   "description": "Shared real-time 3D avatar engine for Evolve Simulations products — emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

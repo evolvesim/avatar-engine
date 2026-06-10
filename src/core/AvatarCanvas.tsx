@@ -610,20 +610,15 @@ function AvatarScene({
       }
     }
 
-    // ── 11. Propagate bone transforms through original scene ───────────────
-    // Apply bodyRotationY to the original scene root so all bone world
-    // matrices include the intended facing direction. The clone's <primitive>
-    // position prop handles translation; rotation is handled here on the
-    // original (which drives the skeleton the clone reads).
+    // ── 11. Apply position offset + rotation every frame ─────────────────
+    // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
+    // after useEffect when using <primitive> without a position prop.
+    // Also apply bodyRotationY to the original gltf.scene so bone world
+    // matrices include the intended facing direction.
+    scene.position.set(avatarXOffset, effectiveYOffset, 0)
     gltf.scene.rotation.y = bodyRotationY
     gltf.scene.updateMatrixWorld(true)
   })
-
-  // Apply Y/X offset imperatively — R3F <primitive> position prop is unreliable
-  // for Y on some R3F versions. Set directly on the object so it always applies.
-  useEffect(() => {
-    scene.position.set(avatarXOffset, effectiveYOffset, 0)
-  }, [scene, avatarXOffset, effectiveYOffset])
 
   return (
     <primitive
