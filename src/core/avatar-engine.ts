@@ -45,7 +45,7 @@ import type React from 'react'
 export interface AvatarEngineConfig {
   /**
    * Path to the compiled animations.glb in /public.
-   * Default: '/avatar-engine/animations-rebaked.glb' (0.3.60+ — re-baked arm tracks)
+   * Default: '/avatar-engine/animations.glb' (0.3.72+ — real RPM mocap clips)
    */
   animationDictionaryUrl?: string
 
@@ -102,7 +102,7 @@ export class AvatarEngine {
       )
     }
 
-    const dictUrl = config.animationDictionaryUrl ?? '/avatar-engine/animations-rebaked.glb'
+    const dictUrl = config.animationDictionaryUrl ?? '/avatar-engine/animations.glb'
     this.dictionary.load(dictUrl).then(() => {
       if (this.director) {
         this.director.updateAnimIds(this.dictionary.animationIds)
