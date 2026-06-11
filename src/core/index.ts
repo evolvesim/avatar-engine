@@ -68,7 +68,10 @@ export {
   ALL_VISEME_NAMES,
   JAW_OPEN_SHAPES,
   AVATURN_MESH_NAMES,
+  VISEME_SUPPORT,
+  buildVisemeTargets,
 }                                    from './viseme-map'
+export type { VisemeSupport }        from './viseme-map'
 
 // Shared types — including the new TTSAdapter contract
 export type {

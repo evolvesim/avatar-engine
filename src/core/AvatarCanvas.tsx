@@ -62,7 +62,7 @@ import type {
   DirectorConfig,
 } from './types'
 import { CAMERA_PRESETS }        from './types'
-import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES, JAW_OPEN_SHAPES } from './viseme-map'
+import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES, buildVisemeTargets } from './viseme-map'
 import {
   additiveBlend,
   lerpWeightMap,
@@ -478,13 +478,15 @@ function AvatarScene({
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
       }
-      // Scale to 0.6 — moderate lip movement on Avaturn meshes
-      const w = 0.6 / arkit.length
-      for (const shapeName of arkit) {
-        targetW.current[shapeName] = w
+      // Primary Oculus mouth shape(s) at 0.6 + conservative ARKit support shapes
+      // (cheeks / funnel / pucker / press / lower-lip) layered per viseme.
+      // Support shapes the GLB lacks are ignored harmlessly in applyWeightsToMeshes.
+      const { weights, jaw } = buildVisemeTargets(id, 0.6)
+      for (const [shapeName, value] of Object.entries(weights)) {
+        targetW.current[shapeName] = value
       }
-      // jawOpen: 0.3 gives natural jaw movement
-      targetW.current['jawOpen'] = arkit.some(s => JAW_OPEN_SHAPES.has(s)) ? 0.3 : 0
+      // jawOpen differentiated per viseme (aa high, E/I medium, O/U low, consonants closed)
+      targetW.current['jawOpen'] = jaw
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
 
