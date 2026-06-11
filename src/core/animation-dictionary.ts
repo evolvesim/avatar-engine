@@ -306,6 +306,26 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'rpm2_expression_016': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
   'rpm2_expression_017': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
   'rpm2_expression_018': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+
+  // ── RPM2 Feminine — github.com/readyplayerme/animation-library (feminine) ──
+  // Idles (10) — motion captured from female actress, more subtle movement
+  'rpm2f_idle_001':     { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_001': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_002': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_003': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_004': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_005': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_006': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_007': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_008': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'rpm2f_idle_var_009': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  // Talking (6) — female talking variations
+  'rpm2f_talking_001':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'rpm2f_talking_002':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'rpm2f_talking_003':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'rpm2f_talking_004':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'rpm2f_talking_005':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'rpm2f_talking_006':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────

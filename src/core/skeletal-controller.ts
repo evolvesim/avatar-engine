@@ -74,6 +74,17 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_008',
     'rpm2_idle_var_009',
     'rpm2_idle_var_010',
+    // rpm2f (feminine mocap — more subtle, corporate-appropriate)
+    'rpm2f_idle_001',
+    'rpm2f_idle_var_001',
+    'rpm2f_idle_var_002',
+    'rpm2f_idle_var_003',
+    'rpm2f_idle_var_004',
+    'rpm2f_idle_var_005',
+    'rpm2f_idle_var_006',
+    'rpm2f_idle_var_007',
+    'rpm2f_idle_var_008',
+    'rpm2f_idle_var_009',
   ],
   joy: [
     'rpm_neutral_idle_var_001',
@@ -82,6 +93,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_rapport_mirroring_lean',
     'rpm2_idle_001',
     'rpm2_idle_var_003',
+    'rpm2f_idle_001',
+    'rpm2f_idle_var_002',
   ],
   anger: [
     'rpm_neutral_idle_001',
@@ -129,6 +142,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_rapport_mirroring_lean',
     'rpm2_idle_001',
     'rpm2_idle_var_002',
+    'rpm2f_idle_var_004',
+    'rpm2f_idle_var_005',
   ],
   concentration: [
     'rpm_neutral_idle_002',
@@ -138,6 +153,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_professional_steeple_fingers',
     'rpm2_idle_var_010',
     'rpm2_idle_var_006',
+    'rpm2f_idle_var_006',
+    'rpm2f_idle_var_007',
   ],
   confusion: [
     'rpm_neutral_idle_001',
@@ -259,7 +276,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.83 (73 clips: 34 RPM + 39 RPM2, no ACTS) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.84 (89 clips: 34 RPM + 39 RPM2 + 16 RPM2f, no ACTS) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
