@@ -202,7 +202,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.80 (crossFadeTo weight fix) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.81 (clamp+fade, no bind-pose flash) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -369,7 +369,12 @@ export class SkeletalController {
 
     const nextAction = this.mixer.clipAction(gestureClip)
     nextAction.setLoop(THREE.LoopOnce, 1)
-    nextAction.clampWhenFinished = false
+    // clampWhenFinished=true: holds the final pose after the clip ends.
+    // This is critical for the no-flash return-to-idle: the gesture keeps
+    // driving bones while the crossfade to idle ramps up (0.4s). Without
+    // clamp, Three.js disables the action on 'finished' → zero bone driver
+    // for one frame → bind-pose flash before idle takes over.
+    nextAction.clampWhenFinished = true
     // Do NOT pre-set weight to 0. crossFadeTo owns the weight ramp (0→1
     // over fadeDuration). Pre-setting weight=0 overrides the interpolant
     // and keeps the gesture at weight 0 for its entire duration → bind pose.
@@ -397,47 +402,47 @@ export class SkeletalController {
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
       this.isInGesture  = false
       this.fadingAction = null
-      // LoopOnce with clampWhenFinished=false: Three.js has already disabled
-      // this action. crossFadeTo FROM a disabled action never ramps the
-      // incoming weight up — idle would stay at 0 → bind pose.
-      // Fix: stop it explicitly then play idle at weight 1 directly.
-      nextAction.stop()
-      this._returnToIdleDirect()
+      // clampWhenFinished=true means the gesture is still enabled and
+      // holding its final pose — we can crossfade FROM it into the idle.
+      // The gesture keeps driving bones for the full 0.4s fade duration,
+      // so there is never a frame with zero bone contribution (no flash).
+      this._returnToIdleWithFade(nextAction)
     }
     this.mixer.addEventListener('finished', onFinished)
   }
 
   /**
-   * Starts the next idle directly at weight 1 — no crossfade from the
-   * outgoing gesture (which is already stopped/disabled by Three.js when
-   * LoopOnce + clampWhenFinished=false fires 'finished').
-   *
-   * Calling crossFadeTo FROM a stopped action never ramps the incoming
-   * action's weight up → idle stays at 0 → bind pose forever.
-   * This method bypasses that by playing the idle at full weight immediately.
+   * Crossfades from a clamped gesture action into the next idle.
+   * Because clampWhenFinished=true, the gesture is still enabled and holding
+   * its final pose when 'finished' fires — crossFadeTo FROM it works
+   * correctly and keeps bones driven for the full fade duration.
+   * No frame with zero contribution → no bind-pose flash.
    */
-  private _returnToIdleDirect(): void {
+  private _returnToIdleWithFade(fromAction: THREE.AnimationAction): void {
     if (!this.mixer) return
     const id    = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
     if (!entry) {
-      // Dict not ready — fall back to pendingIdle retry
+      // Dict not ready — stop gesture and fall back to pendingIdle retry
+      fromAction.stop()
       this.pendingIdle = true
       return
     }
 
-    console.log('[SkeletalController] _returnToIdleDirect →', id)
+    console.log('[SkeletalController] _returnToIdleWithFade →', id)
     this.currentIdleClipId = id
-    this.isInGesture       = false
     this.idlePoolTimer     = 0
 
-    const idleClip = this._getRetargeted(entry.clip)
-    const action   = this.mixer.clipAction(idleClip)
-    action.setLoop(THREE.LoopRepeat, Infinity)
-    action.clampWhenFinished = false
-    action.setEffectiveWeight(1)
-    action.reset().play()
-    this.currentAction = action
+    const idleClip   = this._getRetargeted(entry.clip)
+    const idleAction = this.mixer.clipAction(idleClip)
+    idleAction.setLoop(THREE.LoopRepeat, Infinity)
+    idleAction.clampWhenFinished = false
+    idleAction.reset().play()
+
+    // Crossfade from the still-clamped gesture into the idle.
+    // This ramps gesture 1→0 and idle 0→1 over 0.4s — bones always driven.
+    fromAction.crossFadeTo(idleAction, 0.4, false)
+    this.currentAction = idleAction
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
