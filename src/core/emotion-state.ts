@@ -3,8 +3,8 @@
  *
  * Implements the FACS→ARKit mapping from the research spec.
  *
- * KEY DESIGN: Emotions persist until explicitly changed. An angry avatar stays
- * angry through subsequent utterances until the Virtual Director emits a new
+ * KEY DESIGN: Emotions persist until explicitly changed. A sad avatar stays
+ * sad through subsequent utterances until the Virtual Director emits a new
  * base_emotion. This matches human behaviour — emotional states are durable,
  * not reset per sentence.
  *
@@ -14,21 +14,29 @@
  *                    emotionWeights (ARKit blendshape targets, 0–1)
  *                                      ↓
  *              AvatarCanvas useFrame → additive blend with viseme layer
+ *
+ * Taxonomy (8 emotions, v0.3.86):
+ *   neutral      — baseline, no expression
+ *   happy        — replaces joy (Duchenne smile)
+ *   sadness      — unchanged
+ *   surprise     — unchanged
+ *   empathy      — unchanged
+ *   thoughtful   — replaces concentration + confusion (brow furrow, reflective)
+ *   displeasure  — replaces anger + disgust (brow down, press, sneer)
+ *   tension      — replaces fear (brow up, wide eyes, mouth stretch)
  */
 
 // ── Emotion identifiers ───────────────────────────────────────────────────────
 
 export type EmotionId =
   | 'neutral'
-  | 'joy'
-  | 'anger'
+  | 'happy'
   | 'sadness'
   | 'surprise'
-  | 'fear'
-  | 'disgust'
   | 'empathy'
-  | 'concentration'
-  | 'confusion'
+  | 'thoughtful'
+  | 'displeasure'
+  | 'tension'
 
 // ── ARKit blendshape weight map ───────────────────────────────────────────────
 
@@ -44,9 +52,8 @@ export type ARKitWeights = Partial<Record<string, number>>
 const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
   neutral: {},
 
-  // Duchenne smile: zygomaticus major + orbicularis oculi (crow's feet)
-  // Boosted 0.3.69: smile 0.8→1.0, cheek 0.6→0.85, eyeSquint 0.3→0.5
-  joy: {
+  // happy (formerly joy) — Duchenne smile: zygomaticus major + orbicularis oculi (crow's feet)
+  happy: {
     mouthSmileLeft:    0.8,
     mouthSmileRight:   0.8,
     cheekSquintLeft:   0.68,
@@ -55,21 +62,7 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     eyeSquintRight:    0.4,
   },
 
-  // Corrugator contraction (brow down) + orbicularis oris (lip press)
-  // Boosted 0.3.69: browDown already strong, press 0.5→0.7, squint 0.4→0.6
-  anger: {
-    browDownLeft:      0.8,
-    browDownRight:     0.8,
-    mouthPressLeft:    0.56,
-    mouthPressRight:   0.56,
-    eyeSquintLeft:     0.48,
-    eyeSquintRight:    0.48,
-    noseSneerLeft:     0.28,
-    noseSneerRight:    0.28,
-  },
-
-  // Medial frontalis (inner brow up) + depressor anguli oris (mouth corners down)
-  // Boosted 0.3.69: frown 0.6→0.85, eyeLookDown 0.2→0.35, pucker 0.1→0.2
+  // sadness — medial frontalis (inner brow up) + depressor anguli oris (mouth corners down)
   sadness: {
     browInnerUp:       0.72,
     mouthFrownLeft:    0.68,
@@ -79,8 +72,7 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     mouthPucker:       0.16,
   },
 
-  // Empathy mirrors sadness with softer mouth, adds attentive gaze
-  // Boosted 0.3.69: ALL values doubled — was too subtle at typical intensities
+  // empathy — mirrors sadness with softer mouth, adds attentive gaze
   empathy: {
     browInnerUp:       0.56,
     mouthFrownLeft:    0.32,
@@ -91,8 +83,7 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     mouthSmileRight:   0.24,
   },
 
-  // Full frontalis elevation + masseter relaxation (jaw drop)
-  // Boosted 0.3.69: jawOpen 0.4→0.55 for more visible open-mouth surprise
+  // surprise — full frontalis elevation + masseter relaxation (jaw drop)
   surprise: {
     browOuterUpLeft:   0.8,
     browOuterUpRight:  0.8,
@@ -102,34 +93,9 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     jawOpen:           0.44,
   },
 
-  // Fear: brow up + wide eyes + slight mouth stretch (fight-or-flight)
-  // Boosted 0.3.69: stretch 0.3→0.5, jawOpen 0.2→0.35
-  fear: {
-    browOuterUpLeft:   0.68,
-    browOuterUpRight:  0.68,
-    browInnerUp:       0.6,
-    eyeWideLeft:       0.8,
-    eyeWideRight:      0.8,
-    mouthStretchLeft:  0.4,
-    mouthStretchRight: 0.4,
-    jawOpen:           0.28,
-  },
-
-  // Disgust: levator labii (nose sneer) + brow down asymmetric
-  // Boosted 0.3.69: sneer 0.6→0.85, frown 0.4→0.65, shrugUpper 0.3→0.5
-  disgust: {
-    noseSneerLeft:     0.68,
-    noseSneerRight:    0.68,
-    browDownLeft:      0.48,
-    browDownRight:     0.48,
-    mouthFrownLeft:    0.52,
-    mouthFrownRight:   0.52,
-    mouthShrugUpper:   0.4,
-  },
-
-  // Concentration: brow furrow, slight squint, focused expression
-  // Boosted 0.3.69: browDown 0.5→0.75, browInnerUp 0.3→0.5, squint 0.2→0.4, press 0.2→0.4
-  concentration: {
+  // thoughtful (replaces concentration + confusion) — brow furrow, reflective,
+  // slightly asymmetric to suggest active thinking
+  thoughtful: {
     browDownLeft:      0.6,
     browDownRight:     0.6,
     browInnerUp:       0.4,
@@ -139,15 +105,30 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     mouthPressRight:   0.32,
   },
 
-  // Confusion: asymmetric brow raise, slight head tilt implied, mouth open slightly
-  // Boosted 0.3.69: browOuterUp 0.6→0.85, browInnerUp 0.4→0.65, eyeWide 0.3→0.55, frown 0.2→0.4, jawOpen 0.1→0.25
-  confusion: {
-    browOuterUpLeft:   0.68,
-    browInnerUp:       0.52,
-    eyeWideLeft:       0.44,
+  // displeasure (replaces anger + disgust) — corrugator contraction + levator labii
+  displeasure: {
+    browDownLeft:      0.8,
+    browDownRight:     0.8,
+    mouthPressLeft:    0.56,
+    mouthPressRight:   0.56,
+    eyeSquintLeft:     0.48,
+    eyeSquintRight:    0.48,
+    noseSneerLeft:     0.4,
+    noseSneerRight:    0.4,
     mouthFrownLeft:    0.32,
     mouthFrownRight:   0.32,
-    jawOpen:           0.2,
+  },
+
+  // tension (replaces fear) — brow up + wide eyes + slight mouth stretch (fight-or-flight)
+  tension: {
+    browOuterUpLeft:   0.68,
+    browOuterUpRight:  0.68,
+    browInnerUp:       0.6,
+    eyeWideLeft:       0.8,
+    eyeWideRight:      0.8,
+    mouthStretchLeft:  0.4,
+    mouthStretchRight: 0.4,
+    jawOpen:           0.28,
   },
 }
 
@@ -187,12 +168,12 @@ export class EmotionStateMachine {
    *
    * Called by the Virtual Director when performance_data.base_emotion changes.
    * The emotion STAYS until this is called again — it does not reset between
-   * utterances. An angry avatar stays angry.
+   * utterances. A tense avatar stays tense.
    */
   set(id: EmotionId, intensity: number, speechAttenuation = 1.0): void {
     const preset = EMOTION_PRESETS[id] ?? {}
     const clamped = Math.max(0, Math.min(1, intensity))
-    // 0.3.69: Power-curve lift — raises mid-range intensities so subtle VD calls
+    // Power-curve lift — raises mid-range intensities so subtle VD calls
     // are still clearly visible. Formula: intensity^0.6 lifts 0.3→0.46, 0.5→0.53,
     // 0.7→0.79, while preserving 0=0 and 1=1 boundaries.
     // For neutral (no preset keys) this is a no-op.

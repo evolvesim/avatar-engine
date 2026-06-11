@@ -184,6 +184,21 @@ export interface AvatarCanvasProps {
    * the `cameraPreset` target. Format: [x, y, z].
    */
   cameraTarget?:   [number, number, number]
+  /**
+   * URL to a custom animation pack GLB file.
+   * When provided, the AnimationDictionary reloads clips from this URL.
+   * Changing this prop at runtime triggers a pack reload.
+   *
+   * Pack options (set by admin or avatar builder):
+   *   '/avatar-engine/animations.glb'        — default (RPM clips, all styles)
+   *   '/avatar-engine/animations-pack1.glb'  — Pack 1: Motion Male (mx_m_)
+   *   '/avatar-engine/animations-pack2.glb'  — Pack 2: Motion Female (mx_f_ + cross-pack)
+   *   '/avatar-engine/animations-pack3.glb'  — Pack 3: RPM Male (rpm_, rpm2_)
+   *   '/avatar-engine/animations-pack4.glb'  — Pack 4: RPM Female (rpm2f_)
+   *
+   * Default: undefined (keeps the engine's existing loaded dictionary)
+   */
+  animationPackUrl?: string
   className?:      string
 }
 
@@ -645,6 +660,7 @@ export function AvatarCanvas({
   autoCalibrate  = false,
   cameraPosition,
   cameraTarget,
+  animationPackUrl,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -654,6 +670,17 @@ export function AvatarCanvas({
     engine.connect().catch((err) => console.error('[AvatarCanvas] connect failed:', err))
     return () => { engine.disconnect() }
   }, [engine, activeAdapter])
+
+  // Reload animation dictionary when the pack URL changes
+  useEffect(() => {
+    if (!animationPackUrl) return
+    engine.dictionary.loadPack(animationPackUrl).then(() => {
+      engine.refreshAnimIds()
+      console.info(`[AvatarCanvas] Animation pack loaded: ${animationPackUrl}`)
+    }).catch((err) => {
+      console.error('[AvatarCanvas] Failed to load animation pack:', err)
+    })
+  }, [engine, animationPackUrl])
 
   return (
     <div className={className}>

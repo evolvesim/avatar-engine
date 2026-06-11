@@ -407,6 +407,20 @@ export class AnimationDictionary {
    *
    * @param url  Path to the compiled animations.glb in /public
    */
+  /**
+   * Load animations from a new URL, replacing the current dictionary contents.
+   * Unlike `load()`, this method always loads regardless of current state.
+   * Use when the admin selects a different animation pack.
+   *
+   * @param url  Path to the pack GLB in /public
+   */
+  async loadPack(url: string): Promise<void> {
+    this.clips.clear()
+    this.state = 'idle'
+    this.error = null
+    await this.load(url)
+  }
+
   async load(url: string): Promise<void> {
     if (this.state === 'loading' || this.state === 'ready') return
     this.state = 'loading'

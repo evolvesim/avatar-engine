@@ -130,6 +130,16 @@ export class AvatarEngine {
     this._connected = false
   }
 
+  /**
+   * Refresh the Virtual Director's animation ID list after loading a new pack.
+   * Call this after `engine.dictionary.loadPack(url)` completes.
+   */
+  refreshAnimIds(): void {
+    if (this.director) {
+      this.director.updateAnimIds(this.dictionary.animationIds)
+    }
+  }
+
   // ── Core: handle a dialogue string from the primary LLM ──────────────────
 
   async handleDialogue(text: string): Promise<void> {
@@ -139,7 +149,10 @@ export class AvatarEngine {
         : Promise.resolve<PerformanceData>({
             base_emotion:      'neutral',
             emotion_intensity:  0,
+            talking_alias:     'talking_neutral',
             gesture_cues:      [],
+            set_expression:    null,
+            expression_reason: null,
           }),
       this._startTTS(text),
     ])
@@ -192,9 +205,27 @@ export class AvatarEngine {
   }
 
   private _applyPerformanceData(data: PerformanceData): void {
-    this.emotion.set(data.base_emotion, data.emotion_intensity)
+    // Apply persistent facial expression if VD signals a change
+    // set_expression=null means "keep current expression" — do not reset
+    if (data.set_expression != null) {
+      this.emotion.set(data.set_expression, data.emotion_intensity)
+      this.skeletal.onEmotionChange(data.set_expression)
+      if (data.expression_reason) {
+        console.info(`[VirtualDirector] Expression → ${data.set_expression} (${data.expression_reason})`)
+      }
+    } else {
+      // No expression change — still apply base_emotion intensity for idle pool selection
+      // but do not override the persistent expression blendshapes
+      this.skeletal.onEmotionChange(data.base_emotion)
+    }
+
+    // Queue gesture cues (word-indexed)
     this.skeletal.loadPerformance(data.gesture_cues)
-    this.skeletal.onEmotionChange(data.base_emotion)
+
+    // Log talking alias for debugging (skeletal controller wires this when implemented)
+    if (data.talking_alias) {
+      console.debug(`[VirtualDirector] Talking alias: ${data.talking_alias}`)
+    }
   }
 
   // ── Utility: stop current speech ─────────────────────────────────────────

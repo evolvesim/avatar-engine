@@ -165,6 +165,21 @@ export interface AvatarCanvasProps {
   autoCalibrate?: boolean
 
   /**
+   * URL to a custom animation pack GLB file.
+   * If provided, the AnimationDictionary loads clips from this URL
+   * instead of (or in addition to) the default animations.glb.
+   *
+   * Pack options:
+   *   Pack 1 — Motion Male  (mx_m_ prefix, Avaturn male avatar)
+   *   Pack 2 — Motion Female (mx_f_ + cross-pack mx_m_, Avaturn female avatar)
+   *   Pack 3 — RPM Male     (rpm_, rpm2_ prefix, RPM/Avaturn male/neutral)
+   *   Pack 4 — RPM Female   (rpm2f_ prefix, RPM/Avaturn female)
+   *
+   * Default: undefined (uses default animations.glb)
+   */
+  animationPackUrl?: string
+
+  /**
    * Tailwind / CSS class string applied to the wrapping div.
    * Default: 'w-full h-full'
    */

@@ -50,7 +50,7 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
-    // rpm (original 34 — confirmed working)
+    // rpm (original — confirmed working)
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_002',
     'rpm_neutral_idle_var_001',
@@ -86,7 +86,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2f_idle_var_008',
     'rpm2f_idle_var_009',
   ],
-  joy: [
+  // happy (formerly joy)
+  happy: [
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_expressive_001',
     'quaternius_joy_breathing_idle',
@@ -95,14 +96,6 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_003',
     'rpm2f_idle_001',
     'rpm2f_idle_var_002',
-  ],
-  anger: [
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_002',
-    'quaternius_anger_tense_idle',
-    'mixamo_anger_arms_crossed',
-    'rpm2_idle_002',
-    'rpm2_idle_var_007',
   ],
   sadness: [
     'rpm_neutral_idle_001',
@@ -119,21 +112,6 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_001',
     'rpm2_idle_var_004',
   ],
-  fear: [
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_002',
-    'quaternius_fear_frozen_idle',
-    'evolve_stress_suppressed_still',
-    'rpm2_idle_002',
-    'rpm2_idle_var_006',
-  ],
-  disgust: [
-    'rpm_neutral_idle_var_002',
-    'rpm_neutral_idle_001',
-    'quaternius_disgust_recoil_idle',
-    'rpm2_idle_var_008',
-    'rpm2_idle_var_009',
-  ],
   empathy: [
     'rpm_neutral_idle_var_003',
     'rpm_neutral_idle_expressive_002',
@@ -145,24 +123,38 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2f_idle_var_004',
     'rpm2f_idle_var_005',
   ],
-  concentration: [
+  // thoughtful (replaces concentration + confusion)
+  thoughtful: [
     'rpm_neutral_idle_002',
     'rpm_neutral_idle_var_001',
     'quaternius_concentration_idle',
     'evolve_concentration_arms_folded_think',
     'evolve_professional_steeple_fingers',
+    'evolve_listening_interested_lean',
     'rpm2_idle_var_010',
     'rpm2_idle_var_006',
     'rpm2f_idle_var_006',
     'rpm2f_idle_var_007',
   ],
-  confusion: [
+  // displeasure (replaces anger + disgust)
+  displeasure: [
     'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_var_002',
-    'quaternius_neutral_idle',
-    'rpm2_idle_var_003',
+    'quaternius_anger_tense_idle',
+    'mixamo_anger_arms_crossed',
+    'quaternius_disgust_recoil_idle',
+    'rpm2_idle_002',
     'rpm2_idle_var_007',
+    'rpm2_idle_var_008',
+  ],
+  // tension (replaces fear)
+  tension: [
+    'rpm_neutral_idle_001',
+    'rpm_neutral_idle_var_002',
+    'quaternius_fear_frozen_idle',
+    'evolve_stress_suppressed_still',
+    'rpm2_idle_002',
+    'rpm2_idle_var_006',
   ],
 }
 
