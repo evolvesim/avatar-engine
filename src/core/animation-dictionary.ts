@@ -326,6 +326,60 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'rpm2f_talking_004':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'rpm2f_talking_005':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'rpm2f_talking_006':  { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+
+  // ── Mixamo Feminine (mx_f_) — 15 clips ────────────────────────────────────────────────────────────────
+  // Idles (loop)
+  'mx_f_idle_standard':                      { emotion: 'neutral',   loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_f_idle_shifting':                      { emotion: 'neutral',   loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_f_idle_foot_forward_slouch':           { emotion: 'neutral',   loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_f_standing_idle_footfoward':           { emotion: 'neutral',   loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_f_sitting_hands_crossed':              { emotion: 'neutral',   loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  // Gestures / once
+  'mx_f_angry_pouting':                      { emotion: 'anger',     loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_bashful':                            { emotion: 'neutral',   loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_blow_a_kiss':                        { emotion: 'joy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_dwarf_idle_uniterested_look_at_hands': { emotion: 'neutral', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_excited_dance':                      { emotion: 'joy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_standing_arguing':                   { emotion: 'anger',     loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_standing_arguing2':                  { emotion: 'anger',     loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_standing_greeting_waving':           { emotion: 'joy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_talking_making_point':               { emotion: 'neutral',   loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_f_thankful_hand_to_heart':             { emotion: 'empathy',   loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+
+  // ── Mixamo Masculine (mx_m_) — 30 clips ────────────────────────────────────────────────────────────────
+  // Idles (loop)
+  'mx_m_standard_idle':                      { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_m_idle_still':                         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_m_breathing_idle_fast_breathing':      { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_m_happy_idle_swaying':                 { emotion: 'joy',           loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mx_m_neutral_idle_foot_forward':          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  // Head / subtle (once)
+  'mx_m_agreeing':                           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_agreeing_2':                         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_thoughtful_head_nod':                { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_thoughtful_head_shake':              { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_annoyed_head_shake':                 { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_sarcastic_head_nod':                 { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_head_gesture':                       { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_head_gesture_deciding':              { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_shaking_head_no':                    { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_look_away_gesture':                  { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_looking_behind':                     { emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_looking_down':                       { emotion: 'concentration', loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_relieved_sigh':                      { emotion: 'sadness',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  // Arm / body gestures (once)
+  'mx_m_hands_forward_gesture':              { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_happy_hand_gesture':                 { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_dismissing_gesture':                 { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_dismissing_gesture2':                { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_waving':                             { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_clapping':                           { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_fist_pump':                          { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_angry_point':                        { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_being_cocky':                        { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_cocky_head_turn':                    { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_praying':                            { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+  'mx_m_yelling':                            { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────

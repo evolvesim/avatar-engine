@@ -276,7 +276,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.84 (89 clips: 34 RPM + 39 RPM2 + 16 RPM2f, no ACTS) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.85 (134 clips: 34 RPM + 39 RPM2 + 16 RPM2f + 45 Mixamo, no ACTS) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
