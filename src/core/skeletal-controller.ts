@@ -202,7 +202,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.79 (single-layer RPM, gestureToken + direct-idle) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.80 (crossFadeTo weight fix) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -330,8 +330,9 @@ export class SkeletalController {
     const nextAction = this.mixer.clipAction(idleClip)
     nextAction.setLoop(THREE.LoopRepeat, Infinity)
     nextAction.clampWhenFinished = false
-    nextAction.setEffectiveWeight(0)
-    nextAction.play()
+    // Same rule as gesture: let crossFadeTo own the weight ramp.
+    // Pre-setting weight=0 overrides the interpolant → idle stays at 0.
+    nextAction.reset().play()
 
     if (this.currentAction && this.currentAction !== nextAction) {
       this.currentAction.crossFadeTo(nextAction, 0.4, false)
@@ -369,9 +370,10 @@ export class SkeletalController {
     const nextAction = this.mixer.clipAction(gestureClip)
     nextAction.setLoop(THREE.LoopOnce, 1)
     nextAction.clampWhenFinished = false
-    nextAction.reset()
-    nextAction.setEffectiveWeight(0)
-    nextAction.play()
+    // Do NOT pre-set weight to 0. crossFadeTo owns the weight ramp (0→1
+    // over fadeDuration). Pre-setting weight=0 overrides the interpolant
+    // and keeps the gesture at weight 0 for its entire duration → bind pose.
+    nextAction.reset().play()
 
     const fadeDuration = crossfadeDuration > 0 ? crossfadeDuration : 0.3
     if (this.currentAction && this.currentAction !== nextAction) {
