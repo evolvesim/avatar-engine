@@ -50,6 +50,7 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
+    // rpm (original 34 — confirmed working)
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_002',
     'rpm_neutral_idle_var_001',
@@ -60,40 +61,65 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_listening_active_sway',
     'evolve_listening_interested_lean',
     'evolve_idle_seated_upright',
+    // rpm2 (new RPM library — same skeleton, real mocap)
+    'rpm2_idle_001',
+    'rpm2_idle_002',
+    'rpm2_idle_var_001',
+    'rpm2_idle_var_002',
+    'rpm2_idle_var_003',
+    'rpm2_idle_var_004',
+    'rpm2_idle_var_005',
+    'rpm2_idle_var_006',
+    'rpm2_idle_var_007',
+    'rpm2_idle_var_008',
+    'rpm2_idle_var_009',
+    'rpm2_idle_var_010',
   ],
   joy: [
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_expressive_001',
     'quaternius_joy_breathing_idle',
     'evolve_rapport_mirroring_lean',
+    'rpm2_idle_001',
+    'rpm2_idle_var_003',
   ],
   anger: [
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_002',
     'quaternius_anger_tense_idle',
     'mixamo_anger_arms_crossed',
+    'rpm2_idle_002',
+    'rpm2_idle_var_007',
   ],
   sadness: [
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_003',
     'quaternius_sadness_slumped',
     'mesh2motion_sadness_shoulder_slump',
+    'rpm2_idle_001',
+    'rpm2_idle_var_005',
   ],
   surprise: [
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_002',
     'quaternius_neutral_idle',
+    'rpm2_idle_var_001',
+    'rpm2_idle_var_004',
   ],
   fear: [
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_002',
     'quaternius_fear_frozen_idle',
     'evolve_stress_suppressed_still',
+    'rpm2_idle_002',
+    'rpm2_idle_var_006',
   ],
   disgust: [
     'rpm_neutral_idle_var_002',
     'rpm_neutral_idle_001',
     'quaternius_disgust_recoil_idle',
+    'rpm2_idle_var_008',
+    'rpm2_idle_var_009',
   ],
   empathy: [
     'rpm_neutral_idle_var_003',
@@ -101,6 +127,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_listening_interested_lean',
     'mixamo_empathy_leaning_forward',
     'evolve_rapport_mirroring_lean',
+    'rpm2_idle_001',
+    'rpm2_idle_var_002',
   ],
   concentration: [
     'rpm_neutral_idle_002',
@@ -108,12 +136,16 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'quaternius_concentration_idle',
     'evolve_concentration_arms_folded_think',
     'evolve_professional_steeple_fingers',
+    'rpm2_idle_var_010',
+    'rpm2_idle_var_006',
   ],
   confusion: [
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_var_002',
     'quaternius_neutral_idle',
+    'rpm2_idle_var_003',
+    'rpm2_idle_var_007',
   ],
 }
 
@@ -227,7 +259,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.82 (146 clips: 34 RPM + 112 ACTS, merged idle pools) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.83 (73 clips: 34 RPM + 39 RPM2, no ACTS) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.

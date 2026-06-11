@@ -256,6 +256,56 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'rpm_gesture_expressive_004':{ emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
   'rpm_gesture_expressive_005':{ emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.2  },
   'rpm_gesture_expressive_006':{ emotion: 'surprise',      loop: THREE.LoopOnce,   defaultCrossfade: 0.15 },
+
+  // ── RPM LIBRARY v2 (0.3.83) — readyplayerme/animation-library ────────────
+  // Same mocap pipeline as rpm_ clips. All 53 tracks, full LeftForeArm/RightForeArm.
+  // Confirmed: 39/39 files have LForeArm + RForeArm data.
+  // Source: github.com/readyplayerme/animation-library — free for commercial use
+
+  // Idles
+  'rpm2_idle_001':     { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_002':     { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_001': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_002': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_003': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_004': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_005': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_006': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_007': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_008': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_009': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  'rpm2_idle_var_010': { emotion: 'neutral', loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+
+  // Talking variations
+  'rpm2_talking_001':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_002':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_003':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_004':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_005':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_006':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_007':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_008':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_009':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+  'rpm2_talking_010':  { emotion: 'neutral', loop: THREE.LoopOnce, defaultCrossfade: 0.3 },
+
+  // Standing expressions (gestures/reactions)
+  'rpm2_expression_001': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_002': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_004': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_005': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_006': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_007': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_008': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_009': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_010': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_011': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_012': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_013': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_014': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_015': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_016': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_017': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
+  'rpm2_expression_018': { emotion: 'neutral',       loop: THREE.LoopOnce, defaultCrossfade: 0.25 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
