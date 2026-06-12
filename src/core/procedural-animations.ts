@@ -281,47 +281,49 @@ function computeEyeTargetLocal(
 /**
  * Advance the VOR gaze system by one frame.
  *
- * Applies rotation directly to LeftEye and RightEye bones.
- * Call AFTER tickHeadTracking and AFTER the skeletal mixer update.
+ * Avaturn GLBs use ARKit 52 morph targets for eye direction — there are no
+ * separate LeftEye/RightEye bones. This function returns ARKit blendshape
+ * weights (eyeLookIn/Out/Up/Down Left/Right) that the caller should merge
+ * into the additive blend map before applying to mesh morph targets.
+ *
+ * Call AFTER tickHeadTracking and AFTER the skeletal mixer update so all
+ * world matrices are resolved.
  *
  * @param state     Mutable gaze state (useRef.current)
  * @param delta     Seconds since last frame
  * @param headBone  Head bone reference (world matrix must be current)
- * @param leftEye   LeftEye bone reference (may be null — no-op if absent)
- * @param rightEye  RightEye bone reference
  * @param cameraPos Camera world position
- * @param saccadeX  Saccade X offset from tickOcularMechanics (radians)
- * @param saccadeY  Saccade Y offset from tickOcularMechanics (radians)
+ * @param saccadeX  Saccade pitch offset from tickOcularMechanics (radians)
+ * @param saccadeY  Saccade yaw offset from tickOcularMechanics (radians)
  * @param cfg       Tuning parameters
+ * @returns         ARKit eye-look blendshape weights (0–1 each)
  */
 export function tickGaze(
   state:     GazeState,
   delta:     number,
   headBone:  THREE.Bone | null,
-  leftEye:   THREE.Bone | null,
-  rightEye:  THREE.Bone | null,
   cameraPos: THREE.Vector3,
   saccadeX:  number,
   saccadeY:  number,
   cfg:       GazeConfig = {},
-): void {
-  if (!headBone || (!leftEye && !rightEye)) return
+): Record<string, number> {
+  if (!headBone) return {}
 
   const lockConeYaw   = Math.abs(cfg.lockConeYaw   ?? 20)
   const lockConePitch = Math.abs(cfg.lockConePitch ?? 15)
   const releaseSpeed  = cfg.releaseSpeed ?? 4
   const acquireSpeed  = cfg.acquireSpeed ?? 8
+  // ARKit eye-look weights max out at 1.0, which maps to ~30° of eye travel.
+  // We scale our radian target into 0–1 using this reference angle.
   const eyeLimitYaw   = Math.abs(cfg.eyeLimitYaw   ?? 28) * (Math.PI / 180)
   const eyeLimitPitch = Math.abs(cfg.eyeLimitPitch ?? 20) * (Math.PI / 180)
 
   // ── Measure current head deviation in world space ─────────────────────────
-  // Get head's current world yaw/pitch relative to its rest/reference pose.
-  // We use the Euler decomposition of the head world quaternion in YXZ order.
   const headWorldQuat = new THREE.Quaternion()
   headBone.getWorldQuaternion(headWorldQuat)
   const headEuler = new THREE.Euler().setFromQuaternion(headWorldQuat, 'YXZ')
 
-  // On first frame (lockWeight=0), set reference = current head orientation.
+  // On first frame set reference = current head orientation
   if (state.lockWeight === 0 && state.refHeadYaw === 0 && state.refHeadPitch === 0) {
     state.refHeadYaw   = headEuler.y
     state.refHeadPitch = headEuler.x
@@ -331,49 +333,58 @@ export function tickGaze(
   const deviationPitch = Math.abs(headEuler.x - state.refHeadPitch) * (180 / Math.PI)
 
   // ── Determine target lock weight ──────────────────────────────────────────
-  // Inside cone → lock. Outside cone → release.
   const insideCone = deviationYaw <= lockConeYaw && deviationPitch <= lockConePitch
   const targetLock = insideCone ? 1 : 0
 
-  // When re-acquiring (returning inside cone), update the reference so the
-  // lock resets relative to wherever the head settled — prevents rubber-band snap.
+  // On re-acquire, update reference so lock resets at current head position
   if (insideCone && state.lockWeight < 0.5) {
     state.refHeadYaw   = headEuler.y
     state.refHeadPitch = headEuler.x
   }
 
-  // Lerp lock weight: fast acquire (eyes snap back to user), slow release
   const speed = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
   state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-speed * delta))
 
   // ── Compute target eye rotation (head-local, toward camera) ──────────────
   const { yaw: targetYaw, pitch: targetPitch } = computeEyeTargetLocal(headBone, cameraPos)
 
-  // Clamp to eye socket limits
   const clampedYaw   = THREE.MathUtils.clamp(targetYaw,   -eyeLimitYaw,   eyeLimitYaw)
   const clampedPitch = THREE.MathUtils.clamp(targetPitch, -eyeLimitPitch, eyeLimitPitch)
 
-  // Smoothly lerp eye rotation toward the clamped camera target
   const eyeLerp = 1 - Math.exp(-acquireSpeed * delta)
   state.eyeYaw   = THREE.MathUtils.lerp(state.eyeYaw,   clampedYaw,   eyeLerp)
   state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, clampedPitch, eyeLerp)
 
-  // ── Blend: locked (camera target) vs unlocked (head-neutral = 0,0) ────────
-  // When lockWeight=1: eyes point at camera. When lockWeight=0: eyes rest at 0
-  // (ride with head — the head bone already carries gaze direction).
-  const finalYaw   = state.eyeYaw   * state.lockWeight + saccadeY * state.lockWeight
-  const finalPitch = state.eyePitch * state.lockWeight + saccadeX * state.lockWeight
+  // Apply saccade on top (only when locked)
+  const finalYaw   = (state.eyeYaw   + saccadeY) * state.lockWeight
+  const finalPitch = (state.eyePitch + saccadeX) * state.lockWeight
 
-  // ── Apply to eye bones ────────────────────────────────────────────────────
-  // Eye bones: Y = horizontal (yaw), X = vertical (pitch) in local space.
-  // We set rotation directly — no mixer driving these bones.
-  if (leftEye) {
-    leftEye.rotation.y  = finalYaw
-    leftEye.rotation.x  = finalPitch
-  }
-  if (rightEye) {
-    rightEye.rotation.y = finalYaw
-    rightEye.rotation.x = finalPitch
+  // When lockWeight = 0, return empty weights — eyes rest neutral with the head
+  if (state.lockWeight < 0.01) return {}
+
+  // ── Convert radians → ARKit 0–1 weights ──────────────────────────────────
+  // Normalise by the socket limit angle so limit angle → weight 1.0
+  // Positive yaw   = eyes right: left eye looks OUT, right eye looks IN
+  // Negative yaw   = eyes left:  left eye looks IN,  right eye looks OUT
+  // Positive pitch = eyes up
+  // Negative pitch = eyes down
+  const normYaw   = finalYaw   / eyeLimitYaw
+  const normPitch = finalPitch / eyeLimitPitch
+
+  const lookRight = THREE.MathUtils.clamp( normYaw,   0, 1)
+  const lookLeft  = THREE.MathUtils.clamp(-normYaw,   0, 1)
+  const lookUp    = THREE.MathUtils.clamp( normPitch, 0, 1)
+  const lookDown  = THREE.MathUtils.clamp(-normPitch, 0, 1)
+
+  return {
+    eyeLookOutLeft:   lookRight,   // left eye rotates right (outward)
+    eyeLookInLeft:    lookLeft,    // left eye rotates left  (inward)
+    eyeLookUpLeft:    lookUp,
+    eyeLookDownLeft:  lookDown,
+    eyeLookInRight:   lookRight,   // right eye rotates right (inward)
+    eyeLookOutRight:  lookLeft,    // right eye rotates left  (outward)
+    eyeLookUpRight:   lookUp,
+    eyeLookDownRight: lookDown,
   }
 }
 

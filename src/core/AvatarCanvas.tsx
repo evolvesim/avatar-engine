@@ -359,8 +359,7 @@ function AvatarScene({
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
-  const leftEyeBone  = useRef<THREE.Bone | null>(null)
-  const rightEyeBone = useRef<THREE.Bone | null>(null)
+
 
   // ── Bind-pose flash guard ──────────────────────────────────────────────────
   // The GLB is rendered in raw bind pose for the first few frames before the
@@ -433,12 +432,7 @@ function AvatarScene({
     neckBone.current  = findBone(scene, 'Neck')
     spineBone.current = findBone(scene, 'Spine') ?? findBone(scene, 'Spine1')
     chestBone.current = findBone(scene, 'Spine2')
-    leftEyeBone.current  = findBone(scene, 'LeftEye')  ?? findBone(scene, 'mixamorigLeftEye')
-    rightEyeBone.current = findBone(scene, 'RightEye') ?? findBone(scene, 'mixamorigRightEye')
-    console.info('[AvatarCanvas] eye bones:', {
-      left:  leftEyeBone.current?.name  ?? 'NOT FOUND',
-      right: rightEyeBone.current?.name ?? 'NOT FOUND',
-    })
+
 
     // Fix T-pose (skip when caller's GLB is already in A-pose)
     if (applyTPoseFix) {
@@ -653,16 +647,22 @@ function AvatarScene({
     // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
     // world matrices are fully resolved for this frame.
     cameraPosRef.current.copy(camera.position)
-    tickGaze(
+    const gazeWeights = tickGaze(
       gazeState.current,
       delta,
       headBone.current,
-      leftEyeBone.current,
-      rightEyeBone.current,
       cameraPosRef.current,
       eyeRotationX,
       eyeRotationY,
     )
+
+    // ── 10d. Apply gaze weights to currentWeights ────────────────────────
+    // Apply directly post-lerp so gaze overrides any emotion eye weights
+    // without double-smoothing. gazeWeights is {} when lockWeight < 0.01
+    // so this is a no-op when eyes are riding freely with the head.
+    for (const [k, v] of Object.entries(gazeWeights)) {
+      currentWeights.current[k] = v
+    }
 
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
