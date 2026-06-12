@@ -280,16 +280,6 @@ function computeEyeTargetLocal(
   // yaw only — pitch is always 0 (eye-level assumption)
   const yaw   =  Math.atan2(localDir.x, localDir.z)
   const pitch = 0
-
-  // One-shot debug — remove after confirming gaze direction
-  if (!(computeEyeTargetLocal as any)._logged) {
-    (computeEyeTargetLocal as any)._logged = true
-    console.info('[tickGaze] headWorld:', headWorld.toArray().map(v => v.toFixed(3)))
-    console.info('[tickGaze] cameraPos:', cameraPos.toArray().map(v => v.toFixed(3)))
-    console.info('[tickGaze] localDir:', localDir.toArray().map(v => v.toFixed(3)))
-    console.info('[tickGaze] yaw (deg):', (yaw * 180 / Math.PI).toFixed(1))
-  }
-
   return { yaw, pitch }
 }
 
@@ -400,14 +390,6 @@ export function tickGaze(
     eyeLookOutRight:  lookLeft,
     eyeLookUpRight:   lookUp,
     eyeLookDownRight: lookDown,
-  }
-
-  // One-shot debug — remove after confirming gaze weights
-  if (!(tickGaze as any)._logged) {
-    (tickGaze as any)._logged = true
-    console.info('[tickGaze] lockWeight:', state.lockWeight.toFixed(3))
-    console.info('[tickGaze] finalYaw (deg):', (finalYaw * 180 / Math.PI).toFixed(1))
-    console.info('[tickGaze] weights:', JSON.stringify(Object.fromEntries(Object.entries(weights).filter(([,v]) => v > 0.001))))
   }
 
   return weights
