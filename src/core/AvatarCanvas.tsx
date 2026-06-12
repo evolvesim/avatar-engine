@@ -586,11 +586,7 @@ function AvatarScene({
       }
     }
 
-    // ── 7. Apply to mesh morph targets ────────────────────────────────────
-    applyWeightsToMeshes(
-      currentWeights.current,
-      meshRefs.current as Record<string, THREE.SkinnedMesh | null>
-    )
+    // ── 7. (morph targets applied after gaze — see step 10d) ────────────
 
     // ── 8. Procedural respiration ──────────────────────────────────────────
     tickRespiration(respiration.current, delta, spineBone.current, chestBone.current)
@@ -656,13 +652,17 @@ function AvatarScene({
       eyeRotationY,
     )
 
-    // ── 10d. Apply gaze weights to currentWeights ────────────────────────
-    // Apply directly post-lerp so gaze overrides any emotion eye weights
-    // without double-smoothing. gazeWeights is {} when lockWeight < 0.01
-    // so this is a no-op when eyes are riding freely with the head.
+    // ── 10d. Apply gaze weights + paint morph targets ───────────────────
+    // Merge gaze blendshape weights into currentWeights THEN apply to mesh,
+    // so eye-look weights are included in this frame's morph target paint.
+    // gazeWeights is {} when lockWeight < 0.01 — no-op when eyes ride free.
     for (const [k, v] of Object.entries(gazeWeights)) {
       currentWeights.current[k] = v
     }
+    applyWeightsToMeshes(
+      currentWeights.current,
+      meshRefs.current as Record<string, THREE.SkinnedMesh | null>
+    )
 
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
