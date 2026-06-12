@@ -355,7 +355,8 @@ function AvatarScene({
   )
 
   // ── Bone refs ──────────────────────────────────────────────────────────────
-  const headBone   = useRef<THREE.Bone | null>(null)
+  const headBone         = useRef<THREE.Bone | null>(null)
+  const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven original scene bone
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
@@ -446,6 +447,11 @@ function AvatarScene({
     // clone's root primitive.
     console.info('[AvatarCanvas] init — clips count:', clips.length, clips.map(c=>c.name))
     engine.skeletal.init(gltf.scene, clips)
+    // Collect the head bone from the ORIGINAL scene (mixer-driven) for gaze.
+    // The cloned scene's bones are not driven by the mixer so their world
+    // matrices never update — tickGaze must read from gltf.scene.
+    headBoneOriginal.current = findBone(gltf.scene, 'Head')
+    console.info('[AvatarCanvas] headBoneOriginal:', headBoneOriginal.current?.name ?? 'NOT FOUND')
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
@@ -646,7 +652,7 @@ function AvatarScene({
     const gazeWeights = tickGaze(
       gazeState.current,
       delta,
-      headBone.current,
+      headBoneOriginal.current,   // original scene — mixer keeps world matrix current
       cameraPosRef.current,
       eyeRotationX,
       eyeRotationY,
