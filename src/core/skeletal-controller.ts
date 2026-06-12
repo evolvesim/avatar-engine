@@ -283,6 +283,13 @@ export class SkeletalController {
   /** Incremented on every new gesture. onFinished handlers compare against
    *  this token — stale handlers (from interrupted gestures) are no-ops. */
   private gestureToken       = 0
+  /**
+   * All clips present in EMOTION_IDLE_POOLS — used by _isIdleClip() to
+   * detect when a VD selects an idle as a gesture and re-route it.
+   */
+  private static readonly ALL_IDLE_CLIP_IDS: ReadonlySet<string> = new Set(
+    Object.values(EMOTION_IDLE_POOLS).flat()
+  )
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -293,7 +300,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.85 (134 clips: 34 RPM + 39 RPM2 + 16 RPM2f + 45 Mixamo, no ACTS) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.90 (134 clips: 34 RPM + 39 RPM2 + 16 RPM2f + 45 Mixamo, no ACTS) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -365,6 +372,31 @@ export class SkeletalController {
   // ── Internal helpers ────────────────────────────────────────────────────────
 
   /**
+   * Stop and remove all mixer actions EXCEPT the ones passed in.
+   * Prevents stale low-weight actions from accumulating across
+   * gesture→idle→gesture cycles and bleeding bind-pose into blends.
+   */
+  private _stopStaleActions(...keep: (THREE.AnimationAction | null)[]): void {
+    if (!this.mixer) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allActions: THREE.AnimationAction[] = (this.mixer as any)?._actions ?? []
+    const keepSet = new Set(keep.filter(Boolean))
+    for (const action of allActions) {
+      if (!keepSet.has(action)) {
+        action.stop()
+      }
+    }
+  }
+
+  /**
+   * Returns true if the given clip ID is an idle pool clip.
+   * Used to detect when VD accidentally selects an idle as a gesture.
+   */
+  private _isIdleClip(animId: string): boolean {
+    return SkeletalController.ALL_IDLE_CLIP_IDS.has(animId)
+  }
+
+  /**
    * Returns a UUID-retargeted deep-clone of a clip, cached by the original clip's UUID.
    * The dictionary entry's clip is never mutated — retargeting mutates the clone only.
    */
@@ -384,19 +416,36 @@ export class SkeletalController {
     const entry = this.dictionary.get(id)
     if (!entry) return  // dict not ready yet — retry next frame
 
-    console.log('[SkeletalController] first idle:', id)
-
     this.pendingIdle       = false
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    const idleClip = this._getRetargeted(entry.clip)
-    const action = this.mixer.clipAction(idleClip)
-    action.setLoop(THREE.LoopRepeat, Infinity)
-    action.clampWhenFinished = false
-    action.setEffectiveWeight(1)
-    action.play()
-    this.currentAction = action
+    const idleClip   = this._getRetargeted(entry.clip)
+    const idleAction = this.mixer.clipAction(idleClip)
+    idleAction.setLoop(THREE.LoopRepeat, Infinity)
+    idleAction.clampWhenFinished = false
+
+    if (this.currentAction && this.currentAction !== idleAction) {
+      // There is an active action (e.g. a clamped gesture that couldn’t find
+      // its idle target when onFinished fired). Crossfade instead of hard-play
+      // so bones always have a driver — no bind-pose flash.
+      const outgoing = this.currentAction
+      const fadeDuration = 0.5
+      console.log(
+        `[SkeletalController] pendingIdle → crossfade: "${outgoing.getClip().name}" → "${id}" (${fadeDuration}s)`
+      )
+      idleAction.reset().play()
+      outgoing.crossFadeTo(idleAction, fadeDuration, false)
+      // Stop all other stale actions — keep only outgoing + incoming
+      this._stopStaleActions(outgoing, idleAction)
+      this.fadingAction  = outgoing
+    } else {
+      // Clean start — no prior action. Hard-play at full weight.
+      console.log('[SkeletalController] first idle (clean):', id)
+      idleAction.setEffectiveWeight(1)
+      idleAction.play()
+    }
+    this.currentAction = idleAction
   }
 
   private _pickNextIdle(emotion: EmotionId): string {
@@ -412,30 +461,51 @@ export class SkeletalController {
     const entry = this.dictionary.get(id)
     if (!entry) return
 
-    console.log('[SkeletalController] idle →', id)
     this.currentIdleClipId = id
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
-    const idleClip = this._getRetargeted(entry.clip)
+    const idleClip   = this._getRetargeted(entry.clip)
     const nextAction = this.mixer.clipAction(idleClip)
     nextAction.setLoop(THREE.LoopRepeat, Infinity)
     nextAction.clampWhenFinished = false
-    // Same rule as gesture: let crossFadeTo own the weight ramp.
-    // Pre-setting weight=0 overrides the interpolant → idle stays at 0.
-    nextAction.reset().play()
 
     if (this.currentAction && this.currentAction !== nextAction) {
-      this.currentAction.crossFadeTo(nextAction, 0.4, false)
-      this.fadingAction  = this.currentAction
+      const outgoing     = this.currentAction
+      const fadeDuration = 0.5
+      console.log(
+        `[SkeletalController] idle: "${outgoing.getClip().name}" → "${id}" (${fadeDuration}s | ` +
+        `outClamped=${outgoing.clampWhenFinished} outW=${outgoing.getEffectiveWeight().toFixed(2)})`
+      )
+      // Stop all stale actions before starting the crossfade.
+      // Stale actions at low weight prevent the normalised sum from reaching 1
+      // — bones partially driven by bind pose for the entire fade duration.
+      this._stopStaleActions(outgoing, nextAction)
+      nextAction.reset().play()
+      outgoing.crossFadeTo(nextAction, fadeDuration, false)
+      this.fadingAction = outgoing
     } else {
+      console.log(`[SkeletalController] idle (clean start): "${id}"`)
       nextAction.setEffectiveWeight(1)
+      nextAction.play()
     }
     this.currentAction = nextAction
   }
 
   private _playGesture(animId: string, crossfadeDuration: number): void {
     if (!this.mixer) return
+
+    // Guard: if the VD selected an idle clip as a gesture, re-route to _playIdle.
+    // Idle clips played as LoopOnce end immediately and cause the return-to-idle
+    // crossfade to fire in a tight loop, producing a rapid snap sequence.
+    if (this._isIdleClip(animId)) {
+      console.warn(
+        `[SkeletalController] "${animId}" is an idle clip — re-routing to _playIdle (not playing as gesture)`
+      )
+      this._playIdle(this.currentEmotion, animId)
+      return
+    }
+
     const entry = this.dictionary.get(animId)
     if (!entry) {
       console.warn(`[SkeletalController] "${animId}" not found in dictionary`)
@@ -444,10 +514,22 @@ export class SkeletalController {
 
     // Mint a new token. Any onFinished handler holding an old token will
     // see a mismatch and no-op — prevents stale listeners from firing
-    // _returnToIdleDirect multiple times when gestures are interrupted.
+    // _returnToIdleWithFade multiple times when gestures are interrupted.
     const token = ++this.gestureToken
 
-    console.log('[SkeletalController] gesture →', animId, `(token ${token})`)
+    // In-fade: how long to blend FROM the current idle INTO this gesture.
+    // Use 0.35s minimum so even short clips don’t snap in.
+    const inFadeDuration  = Math.max(crossfadeDuration > 0 ? crossfadeDuration : 0.3, 0.35)
+    // Out-fade: how long to blend FROM the clamped gesture INTO the next idle.
+    // 0.6s gives enough time for arm bones to interpolate from gesture pose.
+    const outFadeDuration = 0.6
+
+    const outgoing = this.currentAction
+    console.log(
+      `[SkeletalController] gesture: "${outgoing?.getClip().name ?? 'none'}" → "${animId}" ` +
+      `(token ${token} | in=${inFadeDuration.toFixed(2)}s | out=${outFadeDuration}s)`
+    )
+
     this.isInGesture   = true
     this.idlePoolTimer = 0
 
@@ -462,23 +544,34 @@ export class SkeletalController {
     nextAction.setLoop(THREE.LoopOnce, 1)
     // clampWhenFinished=true: holds the final pose after the clip ends.
     // This is critical for the no-flash return-to-idle: the gesture keeps
-    // driving bones while the crossfade to idle ramps up (0.4s). Without
-    // clamp, Three.js disables the action on 'finished' → zero bone driver
-    // for one frame → bind-pose flash before idle takes over.
+    // driving bones while the crossfade to idle ramps up (outFadeDuration).
+    // Without clamp, Three.js disables the action on 'finished' → zero bone
+    // driver for one frame → bind-pose flash before idle takes over.
     nextAction.clampWhenFinished = true
     // Do NOT pre-set weight to 0. crossFadeTo owns the weight ramp (0→1
-    // over fadeDuration). Pre-setting weight=0 overrides the interpolant
+    // over inFadeDuration). Pre-setting weight=0 overrides the interpolant
     // and keeps the gesture at weight 0 for its entire duration → bind pose.
     nextAction.reset().play()
 
-    const fadeDuration = crossfadeDuration > 0 ? crossfadeDuration : 0.3
-    if (this.currentAction && this.currentAction !== nextAction) {
-      this.currentAction.crossFadeTo(nextAction, fadeDuration, false)
-      this.fadingAction  = this.currentAction
+    if (outgoing && outgoing !== nextAction) {
+      // Stop all other stale actions first so they don’t contribute
+      // low-weight bind-pose bleed during the fade window.
+      this._stopStaleActions(outgoing, nextAction)
+      outgoing.crossFadeTo(nextAction, inFadeDuration, false)
+      this.fadingAction = outgoing
     } else {
+      // No prior action — just start at full weight.
       nextAction.setEffectiveWeight(1)
+      this.fadingAction = null
     }
     this.currentAction = nextAction
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allActionsAtStart: number = ((this.mixer as any)?._actions ?? []).length
+    console.log(
+      `[SkeletalController]   mixer action count after gesture start: ${allActionsAtStart}` +
+      ` | outClamped=${outgoing?.clampWhenFinished ?? 'n/a'} | baseDriven=true (single-layer)`
+    )
 
     const onFinished = (e: { action: THREE.AnimationAction }) => {
       // Guard 1: wrong action (Three.js fires 'finished' for any action that ends)
@@ -489,15 +582,18 @@ export class SkeletalController {
         return
       }
       this.mixer!.removeEventListener('finished', onFinished)
-      console.log('[SkeletalController] gesture done:', animId, `(token ${token})`)
+      console.log(
+        `[SkeletalController] gesture done: "${animId}" (token ${token})` +
+        ` | returning to idle with ${outFadeDuration}s fade`
+      )
       if (this.avatarRoot) logArmBoneQuats('post-gesture', this.avatarRoot)
       this.isInGesture  = false
       this.fadingAction = null
       // clampWhenFinished=true means the gesture is still enabled and
-      // holding its final pose — we can crossfade FROM it into the idle.
-      // The gesture keeps driving bones for the full 0.4s fade duration,
+      // holding its final pose — we crossfade FROM it into the idle.
+      // The gesture keeps driving bones for the full outFadeDuration,
       // so there is never a frame with zero bone contribution (no flash).
-      this._returnToIdleWithFade(nextAction)
+      this._returnToIdleWithFade(nextAction, outFadeDuration)
     }
     this.mixer.addEventListener('finished', onFinished)
   }
@@ -509,18 +605,19 @@ export class SkeletalController {
    * correctly and keeps bones driven for the full fade duration.
    * No frame with zero contribution → no bind-pose flash.
    */
-  private _returnToIdleWithFade(fromAction: THREE.AnimationAction): void {
+  private _returnToIdleWithFade(fromAction: THREE.AnimationAction, fadeDuration = 0.6): void {
     if (!this.mixer) return
     const id    = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
     if (!entry) {
-      // Dict not ready — stop gesture and fall back to pendingIdle retry
-      fromAction.stop()
-      this.pendingIdle = true
+      // Dict not ready — crossfade via pendingIdle retry.
+      // Don’t hard-stop the clamped gesture: let it keep holding the pose.
+      // _tryStartIdle will crossfade from it when the dict resolves.
+      this.pendingIdle   = true
+      this.currentAction = fromAction  // keep reference so _tryStartIdle can fade FROM it
       return
     }
 
-    console.log('[SkeletalController] _returnToIdleWithFade →', id)
     this.currentIdleClipId = id
     this.idlePoolTimer     = 0
 
@@ -528,11 +625,22 @@ export class SkeletalController {
     const idleAction = this.mixer.clipAction(idleClip)
     idleAction.setLoop(THREE.LoopRepeat, Infinity)
     idleAction.clampWhenFinished = false
+
+    // Stop all stale actions (previous idles, prior crossfade remnants)
+    // before starting the new crossfade. Only fromAction + idleAction should
+    // be active — no other action should be contributing bind-pose bleed.
+    this._stopStaleActions(fromAction, idleAction)
+
     idleAction.reset().play()
 
+    console.log(
+      `[SkeletalController] return-to-idle: "${fromAction.getClip().name}" → "${id}" ` +
+      `(${fadeDuration}s | fromClamped=true | fromW=${fromAction.getEffectiveWeight().toFixed(2)})`
+    )
+
     // Crossfade from the still-clamped gesture into the idle.
-    // This ramps gesture 1→0 and idle 0→1 over 0.4s — bones always driven.
-    fromAction.crossFadeTo(idleAction, 0.4, false)
+    // This ramps gesture 1→0 and idle 0→1 over fadeDuration — bones always driven.
+    fromAction.crossFadeTo(idleAction, fadeDuration, false)
     this.currentAction = idleAction
   }
 
@@ -558,7 +666,7 @@ export class SkeletalController {
   }
 
   reset(): void {
-    this.mixer?.stopAllAction()
+    this.mixer?.stopAllAction()  // stops all actions and clears the internal _actions array
     this.retargetedClipCache.clear()
     this.pendingCues       = []
     this.wordCounter       = 0
