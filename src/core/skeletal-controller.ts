@@ -50,6 +50,16 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
+    // mx_m — Pack 1 Motion Male idles (checked first so pack1 works out of the box)
+    'mx_m_standard_idle',
+    'mx_m_idle_still',
+    'mx_m_neutral_idle_foot_forward',
+    'mx_m_breathing_idle_fast_breathing',
+    // mx_f — Pack 2 Motion Female idles
+    'mx_f_idle_standard',
+    'mx_f_idle_shifting',
+    'mx_f_idle_foot_forward_slouch',
+    'mx_f_standing_idle_footfoward',
     // rpm (original — confirmed working)
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_002',
@@ -88,6 +98,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // happy (formerly joy)
   happy: [
+    'mx_m_happy_idle_swaying',
+    'mx_f_standing_greeting_waving',
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_expressive_001',
     'quaternius_joy_breathing_idle',
@@ -98,6 +110,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2f_idle_var_002',
   ],
   sadness: [
+    'mx_m_idle_still',
+    'mx_f_idle_foot_forward_slouch',
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_003',
     'quaternius_sadness_slumped',
@@ -106,6 +120,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_005',
   ],
   surprise: [
+    'mx_m_standard_idle',
+    'mx_f_idle_standard',
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_002',
     'quaternius_neutral_idle',
@@ -113,6 +129,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_004',
   ],
   empathy: [
+    'mx_m_neutral_idle_foot_forward',
+    'mx_f_idle_shifting',
     'rpm_neutral_idle_var_003',
     'rpm_neutral_idle_expressive_002',
     'evolve_listening_interested_lean',
@@ -125,6 +143,9 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // thoughtful (replaces concentration + confusion)
   thoughtful: [
+    'mx_m_idle_still',
+    'mx_m_neutral_idle_foot_forward',
+    'mx_f_sitting_hands_crossed',
     'rpm_neutral_idle_002',
     'rpm_neutral_idle_var_001',
     'quaternius_concentration_idle',
@@ -138,6 +159,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // displeasure (replaces anger + disgust)
   displeasure: [
+    'mx_m_breathing_idle_fast_breathing',
+    'mx_f_idle_foot_forward_slouch',
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_002',
     'quaternius_anger_tense_idle',
@@ -149,6 +172,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // tension (replaces fear)
   tension: [
+    'mx_m_idle_still',
+    'mx_f_idle_standard',
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_002',
     'quaternius_fear_frozen_idle',
