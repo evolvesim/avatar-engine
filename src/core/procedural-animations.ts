@@ -263,8 +263,13 @@ function computeEyeTargetLocal(
   const headWorld = new THREE.Vector3()
   headBone.getWorldPosition(headWorld)
 
-  // Direction from head to camera in world space
-  const toCamera = cameraPos.clone().sub(headWorld).normalize()
+  // Direction from head to camera in world space.
+  // Zero the Y component so the camera height doesn't drive eye pitch —
+  // the avatar always treats the viewer as eye-level regardless of where
+  // the camera is positioned in the scene (above, below, etc.).
+  const toCamera = cameraPos.clone().sub(headWorld)
+  toCamera.y = 0
+  toCamera.normalize()
 
   // Transform into head bone LOCAL space (inverse of world rotation)
   const headWorldQuat = new THREE.Quaternion()
@@ -272,9 +277,9 @@ function computeEyeTargetLocal(
   const invHead = headWorldQuat.clone().invert()
   const localDir = toCamera.clone().applyQuaternion(invHead)
 
-  // yaw = atan2(x, z), pitch = -atan2(y, z)  (right-hand Y-up)
+  // yaw only — pitch is always 0 (eye-level assumption)
   const yaw   =  Math.atan2(localDir.x, localDir.z)
-  const pitch = -Math.atan2(localDir.y, localDir.z)
+  const pitch = 0
   return { yaw, pitch }
 }
 
