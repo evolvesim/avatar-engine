@@ -72,9 +72,11 @@ import {
   createOcularState,
   createRespirationState,
   createHeadTrackingState,
+  createGazeState,
   tickOcularMechanics,
   tickRespiration,
   tickHeadTracking,
+  tickGaze,
   fixTPose,
   findBone,
 } from './procedural-animations'
@@ -323,6 +325,9 @@ function AvatarScene({
   const scene = useMemo(() => gltf.scene.clone(true), [gltf])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
+  // ── R3F camera (for VOR gaze) ─────────────────────────────────────────────
+  const { camera } = useThree()
+
   // ── Compute effective Y offset (auto-calibrate or supplied) ────────────────
   const effectiveYOffset = useMemo(() => {
     if (!autoCalibrate) return avatarYOffset
@@ -354,6 +359,8 @@ function AvatarScene({
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
+  const leftEyeBone  = useRef<THREE.Bone | null>(null)
+  const rightEyeBone = useRef<THREE.Bone | null>(null)
 
   // ── Bind-pose flash guard ──────────────────────────────────────────────────
   // The GLB is rendered in raw bind pose for the first few frames before the
@@ -394,6 +401,8 @@ function AvatarScene({
   const ocular      = useRef(createOcularState())
   const respiration = useRef(createRespirationState())
   const headTrack   = useRef(createHeadTrackingState())
+  const gazeState   = useRef(createGazeState())
+  const cameraPosRef = useRef(new THREE.Vector3())
 
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
@@ -424,6 +433,12 @@ function AvatarScene({
     neckBone.current  = findBone(scene, 'Neck')
     spineBone.current = findBone(scene, 'Spine') ?? findBone(scene, 'Spine1')
     chestBone.current = findBone(scene, 'Spine2')
+    leftEyeBone.current  = findBone(scene, 'LeftEye')  ?? findBone(scene, 'mixamorigLeftEye')
+    rightEyeBone.current = findBone(scene, 'RightEye') ?? findBone(scene, 'mixamorigRightEye')
+    console.info('[AvatarCanvas] eye bones:', {
+      left:  leftEyeBone.current?.name  ?? 'NOT FOUND',
+      right: rightEyeBone.current?.name ?? 'NOT FOUND',
+    })
 
     // Fix T-pose (skip when caller's GLB is already in A-pose)
     if (applyTPoseFix) {
@@ -559,7 +574,7 @@ function AvatarScene({
     const emotionWeights = engine.emotion.effectiveWeights(isSpeaking)
 
     // ── 4. Procedural layer (blink, saccades) ─────────────────────────────
-    const { blinkWeights } = tickOcularMechanics(ocular.current, delta)
+    const { blinkWeights, eyeRotationX, eyeRotationY } = tickOcularMechanics(ocular.current, delta)
 
     // ── 5. Additive blend: emotion + viseme + procedural ───────────────────
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
@@ -626,6 +641,28 @@ function AvatarScene({
         bone.quaternion.copy(targetQ)
       }
     }
+
+    // ── 10c. VOR Gaze — camera-lock eyes with head comfort cone ─────────────
+    // Update camera position from R3F camera each frame (stable vector ref —
+    // no allocation per frame). Then call tickGaze which:
+    //   • Measures head deviation from its reference orientation
+    //   • Inside ±20° yaw / ±15° pitch cone → lockWeight lerps to 1 (eyes track camera)
+    //   • Outside cone → lockWeight lerps to 0 (eyes ride with head naturally)
+    //   • Saccade offsets from tickOcularMechanics are passed through so micro-
+    //     movements still apply when locked (eyeRotationX/Y from step 4).
+    // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
+    // world matrices are fully resolved for this frame.
+    cameraPosRef.current.copy(camera.position)
+    tickGaze(
+      gazeState.current,
+      delta,
+      headBone.current,
+      leftEyeBone.current,
+      rightEyeBone.current,
+      cameraPosRef.current,
+      eyeRotationX,
+      eyeRotationY,
+    )
 
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
