@@ -95,6 +95,15 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2f_idle_var_007',
     'rpm2f_idle_var_008',
     'rpm2f_idle_var_009',
+    // mc_m — Pack 5 MoCap Central Male idles
+    'mc_m_idle_01',
+    'mc_m_idle_02',
+    'mc_m_listen_01_neutral',
+    'mc_m_listen_04_neutral',
+    // mc_f — Pack 6 MoCap Central Female idles
+    'mc_f_idle_01',
+    'mc_f_listen_01_neutral',
+    'mc_f_listen_02_neutral',
   ],
   // happy (formerly joy)
   happy: [
@@ -108,6 +117,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_003',
     'rpm2f_idle_001',
     'rpm2f_idle_var_002',
+    'mc_m_listen_02_positive',
+    'mc_f_idle_01',
   ],
   sadness: [
     'mx_m_idle_still',
@@ -118,6 +129,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'mesh2motion_sadness_shoulder_slump',
     'rpm2_idle_001',
     'rpm2_idle_var_005',
+    'mc_m_listen_03_negative',
+    'mc_f_listen_01_neutral',
   ],
   surprise: [
     'mx_m_standard_idle',
@@ -127,6 +140,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'quaternius_neutral_idle',
     'rpm2_idle_var_001',
     'rpm2_idle_var_004',
+    'mc_m_idle_01',
+    'mc_f_idle_01',
   ],
   empathy: [
     'mx_m_neutral_idle_foot_forward',
@@ -140,6 +155,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_002',
     'rpm2f_idle_var_004',
     'rpm2f_idle_var_005',
+    'mc_m_listen_01_neutral',
+    'mc_f_listen_02_neutral',
   ],
   // thoughtful (replaces concentration + confusion)
   thoughtful: [
@@ -156,6 +173,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_var_006',
     'rpm2f_idle_var_006',
     'rpm2f_idle_var_007',
+    'mc_m_idle_02',
+    'mc_f_listen_01_neutral',
   ],
   // displeasure (replaces anger + disgust)
   displeasure: [
@@ -169,6 +188,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'rpm2_idle_002',
     'rpm2_idle_var_007',
     'rpm2_idle_var_008',
+    'mc_m_listen_03_negative',
+    'mc_f_idle_01',
   ],
   // tension (replaces fear)
   tension: [
@@ -180,6 +201,8 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'evolve_stress_suppressed_still',
     'rpm2_idle_002',
     'rpm2_idle_var_006',
+    'mc_m_idle_01',
+    'mc_f_listen_01_neutral',
   ],
 }
 
@@ -300,7 +323,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.90 (134 clips: 34 RPM + 39 RPM2 + 16 RPM2f + 45 Mixamo, no ACTS) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.3.98 (134 built-in + pack5/mc_m + pack6/mc_f registered) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
