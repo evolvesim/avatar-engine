@@ -323,7 +323,7 @@ export class SkeletalController {
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.3.98 (134 built-in + pack5/mc_m + pack6/mc_f registered) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.4.0 (134 built-in + pack5/mc_m + pack6/mc_f registered) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -473,9 +473,16 @@ export class SkeletalController {
 
   private _pickNextIdle(emotion: EmotionId): string {
     const pool = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
-    if (pool.length === 1) return pool[0]
-    const candidates = pool.filter(id => id !== this.currentIdleClipId)
-    return candidates[Math.floor(Math.random() * candidates.length)]
+    // Filter to only clips actually present in the current dictionary.
+    // Prevents cross-pack arm-pose jumps when e.g. pack5 is loaded but the
+    // pool still contains pack1 clip names (which may exist in the dict due
+    // to a race between the initial load and a subsequent loadPack call).
+    const available = pool.filter(id => !!this.dictionary.get(id))
+    const source    = available.length > 0 ? available : pool  // fallback: unfiltered (let _tryStartIdle handle miss)
+    if (source.length === 1) return source[0]
+    const candidates = source.filter(id => id !== this.currentIdleClipId)
+    const pick = candidates.length > 0 ? candidates : source
+    return pick[Math.floor(Math.random() * pick.length)]
   }
 
   private _playIdle(emotion: EmotionId, idleId?: string): void {
@@ -483,6 +490,12 @@ export class SkeletalController {
     const id    = idleId ?? this._pickNextIdle(emotion)
     const entry = this.dictionary.get(id)
     if (!entry) return
+
+    // Clear stale pending cues — switching to idle means no active speech.
+    // Prevents cues from a previous loadPerformance call firing on the next
+    // onWordBoundary tick (e.g. from viseme drain in AvatarCanvas).
+    this.pendingCues = []
+    this.wordCounter = 0
 
     this.currentIdleClipId = id
     this.isInGesture       = false

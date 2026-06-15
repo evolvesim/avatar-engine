@@ -79,6 +79,7 @@ export type {
   AvatarCallbacks,
   DirectorConfig,
   VisemeEvent,
+  ExternalVisemeTrack,
   CameraPreset,
   CameraConfig,
   LightingPreset,

@@ -38,6 +38,53 @@ export interface DirectorConfig {
   systemPrompt: string
 }
 
+// ── External viseme track (filler bank / pre-rendered audio) ────────────────
+
+/**
+ * A pre-rendered audio + viseme pair that can be slotted into the engine
+ * immediately — without going through the TTS adapter. Used by the filler
+ * bank to play a short acknowledgement clip the instant STT detects
+ * end-of-speech, while the real LLM + TTS response is still being generated.
+ *
+ * The engine plays the audio, drains the viseme queue through AvatarCanvas,
+ * fires gesture cues, and returns to idle — exactly as if a normal TTS
+ * response had arrived.
+ *
+ * Usage:
+ *   engine.queueExternalVisemeTrack({
+ *     audioUrl:  '/fillers/en-AU-WilliamNeural/03_thinking.opus',
+ *     visemes:   [{ visemeId: 10, audioOffset: 0 }, ...],
+ *     gestureCues: [],   // optional — omit for simple fillers
+ *     emotion:   'neutral',
+ *   })
+ */
+export interface ExternalVisemeTrack {
+  /**
+   * URL to the pre-rendered audio file (opus, mp3, wav, etc.).
+   * Fetched and decoded by the engine before playback starts.
+   * Can be a relative path (e.g. from Supabase Storage signed URL) or absolute.
+   */
+  audioUrl: string
+
+  /**
+   * Pre-computed viseme events for this audio — same shape as live Azure events.
+   * visemeId 0–21, audioOffset in milliseconds from audio start.
+   */
+  visemes: VisemeEvent[]
+
+  /**
+   * Optional gesture cues to fire during playback. Same shape as VirtualDirector
+   * gesture_cues. Omit (or pass []) for simple short fillers.
+   */
+  gestureCues?: Array<{ anim_id: string; target_word: string; word_index: number; crossfade_duration: number }>
+
+  /**
+   * Emotion to apply for the duration of this filler.
+   * Defaults to 'neutral' — the avatar stays neutral for "Mmhmm." type clips.
+   */
+  emotion?: 'neutral' | 'happy' | 'sadness' | 'displeasure' | 'thoughtful'
+}
+
 // ── Viseme event ──────────────────────────────────────────────────────────────
 
 /**

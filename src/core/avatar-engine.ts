@@ -20,6 +20,7 @@ import {
 import {
   EmotionStateMachine,
   emotionStateMachine as defaultEmotion,
+  type EmotionId,
 } from './emotion-state'
 import {
   VirtualDirector,
@@ -37,6 +38,7 @@ import type {
   VisemeEvent,
   DirectorConfig,
   AvatarCallbacks,
+  ExternalVisemeTrack,
 } from './types'
 import type React from 'react'
 
@@ -158,6 +160,88 @@ export class AvatarEngine {
     ])
 
     this._applyPerformanceData(performanceData)
+  }
+
+  // ── Filler bank: play a pre-rendered audio + viseme track ────────────────────
+
+  /**
+   * Play a pre-rendered audio + viseme pair immediately, bypassing the TTS
+   * adapter entirely. Designed for the filler bank: call this the moment STT
+   * signals end-of-speech to eliminate the silence gap while the real LLM +
+   * TTS response is generating in parallel.
+   *
+   * The engine:
+   *   1. Fetches + decodes the audio URL via the Web Audio API.
+   *   2. Loads the pre-computed visemes into visemeQueueRef — AvatarCanvas
+   *      drains them on the next useFrame tick, exactly as with live TTS.
+   *   3. Queues any supplied gesture cues into the skeletal controller.
+   *   4. Applies the supplied emotion (default 'neutral').
+   *   5. Fires onSpeechStart / onSpeechEnd so isSpeakingRef stays consistent.
+   *
+   * Returns a Promise that resolves when the audio finishes playing.
+   * Safe to fire-and-forget for fillers — the real handleDialogue call can
+   * overlap; the engine will cross-fade naturally when the real response lands.
+   *
+   * @example
+   *   // On STT end-of-speech:
+   *   void engine.queueExternalVisemeTrack(filler)
+   *   void fetchLLMResponse().then(r => engine.handleDialogue(r.text))
+   */
+  async queueExternalVisemeTrack(track: ExternalVisemeTrack): Promise<void> {
+    const emotion = track.emotion ?? 'neutral'
+    const q    = this.visemeQueueRef
+    const sRef = this.visemeStartRef
+    const spk  = this.isSpeakingRef
+
+    // Apply emotion immediately so the avatar’s expression is set before audio
+    this.emotion.set(emotion as EmotionId, 0.8)
+    this.skeletal.onEmotionChange(emotion as EmotionId)
+
+    // Queue gesture cues (word-indexed) if provided
+    if (track.gestureCues && track.gestureCues.length > 0) {
+      this.skeletal.loadPerformance(track.gestureCues)
+    }
+
+    // Stamp the viseme queue — AvatarCanvas drains on next useFrame
+    q.current.length = 0
+    for (const v of track.visemes) {
+      q.current.push(v)
+    }
+
+    // Fetch + decode audio via Web Audio API
+    let audioBuffer: AudioBuffer | null = null
+    try {
+      const audioCtx = new AudioContext()
+      const response = await fetch(track.audioUrl)
+      if (!response.ok) throw new Error(`HTTP ${response.status} fetching ${track.audioUrl}`)
+      const arrayBuffer = await response.arrayBuffer()
+      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+
+      // Stamp start time and signal speaking — AvatarCanvas uses this as the
+      // origin for viseme offset arithmetic
+      spk.current = true
+      const source = audioCtx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(audioCtx.destination)
+
+      await new Promise<void>((resolve) => {
+        source.onended = () => resolve()
+        // Stamp AFTER createBufferSource so timing is as close as possible
+        sRef.current = performance.now()
+        source.start(0)
+      })
+
+      // Audio finished
+      spk.current = false
+      q.current.length = 0
+      sRef.current = 0
+    } catch (err) {
+      // Graceful degradation: if audio fails, still clear state cleanly
+      console.error('[AvatarEngine] queueExternalVisemeTrack audio error:', err)
+      spk.current = false
+      q.current.length = 0
+      sRef.current = 0
+    }
   }
 
   private _buildCallbacks(): AvatarCallbacks {
