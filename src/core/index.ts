@@ -36,6 +36,7 @@ export {
   AnimationDictionary,
   animationDictionary,
   ANIMATION_MANIFEST,
+  clipNameLooksLikeIdle,
 }                                    from './animation-dictionary'
 export type { AnimationEntry }       from './animation-dictionary'
 
