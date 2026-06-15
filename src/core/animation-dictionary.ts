@@ -45,13 +45,6 @@ export interface AnimationEntry {
   loop:      THREE.AnimationActionLoopStyles
   /** Default crossfade duration when transitioning to/from this clip */
   defaultCrossfade: number
-  /**
-   * Marks a clip as unsafe to use as a resting idle on some rigs — e.g. a
-   * full-body clip that folds the avatar sideways when held as a base loop.
-   * Such clips are never selected by resolveIdleId(), even if their name
-   * matches the idle heuristic. They can still be played as one-shot gestures.
-   */
-  unsafeAsIdle?: boolean
 }
 
 export type AnimationDictionaryState = 'idle' | 'loading' | 'ready' | 'error'
@@ -387,29 +380,6 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'mx_m_cocky_head_turn':                    { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'mx_m_praying':                            { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'mx_m_yelling':                            { emotion: 'anger',         loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
-
-  // ── Pack 5: MoCap Coach (mc_m_) — professional-coach GLB ─────────────────────
-  // Loaded from animations-pack5.glb. Indexed here so idle clips are tagged
-  // LoopRepeat (not the LoopOnce default applied to unmanifested clips) and so
-  // pack-local idles are picked up by idle resolution instead of falling back to
-  // a missing mx_m_ clip. listen_* are LoopOnce gestures.
-  'mc_m_idle_01':                            { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'mc_m_idle_02':                            { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'mc_m_idle_03_lookaround':                 { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
-  'mc_m_listen_01_neutral':                  { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
-  'mc_m_listen_02_positive':                 { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
-  'mc_m_listen_03_negative':                 { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
-}
-
-// ── Idle clip detection ─────────────────────────────────────────────────────
-/**
- * Heuristic: a clip name denotes an idle/neutral loop if it contains "idle"
- * and is not an explicit gesture-flavoured idle (e.g. "look_down_notes" is a
- * LoopOnce idle, excluded by the LoopRepeat preference in resolveIdleId).
- * Used as a last-resort fallback when no manifest/pool idle is present.
- */
-export function clipNameLooksLikeIdle(name: string): boolean {
-  return /idle/i.test(name)
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
@@ -507,64 +477,6 @@ export class AnimationDictionary {
    */
   get(id: string): AnimationEntry | null {
     return this.clips.get(id) ?? null
-  }
-
-  /** True if a clip with this id is currently loaded. */
-  has(id: string): boolean {
-    return this.clips.has(id)
-  }
-
-  /**
-   * Resolve a valid, currently-loaded idle clip id for the given emotion.
-   *
-   * Robust fallback chain (first match wins):
-   *   1. Preferred candidates that are actually loaded (e.g. the emotion's idle
-   *      pool, or a caller-supplied pack manifest/default idle), excluding the
-   *      currently-playing idle so the pool still cycles.
-   *   2. A preferred candidate that is loaded even if it equals the current idle
-   *      (single valid option — keep looping it rather than fail).
-   *   3. First loaded LoopRepeat clip tagged for this emotion.
-   *   4. First loaded LoopRepeat clip tagged neutral.
-   *   5. First loaded clip whose name looks like an idle (catches pack-local
-   *      idles such as mc_m_idle_01 that may be indexed as LoopOnce).
-   *   6. null — caller should retain the current base action (no warning spam).
-   *
-   * Crucially this NEVER returns an id that is not loaded, so callers cannot
-   * end up with a stuck pendingIdle pointing at a missing clip (e.g. the
-   * mx_m_standard_idle fallback bug when Pack 5 / mc_m_ clips are active).
-   */
-  resolveIdleId(
-    emotion: string,
-    preferred: string[] = [],
-    currentIdleClipId = '',
-  ): string | null {
-    const safe = (id: string): boolean => {
-      const e = this.clips.get(id)
-      return !!e && !e.unsafeAsIdle
-    }
-
-    const loadedPreferred = preferred.filter(safe)
-    const fresh = loadedPreferred.filter(id => id !== currentIdleClipId)
-    if (fresh.length > 0) {
-      return fresh[Math.floor(Math.random() * fresh.length)]
-    }
-    if (loadedPreferred.length > 0) return loadedPreferred[0]
-
-    const loopRepeatFor = (em: string): string | null => {
-      for (const [name, entry] of this.clips) {
-        if (entry.emotion === em && entry.loop === THREE.LoopRepeat && !entry.unsafeAsIdle) return name
-      }
-      return null
-    }
-    const byEmotion = loopRepeatFor(emotion)
-    if (byEmotion) return byEmotion
-    const byNeutral = loopRepeatFor('neutral')
-    if (byNeutral) return byNeutral
-
-    for (const name of this.clips.keys()) {
-      if (clipNameLooksLikeIdle(name) && safe(name)) return name
-    }
-    return null
   }
 
   /**
