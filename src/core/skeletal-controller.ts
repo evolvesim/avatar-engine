@@ -320,15 +320,9 @@ export class SkeletalController {
   update(delta: number): void {
     if (this.pendingIdle) {
       this._tryStartIdle()
-      // Warn ONCE at 120 frames, and only if the dictionary genuinely has no
-      // resolvable idle for this emotion — not because the (possibly stale)
-      // hardcoded pool head is missing from the active pack. Avoids the
-      // misleading "dict missing: mx_m_standard_idle" spam when Pack 5 is loaded
-      // but its own idles (mc_m_idle_*) are available.
-      if (++this.pendingIdleFrames === 120 && this._pickNextIdle(this.currentEmotion) === null) {
-        console.warn(
-          `[SkeletalController] pendingIdle after 120 frames — no loadable idle for emotion "${this.currentEmotion}" in active pack`
-        )
+      if (++this.pendingIdleFrames === 120) {
+        const pool = EMOTION_IDLE_POOLS[this.currentEmotion] ?? EMOTION_IDLE_POOLS.neutral
+        console.warn('[SkeletalController] pendingIdle after 120 frames — dict missing:', pool[0])
       }
     } else {
       this.pendingIdleFrames = 0
@@ -341,7 +335,7 @@ export class SkeletalController {
         this.idlePoolTimer    = 0
         this.idlePoolInterval = 8 + Math.random() * 7
         const next = this._pickNextIdle(this.currentEmotion)
-        if (next && next !== this.currentIdleClipId) this._playIdle(this.currentEmotion, next)
+        if (next !== this.currentIdleClipId) this._playIdle(this.currentEmotion, next)
       }
     }
 
@@ -418,8 +412,7 @@ export class SkeletalController {
 
   private _tryStartIdle(): void {
     if (!this.pendingIdle || !this.mixer) return
-    const id = this._pickNextIdle(this.currentEmotion)
-    if (!id) return  // no valid idle loaded yet — retry next frame
+    const id    = this._pickNextIdle(this.currentEmotion)
     const entry = this.dictionary.get(id)
     if (!entry) return  // dict not ready yet — retry next frame
 
@@ -455,32 +448,16 @@ export class SkeletalController {
     this.currentAction = idleAction
   }
 
-  /**
-   * Pick the next idle clip id for an emotion, constrained to clips actually
-   * present in the loaded dictionary. The hardcoded EMOTION_IDLE_POOLS are
-   * treated as *preferences*, not guarantees — the dictionary filters them to
-   * what is loaded and supplies pack-local / name-based fallbacks. Returns null
-   * when no valid idle exists (caller retains the current base action).
-   *
-   * This is the fix for the pack-fallback bug: pools list mx_m_/rpm_ ids, but
-   * when Pack 5 (mc_m_) is loaded none of those exist, so the old code returned
-   * a missing id and left the avatar stuck on a clamped gesture pose while
-   * spamming "dict missing: mx_m_standard_idle".
-   */
-  private _pickNextIdle(emotion: EmotionId): string | null {
+  private _pickNextIdle(emotion: EmotionId): string {
     const pool = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
-    return this.dictionary.resolveIdleId(emotion, pool, this.currentIdleClipId)
+    if (pool.length === 1) return pool[0]
+    const candidates = pool.filter(id => id !== this.currentIdleClipId)
+    return candidates[Math.floor(Math.random() * candidates.length)]
   }
 
   private _playIdle(emotion: EmotionId, idleId?: string): void {
     if (!this.mixer) return
-    const id = idleId ?? this._pickNextIdle(emotion)
-    if (!id) {
-      // No valid idle loaded — keep the current base action driving the bones
-      // and arm pendingIdle so we retry once a dictionary is available.
-      this.pendingIdle = true
-      return
-    }
+    const id    = idleId ?? this._pickNextIdle(emotion)
     const entry = this.dictionary.get(id)
     if (!entry) return
 
@@ -631,12 +608,11 @@ export class SkeletalController {
   private _returnToIdleWithFade(fromAction: THREE.AnimationAction, fadeDuration = 0.6): void {
     if (!this.mixer) return
     const id    = this._pickNextIdle(this.currentEmotion)
-    const entry = id ? this.dictionary.get(id) : null
-    if (!id || !entry) {
-      // No valid idle loaded (e.g. dict not ready, or pools list ids absent
-      // from the active pack). Crossfade via pendingIdle retry — don’t hard-stop
-      // the clamped gesture: let it keep holding the pose so bones stay driven.
-      // _tryStartIdle will crossfade FROM it once a valid idle resolves.
+    const entry = this.dictionary.get(id)
+    if (!entry) {
+      // Dict not ready — crossfade via pendingIdle retry.
+      // Don’t hard-stop the clamped gesture: let it keep holding the pose.
+      // _tryStartIdle will crossfade from it when the dict resolves.
       this.pendingIdle   = true
       this.currentAction = fromAction  // keep reference so _tryStartIdle can fade FROM it
       return
@@ -687,30 +663,6 @@ export class SkeletalController {
     if (emotion === this.currentEmotion) return
     this.currentEmotion = emotion
     if (!this.isInGesture) this._playIdle(emotion)
-  }
-
-  /**
-   * Notify the controller that the active animation pack/dictionary changed.
-   * Clears the retargeted-clip cache (clips from the previous pack are now
-   * stale) and re-derives the active idle from the newly-loaded dictionary.
-   *
-   * Must be called after `dictionary.loadPack(url)` resolves. Without this the
-   * controller keeps trying to play idle ids from the old pack (e.g. mx_m_*
-   * after switching to the mc_m_ coach pack) — the source of the
-   * "dict missing: mx_m_standard_idle" fallback bug.
-   */
-  notifyPackChanged(): void {
-    this.retargetedClipCache.clear()
-    // Drop the stale idle id so resolution does not try to exclude / reuse a
-    // clip that no longer exists in the new pack.
-    this.currentIdleClipId = ''
-    this.idlePoolTimer     = 0
-    // Re-derive an idle from the new dictionary. If a gesture is mid-flight we
-    // leave it; its onFinished handler will resolve to a valid pack idle.
-    if (!this.isInGesture) {
-      this.pendingIdle = true
-      this._tryStartIdle()
-    }
   }
 
   reset(): void {

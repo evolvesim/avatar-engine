@@ -138,9 +138,6 @@ export class AvatarEngine {
     if (this.director) {
       this.director.updateAnimIds(this.dictionary.animationIds)
     }
-    // Re-derive the active idle from the freshly-loaded pack so the skeletal
-    // controller stops referencing idle ids that only existed in the old pack.
-    this.skeletal.notifyPackChanged()
   }
 
   // ── Core: handle a dialogue string from the primary LLM ──────────────────
