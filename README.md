@@ -280,6 +280,12 @@ the timing origin match actual audio playback to the millisecond.
 `viseme_sil` (id=0) is skipped. Applying it during speech would zero all mouth shapes
 between phonemes, creating an unnatural snap.
 
+The `visemeId` → ARKit mapping in `viseme-map.ts` follows Microsoft's official
+[viseme table](https://learn.microsoft.com/azure/ai-services/speech-service/how-to-speech-synthesis-viseme):
+IDs group phonemes by *visual mouth pose* (e.g. `p/b/m` = 21, `f/v` = 18, `s/z` = 15),
+not in a sequential vowel-then-consonant order. Consonants/closures use a faster release
+than vowels so a transient consonant shape never smears into the following phoneme.
+
 ---
 
 ## iOS audio unlock

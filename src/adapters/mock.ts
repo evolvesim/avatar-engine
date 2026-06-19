@@ -25,9 +25,9 @@ export class MockTTSAdapter implements TTSAdapter {
   constructor(events?: MockSpeechEvent[]) {
     this.events = events ?? [
       { type: 'speechStart' },
-      { type: 'viseme', visemeId: 10, offsetMs: 0 },   // 'aa'
+      { type: 'viseme', visemeId: 1, offsetMs: 0 },    // æ/ə/ʌ → viseme_aa
       { type: 'wordBoundary', delayMs: 100 },
-      { type: 'viseme', visemeId: 14, offsetMs: 200 }, // 'U'
+      { type: 'viseme', visemeId: 7, offsetMs: 200 },  // w/u   → viseme_U
       { type: 'wordBoundary', delayMs: 300 },
       { type: 'speechEnd', delayMs: 500 },
     ]
