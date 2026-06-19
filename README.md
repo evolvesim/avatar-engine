@@ -14,6 +14,45 @@ Single source of truth for:
 
 ---
 
+## Installation
+
+Published to **GitHub Packages** under the `@evolvesim` scope. Add a project `.npmrc`
+so the scope resolves to the GitHub Packages registry:
+
+```ini
+# .npmrc
+@evolvesim:registry=https://npm.pkg.github.com
+```
+
+Then install:
+
+```bash
+npm install @evolvesim/avatar-engine
+```
+
+> **Note on authentication:** the GitHub Packages npm registry requires a token for
+> *all* reads, even for public packages. In CI use the built-in `GITHUB_TOKEN`; for
+> local installs use a personal access token with the `read:packages` scope:
+>
+> ```ini
+> # .npmrc
+> @evolvesim:registry=https://npm.pkg.github.com
+> //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+> ```
+>
+> ```bash
+> export NODE_AUTH_TOKEN=ghp_yourReadPackagesToken
+> npm install @evolvesim/avatar-engine
+> ```
+
+Then import from the package instead of a local path:
+
+```ts
+import { AvatarCanvas, useSimulation } from '@evolvesim/avatar-engine'
+```
+
+---
+
 ## Package structure
 
 ```
