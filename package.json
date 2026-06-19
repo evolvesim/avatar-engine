@@ -2,6 +2,10 @@
   "name": "@evolvesim/avatar-engine",
   "version": "0.4.2",
   "description": "Shared real-time 3D avatar engine for Evolve Simulations products — emotion state machine, Virtual Director, viseme lip-sync, skeletal animation, procedural micro-animations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evolvesim/avatar-engine.git"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
