@@ -53,6 +53,36 @@ import { AvatarCanvas, useSimulation } from '@evolvesim/avatar-engine'
 
 ---
 
+## Publishing (maintainers)
+
+Releases are published to GitHub Packages by `.github/workflows/publish.yml` on every
+push to `main` where `package.json` `version` differs from the published version. The
+workflow authenticates with the built-in `GITHUB_TOKEN` (no manual PAT secret required);
+`package.json` includes a `repository` field so GitHub Packages links the package to this
+repo and applies the workflow's `packages: write` permission.
+
+**One-time org prerequisite** — if `npm publish` fails with:
+
+```
+npm error code E403
+403 Forbidden ... Permission permission_denied: write_package
+```
+
+the package has not yet been created/linked and the org blocks Actions from creating it.
+An org admin must do **one** of the following once:
+
+1. **Org → Settings → Packages**: allow GitHub Actions / `GITHUB_TOKEN` to create
+   packages for the org, then re-run the failed publish workflow; or
+2. **Manually publish `0.4.2` once** with a PAT that has `write:packages`
+   (`NODE_AUTH_TOKEN=<pat> npm publish`). This creates and links the package to the repo;
+   every subsequent CI publish then succeeds with the built-in `GITHUB_TOKEN`. After that
+   first publish, set **package → Settings → Manage Actions access → add this repository
+   with Write role** so the link is explicit.
+
+After the package exists and is linked, no secret is needed for ongoing releases.
+
+---
+
 ## Package structure
 
 ```
