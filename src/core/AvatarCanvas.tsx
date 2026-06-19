@@ -406,6 +406,11 @@ function AvatarScene({
 
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
+  // Hold class of the most recently fired viseme. Drives how long the mouth holds
+  // a shape before the recentlyFired gate releases it: vowels carry over a little
+  // (natural co-articulation); consonants/closures release fast so a wrong
+  // consonant shape never lingers into the next phoneme.
+  const lastHold = useRef<'vowel' | 'consonant' | 'closure'>('vowel')
 
   // ── Word boundary estimation from viseme drain ─────────────────────────────
   // Azure offline synthesis has no live wordBoundary events — the synthesizer is
@@ -496,7 +501,7 @@ function AvatarScene({
       // Primary Oculus mouth shape(s) at 0.6 + conservative ARKit support shapes
       // (cheeks / funnel / pucker / press / lower-lip) layered per viseme.
       // Support shapes the GLB lacks are ignored harmlessly in applyWeightsToMeshes.
-      const { weights, jaw } = buildVisemeTargets(id, 0.6)
+      const { weights, jaw, hold } = buildVisemeTargets(id, 0.6)
       for (const [shapeName, value] of Object.entries(weights)) {
         targetW.current[shapeName] = value
       }
@@ -504,6 +509,7 @@ function AvatarScene({
       targetW.current['jawOpen'] = jaw
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
+      lastHold.current = hold
 
       // Word boundary estimation: count non-silence visemes; every VISEMES_PER_WORD
       // phonemes ≈ one spoken word. Call onWordBoundary() to advance gesture cue timing.
@@ -538,8 +544,13 @@ function AvatarScene({
 
     // recentlyFired gate: keep mouth open between closely spaced visemes.
     // Only zero targetW when there are no future events AND no recent fire.
+    // The hold window is per-phoneme-class so a wrong consonant shape does not
+    // linger: vowels carry over (co-articulation) while consonants/closures
+    // release quickly. The vowel window stays at the proven 300ms that fixed the
+    // mouth-snapping-shut regression between closely spaced visemes.
+    const holdWindow    = lastHold.current === 'vowel' ? 300 : 120
     const hasFuture     = queue.length > 0
-    const recentlyFired = (nowMs - lastApplyAt.current) < 300
+    const recentlyFired = (nowMs - lastApplyAt.current) < holdWindow
     if (!hasFuture && !recentlyFired) {
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
@@ -547,12 +558,16 @@ function AvatarScene({
       targetW.current['jawOpen'] = 0
     }
 
-    // Per-frame asymmetric lerp: targetW → currentW (attack fast, release slow)
+    // Per-frame asymmetric lerp: targetW → currentW (attack fast, release tuned).
+    // Consonants/closures release faster than vowels so a transient consonant
+    // shape clears before the next phoneme instead of smearing across it; vowels
+    // keep the slower, natural release. Attack is always fast so onsets are crisp.
+    const releaseSpeed = lastHold.current === 'vowel' ? 6 : 11
     for (const [name, target] of Object.entries(targetW.current)) {
       const cur   = currentW.current[name] ?? 0
       const alpha = target > cur
-        ? 1 - Math.exp(-14 * delta)   // attack — fast
-        : 1 - Math.exp(-6  * delta)   // release — slow, natural
+        ? 1 - Math.exp(-14 * delta)            // attack — fast
+        : 1 - Math.exp(-releaseSpeed * delta)  // release — class-dependent
       currentW.current[name] = THREE.MathUtils.lerp(cur, target, alpha)
     }
 
