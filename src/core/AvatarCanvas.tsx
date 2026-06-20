@@ -426,9 +426,16 @@ function AvatarScene({
   useEffect(() => {
     if (!scene) return
 
-    // Collect mesh refs
+    // Collect mesh refs — first seed with known Avaturn names (backwards compat),
+    // then also collect any SkinnedMesh with morph targets not already captured
+    // (supports CC4 and other avatar vendors whose mesh names differ).
     scene.traverse((obj) => {
-      if (obj instanceof THREE.SkinnedMesh && obj.name in meshRefs.current) {
+      if (!(obj instanceof THREE.SkinnedMesh)) return
+      if (obj.name in meshRefs.current) {
+        // Known Avaturn mesh name
+        meshRefs.current[obj.name] = obj
+      } else if (obj.morphTargetDictionary && Object.keys(obj.morphTargetDictionary).length > 0) {
+        // Unknown mesh name but has morph targets — add it dynamically
         meshRefs.current[obj.name] = obj
       }
     })
