@@ -50,8 +50,22 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
-    // mcu — Pack 8 MCU Motion Capture Unity idles
+    // mcu — Pack 8 MCU Motion Capture Unity idles / listen (v9.1 foot-lock IK)
     'mcu_neutral_stand_idle_01',
+    'mcu_neutral_stand_idle_02',
+    'mcu_f_standconv_idle_01',
+    'mcu_f_standconv_listen_01_neutral',
+    'mcu_f_standconv_listen_02_neutral',
+    'mcu_f_standconv_talk_01_neutral',
+    'mcu_f_standconv_talk_06_neutral',
+    'mcu_m_standconv_idle_01',
+    'mcu_m_standconv_listen_01_neutral',
+    'mcu_m_standconv_listen_04_neutral',
+    'mcu_m_standconv_talk_01_neutral',
+    'mcu_m_standconv_talk_02_neutral',
+    'mcu_m_standconv_talk_07_neutral',
+    'mcu_m_standconv_talk_08_neutral',
+    'mcu_m_standconv_talk_09_neutral',
     // mx_m — Pack 1 Motion Male idles (checked first so pack1 works out of the box)
     'mx_m_standard_idle',
     'mx_m_idle_still',
@@ -109,6 +123,11 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // happy (formerly joy)
   happy: [
+    // mcu — Pack 8 positive talk/listen
+    'mcu_f_standconv_talk_03_positive',
+    'mcu_f_standconv_talk_05_positive',
+    'mcu_m_standconv_listen_02_positive',
+    'mcu_m_standconv_talk_05_positive',
     'mx_m_happy_idle_swaying',
     'mx_f_standing_greeting_waving',
     'rpm_neutral_idle_var_001',
@@ -123,6 +142,11 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'mc_f_idle_01',
   ],
   sadness: [
+    // mcu — Pack 8 negative talk/listen
+    'mcu_f_standconv_talk_02_negative',
+    'mcu_f_standconv_talk_04_negative',
+    'mcu_m_standconv_listen_03_negative',
+    'mcu_m_standconv_talk_06_negative',
     'mx_m_idle_still',
     'mx_f_idle_foot_forward_slouch',
     'rpm_neutral_idle_001',
@@ -162,6 +186,10 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
   // thoughtful (replaces concentration + confusion)
   thoughtful: [
+    // mcu — Pack 8 look-around and neutral listens
+    'mcu_neutral_stand_idle_03_lookaround',
+    'mcu_m_standconv_listen_01_neutral',
+    'mcu_f_standconv_listen_01_neutral',
     'mx_m_idle_still',
     'mx_m_neutral_idle_foot_forward',
     'mx_f_sitting_hands_crossed',

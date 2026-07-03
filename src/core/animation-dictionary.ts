@@ -479,10 +479,39 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'mc_f_trans_btoa':                         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
 
   // ── Pack 8 — MCU Motion Capture Unity (mcu_) ───────────────────────────────────
-  // Source: MCU_am_Stand_Idle_01.FBX (UE5 Manny rig) — retargeted from UE5 Manny
-  // skeleton to Avaturn/Mixamo bone map, cm→m scale bake, rotation-only tracks
-  // (Hips translation retained) per Pack 1/2 canonical structure.
+  // Source: UE5 Manny MCU FBX bundle (Stand + TalkListenSolo subsets).
+  // Retargeted via v9.1 pipeline: RIGHT-mul retarget anchored to Pack 1 kf0 rest
+  // pose + 2-bone analytical foot-lock IK + ±4° Hips.rotation SLERP clamp.
+  // Foot drift ≤0.85cm on every clip. Male (m_) and female (f_) variants.
+  //
+  // Stand — solo idles (loop)
   'mcu_neutral_stand_idle_01':               { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_neutral_stand_idle_02':               { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_neutral_stand_idle_03_lookaround':    { emotion: 'thoughtful',    loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  // StandConv — solo talk/listen (loop, tone in name drives emotion tag)
+  'mcu_f_standconv_idle_01':                 { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_f_standconv_listen_01_neutral':       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_f_standconv_listen_02_neutral':       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_f_standconv_talk_01_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_f_standconv_talk_02_negative':        { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_f_standconv_talk_03_positive':        { emotion: 'happy',         loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_f_standconv_talk_04_negative':        { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_f_standconv_talk_05_positive':        { emotion: 'happy',         loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_f_standconv_talk_06_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_idle_01':                 { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_m_standconv_listen_01_neutral':       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_m_standconv_listen_02_positive':      { emotion: 'happy',         loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_m_standconv_listen_03_negative':      { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_m_standconv_listen_04_neutral':       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
+  'mcu_m_standconv_talk_01_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_02_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_03_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_04_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_05_positive':        { emotion: 'happy',         loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_06_negative':        { emotion: 'sadness',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_07_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_08_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
+  'mcu_m_standconv_talk_09_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
