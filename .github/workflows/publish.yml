@@ -17,7 +17,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
         env:
-          GITHUB_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: npm run typecheck
 
   publish:
@@ -34,12 +34,12 @@ jobs:
           node-version: '20'
       - run: npm ci
         env:
-          GITHUB_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Check if version changed
         id: version-check
         run: |
-          PUBLISHED=$(GITHUB_TOKEN=$NPM_TOKEN npm view @evolvesim/avatar-engine version --registry https://npm.pkg.github.com 2>/dev/null || echo "0.0.0")
+          PUBLISHED=$(npm view @evolvesim/avatar-engine version --registry https://npm.pkg.github.com 2>/dev/null || echo "0.0.0")
           CURRENT=$(node -p "require('./package.json').version")
           echo "published=$PUBLISHED" >> $GITHUB_OUTPUT
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
@@ -54,4 +54,4 @@ jobs:
       - run: npm publish
         if: steps.version-check.outputs.changed == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
