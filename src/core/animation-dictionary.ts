@@ -477,6 +477,12 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'mc_f_trans_standconv_03':                 { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'mc_f_trans_standconv_04':                 { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
   'mc_f_trans_btoa':                         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.3 },
+
+  // ── Pack 8 — MCU Motion Capture Unity (mcu_) ───────────────────────────────────
+  // Source: MCU_am_Stand_Idle_01.FBX (UE5 Manny rig) — retargeted from UE5 Manny
+  // skeleton to Avaturn/Mixamo bone map, cm→m scale bake, rotation-only tracks
+  // (Hips translation retained) per Pack 1/2 canonical structure.
+  'mcu_neutral_stand_idle_01':               { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5 },
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────

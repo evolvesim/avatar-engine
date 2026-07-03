@@ -50,6 +50,8 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
+    // mcu — Pack 8 MCU Motion Capture Unity idles
+    'mcu_neutral_stand_idle_01',
     // mx_m — Pack 1 Motion Male idles (checked first so pack1 works out of the box)
     'mx_m_standard_idle',
     'mx_m_idle_still',
@@ -209,20 +211,41 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
 function logArmBoneQuats(label: string, root: THREE.Object3D): void {
-  const ARM_NAMES = ['LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm']
+  // Full-body diagnostic: arms + spine + hips + legs + head.
+  // Extended (July 2026) so we can diagnose whole-body orientation bugs from
+  // console output (e.g. Pack 8 UE5 root-axis convention leaving character
+  // folded/upside-down with correct arm values).
+  const BONES = [
+    'Hips',
+    'Spine', 'Spine2', 'Neck', 'Head',
+    'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand',
+    'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand',
+    'LeftUpLeg', 'LeftLeg', 'LeftFoot',
+    'RightUpLeg', 'RightLeg', 'RightFoot',
+  ]
   const lines: string[] = []
+  const found = new Map<string, THREE.Object3D>()
   root.traverse((obj) => {
-    if (ARM_NAMES.includes(obj.name)) {
-      const q = obj.quaternion
-      const e = new THREE.Euler().setFromQuaternion(q, 'YXZ')
-      const deg = (r: number) => (r * 180 / Math.PI).toFixed(1)
-      lines.push(`  ${obj.name}: q[${q.x.toFixed(3)},${q.y.toFixed(3)},${q.z.toFixed(3)},${q.w.toFixed(3)}] euler[${deg(e.x)}°,${deg(e.y)}°,${deg(e.z)}°]`)
-    }
+    if (BONES.includes(obj.name) && !found.has(obj.name)) found.set(obj.name, obj)
   })
+  const deg = (r: number) => (r * 180 / Math.PI).toFixed(1)
+  for (const name of BONES) {
+    const obj = found.get(name)
+    if (!obj) { lines.push(`  ${name.padEnd(14)} (not found)`); continue }
+    const q = obj.quaternion
+    const e = new THREE.Euler().setFromQuaternion(q, 'YXZ')
+    let extra = ''
+    if (name === 'Hips') {
+      const wp = new THREE.Vector3()
+      obj.getWorldPosition(wp)
+      extra = ` world[${wp.x.toFixed(2)},${wp.y.toFixed(2)},${wp.z.toFixed(2)}]`
+    }
+    lines.push(`  ${name.padEnd(14)} q[${q.x.toFixed(3)},${q.y.toFixed(3)},${q.z.toFixed(3)},${q.w.toFixed(3)}] euler[${deg(e.x)}°,${deg(e.y)}°,${deg(e.z)}°]${extra}`)
+  }
   if (lines.length === 0) {
-    console.warn(`[ArmBones] ${label}: no arm bones found`)
+    console.warn(`[BoneDiag] ${label}: no bones found`)
   } else {
-    console.log(`[ArmBones] ${label}:\n${lines.join('\n')}`)
+    console.log(`[BoneDiag] ${label}:\n${lines.join('\n')}`)
   }
 }
 
