@@ -221,6 +221,10 @@ export interface AvatarCanvasProps {
    *   Pack 2 — Motion Female (mx_f_ + cross-pack mx_m_, Avaturn female avatar)
    *   Pack 3 — RPM Male     (rpm_, rpm2_ prefix, RPM/Avaturn male/neutral)
    *   Pack 4 — RPM Female   (rpm2f_ prefix, RPM/Avaturn female)
+   *   Pack 5 — MoCap Male   (mc_m_ prefix, MoCap Central male)
+   *   Pack 6 — MoCap Female (mc_f_ prefix, MoCap Central female)
+   *   Pack 7 — Legal (test) (Judge, Lawyer x2, Witness)
+   *   Pack 8 — MCU Idle     (mcu_ prefix, UE5 Manny motion-capture idle)
    *
    * Default: undefined (uses default animations.glb)
    */

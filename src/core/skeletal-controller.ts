@@ -50,6 +50,8 @@ import type { GestureCue } from './virtual-director'
 // Mixing both gives natural variation while keeping arms alive.
 const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   neutral: [
+    // mcu — Pack 8 MCU Motion Capture Unity idles
+    'mcu_neutral_stand_idle_01',
     // mx_m — Pack 1 Motion Male idles (checked first so pack1 works out of the box)
     'mx_m_standard_idle',
     'mx_m_idle_still',

@@ -197,6 +197,10 @@ export interface AvatarCanvasProps {
    *   '/avatar-engine/animations-pack2.glb'  — Pack 2: Motion Female (mx_f_ + cross-pack)
    *   '/avatar-engine/animations-pack3.glb'  — Pack 3: RPM Male (rpm_, rpm2_)
    *   '/avatar-engine/animations-pack4.glb'  — Pack 4: RPM Female (rpm2f_)
+   *   '/avatar-engine/animations-pack5.glb'  — Pack 5: MoCap Central Male (mc_m_)
+   *   '/avatar-engine/animations-pack6.glb'  — Pack 6: MoCap Central Female (mc_f_)
+   *   '/avatar-engine/animations-pack7.glb'  — Pack 7: Legal test set (Judge, Lawyer x2, Witness)
+   *   '/avatar-engine/animations-pack8.glb'  — Pack 8: MCU Motion Capture Unity idle (mcu_)
    *
    * Default: undefined (keeps the engine's existing loaded dictionary)
    */
