@@ -285,6 +285,54 @@ function logArmBoneQuats(label: string, root: THREE.Object3D): void {
  *
  * MUTATES the clip in-place. Call on a deep-clone, not the dict entry.
  */
+/**
+ * Fix SkinnedMesh.skeleton.bones[] to point at the cloned bones after
+ * `gltf.scene.clone(true)`.
+ *
+ * Three.js's built-in Object3D.clone() creates fresh clones of the bone Object3Ds,
+ * but every SkinnedMesh's `skeleton.bones[]` still contains references to the
+ * ORIGINAL scene's bones. The AnimationMixer drives whatever tree it was given
+ * (the clone), so cloned bones rotate correctly, but SkinnedMesh reads pose
+ * from the un-moved original bones → T-pose forever.
+ *
+ * Fix: walk the cloned tree, build a name→Object3D map, and rewrite
+ * each SkinnedMesh's `skeleton.bones[]` to point at the cloned bones.
+ *
+ * This is the 0.3.11 fix, reintroduced in 0.5.1 for CC4 support.
+ * (See the 3d-avatar-lipsync skill for the full history.)
+ *
+ * NOTE: We do NOT call `skeleton.computeBoneTexture()` here because that
+ * requires an active WebGL context. AvatarCanvas.tsx handles that in a
+ * useEffect after mount when the WebGL renderer is guaranteed ready.
+ */
+function rebindSkeletons(root: THREE.Object3D): void {
+  const boneMap = new Map<string, THREE.Object3D>()
+  root.traverse((obj) => {
+    if (obj.name) boneMap.set(obj.name, obj)
+  })
+
+  let meshesFixed = 0
+  let bonesRemapped = 0
+  root.traverse((obj) => {
+    const mesh = obj as THREE.SkinnedMesh
+    if (!mesh.isSkinnedMesh || !mesh.skeleton) return
+    mesh.skeleton.bones = mesh.skeleton.bones.map((originalBone) => {
+      const cloned = boneMap.get(originalBone.name) as THREE.Bone | undefined
+      if (cloned && cloned !== originalBone) {
+        bonesRemapped++
+        return cloned
+      }
+      return originalBone
+    })
+    meshesFixed++
+  })
+
+  console.log(
+    `[rebindSkeletons] fixed ${meshesFixed} SkinnedMesh(es), ` +
+    `remapped ${bonesRemapped} bone refs`
+  )
+}
+
 function retargetClipToUUIDs(
   clip: THREE.AnimationClip,
   avatarRoot: THREE.Object3D
@@ -372,9 +420,17 @@ export class SkeletalController {
   // ── Init ───────────────────────────────────────────────────────────────────
 
   init(avatarRoot: THREE.Object3D, clips?: THREE.AnimationClip[]): void {
+    // ── Fix skeleton.bones[] after gltf.scene.clone(true) ────────────────────
+    // Three.js's built-in clone creates new bone objects but SkinnedMesh.skeleton.bones[]
+    // still points to the ORIGINAL scene's bones. The AnimationMixer drives the cloned
+    // bones (correct), but the SkinnedMesh reads pose from skeleton.bones[] (originals)
+    // that never move → T-pose forever. Remap by name before creating the mixer.
+    // This is the 0.3.11 fix, reintroduced for CC4 support (0.5.1).
+    rebindSkeletons(avatarRoot)
+
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.4.0 (134 built-in + pack5/mc_m + pack6/mc_f registered) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.5.1 (rebindSkeletons + CC4 native) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.

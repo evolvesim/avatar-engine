@@ -476,14 +476,30 @@ function AvatarScene({
     mixerHasFired.current = false
   }, [scene])
 
-  // Disable frustum culling on all SkinnedMesh nodes.
-  // After rebindSkeletons() the mixer drives bones away from bind pose each frame;
-  // the rest-pose bounding sphere no longer matches actual vertex positions,
-  // causing the renderer to cull the mesh as soon as animation starts.
+  // Disable frustum culling on all SkinnedMesh nodes AND allocate the GPU bone
+  // texture. After rebindSkeletons() (in SkeletalController.init) the mixer
+  // drives bones away from bind pose each frame; the rest-pose bounding sphere
+  // no longer matches actual vertex positions, causing the renderer to cull
+  // the mesh as soon as animation starts.
+  //
+  // `computeBoneTexture()` allocates the GPU DataTexture that holds bone
+  // matrices. It requires an active WebGL context, so it MUST run here in a
+  // useEffect after mount (not in SkeletalController.init() which runs before
+  // R3F's WebGL context is ready). Without this, bone matrices are never
+  // uploaded to the GPU and the mesh renders with all vertices collapsed at
+  // origin (invisible).
   useEffect(() => {
     scene.traverse((obj) => {
-      if ((obj as THREE.SkinnedMesh).isSkinnedMesh) {
-        (obj as THREE.SkinnedMesh).frustumCulled = false
+      const mesh = obj as THREE.SkinnedMesh
+      if (!mesh.isSkinnedMesh) return
+      mesh.frustumCulled = false
+      if (mesh.skeleton) {
+        try {
+          mesh.skeleton.computeBoneTexture()
+        } catch {
+          // computeBoneTexture may throw if WebGL context isn't ready yet;
+          // Three.js will re-allocate lazily on first render. Not fatal.
+        }
       }
     })
   }, [scene])
