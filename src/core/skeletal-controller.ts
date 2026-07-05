@@ -311,8 +311,12 @@ function rebindSkeletons(root: THREE.Object3D): void {
     if (obj.name) boneMap.set(obj.name, obj)
   })
 
+  // Ensure world matrices are up to date before we snapshot bindMatrix.
+  root.updateMatrixWorld(true)
+
   let meshesFixed = 0
   let bonesRemapped = 0
+  let bindMatrixResets = 0
   root.traverse((obj) => {
     const mesh = obj as THREE.SkinnedMesh
     if (!mesh.isSkinnedMesh || !mesh.skeleton) return
@@ -324,12 +328,41 @@ function rebindSkeletons(root: THREE.Object3D): void {
       }
       return originalBone
     })
+
+    // ── CC4 bindMatrix fix (0.5.2) ───────────────────────────────────────
+    // Some CC4 GLBs (FBX2glTF exported) have bindMatrix=identity while the
+    // mesh sits under a scaled Armature (scale 0.01). bindMatrixInverse was
+    // captured in the parent-scaled space, so bindMatrix and bindMatrixInverse
+    // are NOT inverses of each other. WebGL skinning then produces wildly
+    // out-of-scale vertex positions ("explosion") when bones move.
+    //
+    // Detect the mismatch (|det(bindMatrix * bindMatrixInverse) - 1| > eps)
+    // and reset bindMatrix = mesh.matrixWorld, bindMatrixInverse = inverse.
+    // This makes the pair consistent with three.js's SkinnedMesh.bind() default.
+    const product = new THREE.Matrix4().multiplyMatrices(
+      mesh.bindMatrix,
+      mesh.bindMatrixInverse
+    )
+    // Check if product is (close to) identity
+    const e = product.elements
+    const identityDiff =
+      Math.abs(e[0] - 1) + Math.abs(e[5] - 1) + Math.abs(e[10] - 1) +
+      Math.abs(e[1]) + Math.abs(e[2]) + Math.abs(e[4]) +
+      Math.abs(e[6]) + Math.abs(e[8]) + Math.abs(e[9])
+    if (identityDiff > 0.01) {
+      mesh.bindMatrix.copy(mesh.matrixWorld)
+      mesh.bindMatrixInverse.copy(mesh.matrixWorld).invert()
+      bindMatrixResets++
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     meshesFixed++
   })
 
   console.log(
     `[rebindSkeletons] fixed ${meshesFixed} SkinnedMesh(es), ` +
-    `remapped ${bonesRemapped} bone refs`
+    `remapped ${bonesRemapped} bone refs` +
+    (bindMatrixResets > 0 ? `, reset bindMatrix on ${bindMatrixResets} mesh(es)` : '')
   )
 }
 
@@ -430,7 +463,7 @@ export class SkeletalController {
 
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.5.1 (rebindSkeletons + CC4 native) —', avatarRoot.name || '(unnamed)')
+    console.log('[SkeletalController] init 0.5.2 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
