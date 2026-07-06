@@ -473,66 +473,30 @@ function AvatarScene({
     // surfaces behind them get correct depth — the classic "transparent hair
     // hides brows" bug.
     //
-    // v0.5.10 — hair uses alphaTest + alphaToCoverage (MSAA-smoothed cutout).
+    // v0.5.11 — revert to CC4 default hair (BLEND) + darken scalp only.
     //
-    // alphaToCoverage is the industry-standard solution for hair/foliage cards.
-    // It uses the MSAA subsample pattern as a smooth threshold rather than a
-    // hard cutoff, giving crisp opaque interiors and anti-aliased edges without
-    // the noise of alphaHash or the staircase artefacts of alphaTest alone.
-    // Requires MSAA (antialias: true, samples>=4) and depthWrite=true.
+    // User feedback: the original default rendering looked great except for a
+    // visible bald spot at the crown. All subsequent alpha-mode changes made
+    // things worse (moth-eaten, jagged, spotty, aliased strands).
     //
-    // Prior attempts:
-    //   v0.5.5 alphaTest=0.5  → moth-eaten strands (uniform threshold on 4 hair
-    //                            layers — inner layers had faint alpha maps)
-    //   v0.5.6 alphaTest=0.15 → too many faint pixels, still eaten
-    //   v0.5.7 fullyOpaque    → raw quad geometry visible, jagged silhouette
-    //   v0.5.8 alphaHash      → stochastic dithering visible as noise/spots
-    //   v0.5.9 alphaTest=0.5 + dark scalp + no dither  → THIS ATTEMPT
-    //
-    // Combined approach that should look clean:
-    //   • Hair strands: hard alpha mask at 0.5. Clean edges, MSAA smooths
-    //     the boundary. The v0.5.5 moth-eaten issue came from multiple hair
-    //     layers stacking; the layers with faint alpha were being culled.
-    //     Since Alex's current GLB is multi-hair, this is a compromise —
-    //     visible hair layers will be crisp, faint layers will drop out but
-    //     the darkened scalp beneath fills the gap so it reads as full hair.
-    //   • Scalp: darkened (0.4×) matte with alphaTest 0.3. Any peek-through
-    //     at the crown reads as hair shadow rather than glowing skin.
-    //   • Brows and eyelashes: alphaTest 0.3 — softer threshold since brow
-    //     cards need to keep their soft edges without alphaHash noise.
-    const HAIR_MATERIAL_RULES: Array<{
-      pattern: RegExp
-      alphaTest: number
-      darkenFactor?: number  // multiply baseColor RGB (used for scalp → dark)
-    }> = [
-      // With alphaToCoverage, use softer thresholds — MSAA smoothes the edge
-      { pattern: /^Hair_Transparency/i,        alphaTest: 0.25 },
-      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.25 },
-      // Scalp: dark brown mask under the hair.
-      { pattern: /^Scalp_Transparency/i,       alphaTest: 0.3, darkenFactor: 0.4 },
-      { pattern: /^Std_Eyelash/i,              alphaTest: 0.3 },
-      { pattern: /^Female_Angled/i,            alphaTest: 0.3 },  // Alex's eyebrow mesh
-    ]
+    // Approach: leave every hair/eyelash/brow material at its GLB-authored
+    // alpha mode (BLEND) untouched. Only apply the scalp darken so any
+    // peek-through reads as shadow rather than glowing skin.
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
       const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
-        const rule = HAIR_MATERIAL_RULES.find(r => r.pattern.test(matName))
-        if (!rule) continue
-        const mat = m as THREE.MeshStandardMaterial
-        mat.transparent      = false
-        mat.alphaTest        = rule.alphaTest
-        mat.alphaHash        = false
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(mat as any).alphaToCoverage = true   // MSAA-smoothed cutout edges
-        mat.depthWrite       = true
-        if (rule.darkenFactor !== undefined && mat.color) {
-          mat.color.multiplyScalar(rule.darkenFactor)
+        // Only touch the scalp mesh: darken so a bald spot reads as hair shadow.
+        if (/^Scalp_Transparency/i.test(matName)) {
+          const mat = m as THREE.MeshStandardMaterial
+          if (mat.color && !(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened) {
+            mat.color.multiplyScalar(0.4)
+            ;(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened = true
+            mat.needsUpdate = true
+          }
         }
-        mat.side             = THREE.DoubleSide
-        mat.needsUpdate      = true
       }
     })
 
@@ -864,17 +828,7 @@ export function AvatarCanvas({
   return (
     <div className={className}>
       <Canvas
-        gl={{
-          antialias: true,          // MSAA — required for alphaToCoverage on hair
-          alpha: true,
-          powerPreference: 'high-performance',
-          // Higher sample count = smoother hair edges. Browser may cap at 4.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...(({ samples: 8 }) as any),
-        }}
-        // High-DPI rendering: hair strand aliasing shrinks proportionally
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        {...({ dpr: [1, 2] } as any)}
+        gl={{ antialias: true, alpha: true }}
         camera={{ position: cameraPosition ?? CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
         shadows
       >
