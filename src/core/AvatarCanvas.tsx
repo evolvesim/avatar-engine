@@ -473,7 +473,13 @@ function AvatarScene({
     // surfaces behind them get correct depth — the classic "transparent hair
     // hides brows" bug.
     //
-    // v0.5.9 — hair uses alphaTest=0.5 (hard mask, no dithering).
+    // v0.5.10 — hair uses alphaTest + alphaToCoverage (MSAA-smoothed cutout).
+    //
+    // alphaToCoverage is the industry-standard solution for hair/foliage cards.
+    // It uses the MSAA subsample pattern as a smooth threshold rather than a
+    // hard cutoff, giving crisp opaque interiors and anti-aliased edges without
+    // the noise of alphaHash or the staircase artefacts of alphaTest alone.
+    // Requires MSAA (antialias: true, samples>=4) and depthWrite=true.
     //
     // Prior attempts:
     //   v0.5.5 alphaTest=0.5  → moth-eaten strands (uniform threshold on 4 hair
@@ -499,8 +505,9 @@ function AvatarScene({
       alphaTest: number
       darkenFactor?: number  // multiply baseColor RGB (used for scalp → dark)
     }> = [
-      { pattern: /^Hair_Transparency/i,        alphaTest: 0.5 },
-      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.5 },
+      // With alphaToCoverage, use softer thresholds — MSAA smoothes the edge
+      { pattern: /^Hair_Transparency/i,        alphaTest: 0.25 },
+      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.25 },
       // Scalp: dark brown mask under the hair.
       { pattern: /^Scalp_Transparency/i,       alphaTest: 0.3, darkenFactor: 0.4 },
       { pattern: /^Std_Eyelash/i,              alphaTest: 0.3 },
@@ -515,15 +522,17 @@ function AvatarScene({
         const rule = HAIR_MATERIAL_RULES.find(r => r.pattern.test(matName))
         if (!rule) continue
         const mat = m as THREE.MeshStandardMaterial
-        mat.transparent = false
-        mat.alphaTest   = rule.alphaTest
-        mat.alphaHash   = false
-        mat.depthWrite  = true
+        mat.transparent      = false
+        mat.alphaTest        = rule.alphaTest
+        mat.alphaHash        = false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(mat as any).alphaToCoverage = true   // MSAA-smoothed cutout edges
+        mat.depthWrite       = true
         if (rule.darkenFactor !== undefined && mat.color) {
           mat.color.multiplyScalar(rule.darkenFactor)
         }
-        mat.side        = THREE.DoubleSide
-        mat.needsUpdate = true
+        mat.side             = THREE.DoubleSide
+        mat.needsUpdate      = true
       }
     })
 
@@ -855,9 +864,15 @@ export function AvatarCanvas({
   return (
     <div className={className}>
       <Canvas
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        // 8x MSAA smooths hair alphaTest edges on modern GPUs (default = 4)
-        // Falls back gracefully if unsupported
+        gl={{
+          antialias: true,          // MSAA — required for alphaToCoverage on hair
+          alpha: true,
+          powerPreference: 'high-performance',
+          // Higher sample count = smoother hair edges. Browser may cap at 4.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(({ samples: 8 }) as any),
+        }}
+        // High-DPI rendering: hair strand aliasing shrinks proportionally
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...({ dpr: [1, 2] } as any)}
         camera={{ position: cameraPosition ?? CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
