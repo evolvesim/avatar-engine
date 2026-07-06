@@ -444,6 +444,46 @@ function AvatarScene({
       }
     })
 
+    // v0.5.5 — Hair/eyelash alpha fix.
+    //
+    // CC4 exports hair, brows-as-decal, eyelashes, and eye occlusion with
+    // alphaMode=BLEND (i.e. transparent=true, depthWrite=false). Multiple
+    // overlapping BLEND surfaces at similar depths (hair strands, fringe, brows
+    // painted on the head material's alpha channel) cause depth-sort chaos:
+    // strands render in the wrong order, eyebrows clip through the fringe, and
+    // the scalp shows through holes where alpha-blend ordering fails.
+    //
+    // Fix: switch hair/scalp/eyelash/occlusion materials to alphaTest (MASK)
+    // — the texture's alpha is still used, but each fragment either fully
+    // writes or fully discards. Depth buffer works correctly, no more sort
+    // artefacts. TearLine kept as BLEND (needs true translucency for wet eye
+    // sheen — never overlaps other transparent surfaces).
+    const HAIR_MATERIAL_PATTERNS = [
+      /^Hair_Transparency/i,
+      /^Scalp_Transparency/i,
+      /^Std_Eyelash/i,
+      /^Std_Eye_Occlusion/i,
+      /^Female_Angled/i,   // Alex's separate eyebrow mesh (if present)
+      /^BabyHair_Transparency/i,
+    ]
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const m of materials) {
+        if (!m) continue
+        const matName = m.name ?? ''
+        if (!HAIR_MATERIAL_PATTERNS.some(rx => rx.test(matName))) continue
+        // Switch BLEND → MASK. Alpha test at 0.5 gives clean hard edges on
+        // hair-strand alpha maps without visible dithering.
+        const mat = m as THREE.MeshStandardMaterial
+        mat.transparent = false
+        mat.alphaTest = 0.5
+        mat.depthWrite = true
+        mat.side = THREE.DoubleSide
+        mat.needsUpdate = true
+      }
+    })
+
     // Collect bone refs
     headBone.current  = findBone(scene, 'Head')
     neckBone.current  = findBone(scene, 'Neck')
