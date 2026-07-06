@@ -458,13 +458,26 @@ function AvatarScene({
     // writes or fully discards. Depth buffer works correctly, no more sort
     // artefacts. TearLine kept as BLEND (needs true translucency for wet eye
     // sheen — never overlaps other transparent surfaces).
-    const HAIR_MATERIAL_PATTERNS = [
-      /^Hair_Transparency/i,
-      /^Scalp_Transparency/i,
-      /^Std_Eyelash/i,
-      /^Std_Eye_Occlusion/i,
-      /^Female_Angled/i,   // Alex's separate eyebrow mesh (if present)
-      /^BabyHair_Transparency/i,
+    //
+    // Per-material category thresholds (v0.5.6):
+    //   Hair: 0.15  — hair-strand alpha maps have wide soft gradients (0.2–0.7
+    //                 on strand edges). 0.5 chops mid-strands and looks eaten;
+    //                 0.15 keeps almost all visible strands.
+    //   Scalp: 0.4  — covers head under hair; can afford harder threshold
+    //                 because it doesn't need soft edges.
+    //   Brow/Eyelash: 0.3 — brow-card alpha is generally solid with soft tips.
+    //   Occlusion: kept BLEND (weight=1 dark shadow under eyes, must be soft).
+    //   TearLine: kept BLEND (wet-eye sheen, must be soft).
+    //
+    // For BLEND materials we keep, we still force depthWrite=true so opaque
+    // surfaces behind them get correct depth — the classic "transparent hair
+    // hides brows" bug.
+    const HAIR_MATERIAL_RULES: Array<{ pattern: RegExp; alphaTest: number }> = [
+      { pattern: /^Hair_Transparency/i,        alphaTest: 0.15 },
+      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.15 },
+      { pattern: /^Scalp_Transparency/i,       alphaTest: 0.4  },
+      { pattern: /^Std_Eyelash/i,              alphaTest: 0.3  },
+      { pattern: /^Female_Angled/i,            alphaTest: 0.3  },  // Alex's eyebrow mesh
     ]
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
@@ -472,14 +485,13 @@ function AvatarScene({
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
-        if (!HAIR_MATERIAL_PATTERNS.some(rx => rx.test(matName))) continue
-        // Switch BLEND → MASK. Alpha test at 0.5 gives clean hard edges on
-        // hair-strand alpha maps without visible dithering.
+        const rule = HAIR_MATERIAL_RULES.find(r => r.pattern.test(matName))
+        if (!rule) continue
         const mat = m as THREE.MeshStandardMaterial
         mat.transparent = false
-        mat.alphaTest = 0.5
-        mat.depthWrite = true
-        mat.side = THREE.DoubleSide
+        mat.alphaTest   = rule.alphaTest
+        mat.depthWrite  = true
+        mat.side        = THREE.DoubleSide
         mat.needsUpdate = true
       }
     })
