@@ -114,12 +114,73 @@ export function lerpWeightMap(
   return current
 }
 
+import { ARKIT_TO_CC4, ARKIT_TO_CC4_PAIRS, isCC4Dictionary } from './cc4-morph-alias'
+
+/**
+ * Per-mesh cache: has this mesh been detected as CC4? Populated once on first
+ * apply, then reused for the mesh's lifetime. Uses WeakMap so meshes GC'd on
+ * avatar swap don't leak.
+ */
+const cc4MeshCache = new WeakMap<THREE.SkinnedMesh, boolean>()
+
+/**
+ * Resolve a target morph-target index for a given ARKit name on a given mesh.
+ * On CC4 avatars, first tries the CC4-aliased name (and paired L+R names when
+ * the ARKit key is unified). On ARKit/Avaturn avatars, uses the ARKit name
+ * directly. Returns the list of indices to write (may be 0, 1, or many).
+ */
+function resolveMorphIndices(
+  mesh: THREE.SkinnedMesh,
+  arkitName: string,
+): number[] {
+  const dict = mesh.morphTargetDictionary!
+
+  // Detect + cache CC4-ness once per mesh.
+  let isCC4 = cc4MeshCache.get(mesh)
+  if (isCC4 === undefined) {
+    isCC4 = isCC4Dictionary(dict)
+    cc4MeshCache.set(mesh, isCC4)
+  }
+
+  // Direct hit — most common on ARKit/Avaturn avatars, but also possible on
+  // CC4 for names that happen to match (e.g. 'Mouth_Close' is already CC4
+  // named). Take the fast path.
+  const direct = dict[arkitName]
+  if (direct !== undefined) return [direct]
+
+  if (!isCC4) return []
+
+  // CC4 avatar: consult paired alias first (some ARKit shapes are unified
+  // L+R but CC4 splits them). If not paired, fall back to single alias.
+  const paired = ARKIT_TO_CC4_PAIRS[arkitName]
+  if (paired) {
+    const indices: number[] = []
+    for (const cc4Name of paired) {
+      const idx = dict[cc4Name]
+      if (idx !== undefined) indices.push(idx)
+    }
+    if (indices.length > 0) return indices
+  }
+
+  const single = ARKIT_TO_CC4[arkitName]
+  if (single) {
+    const idx = dict[single]
+    if (idx !== undefined) return [idx]
+  }
+
+  return []
+}
+
 /**
  * Apply the final running weights to Three.js mesh morphTargetInfluences.
  *
  * Called once per frame after all blending is complete.
  *
- * @param weights     Final blended + lerped weight map
+ * Handles both ARKit (Avaturn/RPM) and CC4 Standard (Character Creator 4)
+ * morph naming automatically per-mesh. See `cc4-morph-alias.ts` for the
+ * full ARKit → CC4 rename table.
+ *
+ * @param weights     Final blended + lerped weight map (ARKit names)
  * @param meshRefs    Record of mesh names → SkinnedMesh objects
  *                    (e.g. { Head_Mesh, Teeth_Mesh, Tongue_Mesh, ... })
  */
@@ -130,9 +191,10 @@ export function applyWeightsToMeshes(
   for (const mesh of Object.values(meshRefs)) {
     if (!mesh?.morphTargetDictionary || !mesh.morphTargetInfluences) continue
     for (const [name, value] of Object.entries(weights)) {
-      const idx = mesh.morphTargetDictionary[name]
-      if (idx !== undefined) {
-        mesh.morphTargetInfluences[idx] = value ?? 0
+      const indices = resolveMorphIndices(mesh, name)
+      const v = value ?? 0
+      for (const idx of indices) {
+        mesh.morphTargetInfluences[idx] = v
       }
     }
   }
