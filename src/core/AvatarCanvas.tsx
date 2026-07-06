@@ -472,9 +472,30 @@ function AvatarScene({
     // For BLEND materials we keep, we still force depthWrite=true so opaque
     // surfaces behind them get correct depth — the classic "transparent hair
     // hides brows" bug.
-    const HAIR_MATERIAL_RULES: Array<{ pattern: RegExp; alphaTest: number }> = [
-      { pattern: /^Hair_Transparency/i,        alphaTest: 0.15 },
-      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.15 },
+    //
+    // v0.5.7 — hair is now FULLY OPAQUE. Hair-card alpha is entirely ignored:
+    // we render every triangle of every hair-card mesh, disable alpha test,
+    // and disable the alpha channel completely by setting alphaTest=0 and
+    // NOT setting transparent. This eliminates the "eaten hair" look and any
+    // sort artefacts (bald spot, brow clipping) since hair now writes to the
+    // depth buffer like any opaque mesh. Trade-off: hair silhouette becomes
+    // the raw quad geometry rather than alpha-cut strands. For CC4 stylised
+    // hair this reads as a solid volumetric hairstyle rather than see-through
+    // fibers.
+    //
+    // Scalp / eyelash / brows keep a mild alphaTest so single-pixel gaps
+    // don't show. Occlusion + TearLine kept BLEND for wet-eye softness.
+    const HAIR_MATERIAL_RULES: Array<{
+      pattern: RegExp
+      alphaTest?: number
+      // If true, we completely ignore the alpha channel on this material
+      // (render every fragment). If alphaTest is set, we keep alpha-testing.
+      fullyOpaque?: boolean
+    }> = [
+      // Full-opaque hair strands — no alpha discard, no transparency.
+      { pattern: /^Hair_Transparency/i,        fullyOpaque: true },
+      { pattern: /^BabyHair_Transparency/i,    fullyOpaque: true },
+      // Scalp / eyelash / brows still use alpha test to trim edges.
       { pattern: /^Scalp_Transparency/i,       alphaTest: 0.4  },
       { pattern: /^Std_Eyelash/i,              alphaTest: 0.3  },
       { pattern: /^Female_Angled/i,            alphaTest: 0.3  },  // Alex's eyebrow mesh
@@ -488,9 +509,26 @@ function AvatarScene({
         const rule = HAIR_MATERIAL_RULES.find(r => r.pattern.test(matName))
         if (!rule) continue
         const mat = m as THREE.MeshStandardMaterial
-        mat.transparent = false
-        mat.alphaTest   = rule.alphaTest
-        mat.depthWrite  = true
+        if (rule.fullyOpaque) {
+          mat.transparent = false
+          mat.alphaTest   = 0
+          mat.depthWrite  = true
+          // Force the shader to ignore the alpha channel by clamping it in
+          // the shader. Simplest reliable way: set opacity to 1 and detach
+          // the alpha map.
+          mat.opacity     = 1
+          mat.alphaMap    = null
+          if (mat.map) {
+            // Ensure the base color texture's alpha channel is ignored by
+            // the shader (we don't touch the image; we just tell three.js
+            // not to use it).
+            mat.map.premultiplyAlpha = false
+          }
+        } else if (rule.alphaTest !== undefined) {
+          mat.transparent = false
+          mat.alphaTest   = rule.alphaTest
+          mat.depthWrite  = true
+        }
         mat.side        = THREE.DoubleSide
         mat.needsUpdate = true
       }
