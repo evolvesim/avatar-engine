@@ -474,21 +474,27 @@ function AvatarScene({
     // hides brows" bug.
     //
     // v0.5.11 — revert to CC4 default hair (BLEND) + darken scalp only.
+    // v0.5.12 — fix eyebrow-through-fringe (depth ordering).
     //
-    // User feedback: the original default rendering looked great except for a
-    // visible bald spot at the crown. All subsequent alpha-mode changes made
-    // things worse (moth-eaten, jagged, spotty, aliased strands).
+    // Root cause: hair (BLEND, depthWrite=false) and brows (BLEND,
+    // depthWrite=false) don't write to the depth buffer, so whichever is
+    // rendered last wins — brows draw over the fringe.
     //
-    // Approach: leave every hair/eyelash/brow material at its GLB-authored
-    // alpha mode (BLEND) untouched. Only apply the scalp darken so any
-    // peek-through reads as shadow rather than glowing skin.
+    // Fix: keep hair as BLEND (soft edges preserved) but flip depthWrite=true.
+    // The fringe now punches its opaque interior into the depth buffer, so
+    // when the brow mesh runs its depth test later, brow fragments behind
+    // the fringe get discarded. Hair rim pixels (alpha ≈ 0) still don't
+    // meaningfully affect depth because BLEND fragments with near-zero alpha
+    // barely contribute — but the mostly-opaque interior does the occlusion
+    // work. Also raise renderOrder so hair draws before brow.
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
       const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
-        // Only touch the scalp mesh: darken so a bald spot reads as hair shadow.
+
+        // 1) Scalp: darken so any peek-through reads as hair shadow (unchanged)
         if (/^Scalp_Transparency/i.test(matName)) {
           const mat = m as THREE.MeshStandardMaterial
           if (mat.color && !(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened) {
@@ -496,6 +502,20 @@ function AvatarScene({
             ;(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened = true
             mat.needsUpdate = true
           }
+        }
+
+        // 2) Hair: keep BLEND, but write to depth so it occludes brows behind it
+        if (/^Hair_Transparency|^BabyHair_Transparency/i.test(matName)) {
+          const mat = m as THREE.MeshStandardMaterial
+          mat.depthWrite  = true
+          mat.needsUpdate = true
+          // Draw hair before brow (lower renderOrder = drawn earlier)
+          obj.renderOrder = 0
+        }
+
+        // 3) Brow mesh: render after hair so it depth-tests against the fringe
+        if (/^Female_Angled/i.test(matName)) {
+          obj.renderOrder = 1
         }
       }
     })
