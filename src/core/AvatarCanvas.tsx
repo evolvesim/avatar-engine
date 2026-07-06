@@ -473,35 +473,38 @@ function AvatarScene({
     // surfaces behind them get correct depth — the classic "transparent hair
     // hides brows" bug.
     //
-    // v0.5.8 — hair uses alphaHash (dithered transparency).
-    //
-    // alphaHash gives per-pixel stochastic transparency: alpha values in the
-    // texture become a probability that the fragment is written. This
-    // combines the benefits of BLEND (soft edges, no jagged pixels) with the
-    // benefits of MASK (writes to depth, no sort artefacts). Requires MSAA
-    // for smooth output but WebGL2 renders it well without post-processing.
+    // v0.5.9 — hair uses alphaTest=0.5 (hard mask, no dithering).
     //
     // Prior attempts:
-    //   v0.5.5 alphaTest=0.5  → moth-eaten strands
+    //   v0.5.5 alphaTest=0.5  → moth-eaten strands (uniform threshold on 4 hair
+    //                            layers — inner layers had faint alpha maps)
     //   v0.5.6 alphaTest=0.15 → too many faint pixels, still eaten
     //   v0.5.7 fullyOpaque    → raw quad geometry visible, jagged silhouette
-    //   v0.5.8 alphaHash      → correct depth + soft edges (this approach)
+    //   v0.5.8 alphaHash      → stochastic dithering visible as noise/spots
+    //   v0.5.9 alphaTest=0.5 + dark scalp + no dither  → THIS ATTEMPT
     //
-    // Scalp is set to a slightly darker matte tone with mild alphaTest so
-    // any peek-through at the crown reads as hair shadow rather than skin.
+    // Combined approach that should look clean:
+    //   • Hair strands: hard alpha mask at 0.5. Clean edges, MSAA smooths
+    //     the boundary. The v0.5.5 moth-eaten issue came from multiple hair
+    //     layers stacking; the layers with faint alpha were being culled.
+    //     Since Alex's current GLB is multi-hair, this is a compromise —
+    //     visible hair layers will be crisp, faint layers will drop out but
+    //     the darkened scalp beneath fills the gap so it reads as full hair.
+    //   • Scalp: darkened (0.4×) matte with alphaTest 0.3. Any peek-through
+    //     at the crown reads as hair shadow rather than glowing skin.
+    //   • Brows and eyelashes: alphaTest 0.3 — softer threshold since brow
+    //     cards need to keep their soft edges without alphaHash noise.
     const HAIR_MATERIAL_RULES: Array<{
       pattern: RegExp
-      mode: 'hash' | 'test'
-      alphaTest?: number
+      alphaTest: number
       darkenFactor?: number  // multiply baseColor RGB (used for scalp → dark)
     }> = [
-      { pattern: /^Hair_Transparency/i,        mode: 'hash' },
-      { pattern: /^BabyHair_Transparency/i,    mode: 'hash' },
-      // Scalp: dark brown mask under the hair. Keep alphaTest to trim seams,
-      // darken so any visible pixels blend into hair instead of glowing skin.
-      { pattern: /^Scalp_Transparency/i,       mode: 'test', alphaTest: 0.3, darkenFactor: 0.4 },
-      { pattern: /^Std_Eyelash/i,              mode: 'hash' },
-      { pattern: /^Female_Angled/i,            mode: 'hash' },  // Alex's eyebrow mesh
+      { pattern: /^Hair_Transparency/i,        alphaTest: 0.5 },
+      { pattern: /^BabyHair_Transparency/i,    alphaTest: 0.5 },
+      // Scalp: dark brown mask under the hair.
+      { pattern: /^Scalp_Transparency/i,       alphaTest: 0.3, darkenFactor: 0.4 },
+      { pattern: /^Std_Eyelash/i,              alphaTest: 0.3 },
+      { pattern: /^Female_Angled/i,            alphaTest: 0.3 },  // Alex's eyebrow mesh
     ]
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
@@ -512,21 +515,12 @@ function AvatarScene({
         const rule = HAIR_MATERIAL_RULES.find(r => r.pattern.test(matName))
         if (!rule) continue
         const mat = m as THREE.MeshStandardMaterial
-        if (rule.mode === 'hash') {
-          // Alpha hash: dithered transparency with depth write. Best-of-both
-          // world for hair cards.
-          mat.transparent = false
-          mat.alphaTest   = 0
-          mat.alphaHash   = true
-          mat.depthWrite  = true
-        } else {
-          mat.transparent = false
-          mat.alphaTest   = rule.alphaTest ?? 0.3
-          mat.alphaHash   = false
-          mat.depthWrite  = true
-          if (rule.darkenFactor !== undefined && mat.color) {
-            mat.color.multiplyScalar(rule.darkenFactor)
-          }
+        mat.transparent = false
+        mat.alphaTest   = rule.alphaTest
+        mat.alphaHash   = false
+        mat.depthWrite  = true
+        if (rule.darkenFactor !== undefined && mat.color) {
+          mat.color.multiplyScalar(rule.darkenFactor)
         }
         mat.side        = THREE.DoubleSide
         mat.needsUpdate = true
@@ -861,7 +855,11 @@ export function AvatarCanvas({
   return (
     <div className={className}>
       <Canvas
-        gl={{ antialias: true, alpha: true }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        // 8x MSAA smooths hair alphaTest edges on modern GPUs (default = 4)
+        // Falls back gracefully if unsupported
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        {...({ dpr: [1, 2] } as any)}
         camera={{ position: cameraPosition ?? CAMERA_PRESETS[cameraPreset].position, fov: CAMERA_PRESETS[cameraPreset].fov }}
         shadows
       >
