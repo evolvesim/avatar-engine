@@ -369,7 +369,7 @@ function rebindSkeletons(root: THREE.Object3D): void {
 function retargetClipToUUIDs(
   clip: THREE.AnimationClip,
   avatarRoot: THREE.Object3D
-): THREE.AnimationClip {
+): { clip: THREE.AnimationClip; bound: number; missed: number } {
   const nameToUUID = new Map<string, string>()
   avatarRoot.traverse((obj) => {
     if (obj.name) nameToUUID.set(obj.name.toLowerCase(), obj.uuid)
@@ -409,7 +409,7 @@ function retargetClipToUUIDs(
     `[retargetClipToUUIDs] "${clip.name}": ${bound} bound` +
     (missed > 0 ? `, ${missed} dropped (finger/toe not in skeleton)` : ', 0 dropped ✅')
   )
-  return clip
+  return { clip, bound, missed }
 }
 
 export class SkeletalController {
@@ -562,28 +562,79 @@ export class SkeletalController {
   /**
    * Returns a UUID-retargeted deep-clone of a clip, cached by the original clip's UUID.
    * The dictionary entry's clip is never mutated — retargeting mutates the clone only.
+   * Returns null if the clip binds 0 tracks to the current avatar skeleton
+   * (e.g. Mixamo clip on CC4 avatar) — caller must fall back.
    */
-  private _getRetargeted(clip: THREE.AnimationClip): THREE.AnimationClip {
+  private _getRetargeted(clip: THREE.AnimationClip): THREE.AnimationClip | null {
     const cached = this.retargetedClipCache.get(clip.uuid)
     if (cached) return cached
     const cloned = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
     cloned.uuid = THREE.MathUtils.generateUUID()
-    retargetClipToUUIDs(cloned, this.avatarRoot!)
+    const { bound } = retargetClipToUUIDs(cloned, this.avatarRoot!)
+    if (bound === 0) {
+      console.warn(
+        `[SkeletalController] Clip "${clip.name}" bound 0 tracks to avatar — ` +
+        `probable cross-skeleton mismatch (e.g. Mixamo idle on CC4 avatar). ` +
+        `Skipping and returning null.`
+      )
+      return null
+    }
     this.retargetedClipCache.set(clip.uuid, cloned)
     return cloned
   }
 
+  /**
+   * Find any clip in the dictionary whose bone names match the current avatar
+   * skeleton. Used as a cross-skeleton fallback when the emotion idle pool
+   * (hardcoded Mixamo IDs) can't bind on a CC4 avatar.
+   */
+  private _findCompatibleClipInDict(): { id: string; entry: { clip: THREE.AnimationClip } } | null {
+    if (!this.avatarRoot) return null
+    // Build a set of lowercase bone names in this avatar for a quick prefix check.
+    const boneNames = new Set<string>()
+    this.avatarRoot.traverse((o) => { if (o.name) boneNames.add(o.name.toLowerCase()) })
+
+    for (const [id, entry] of (this.dictionary as unknown as { clips: Map<string, { clip: THREE.AnimationClip }> }).clips) {
+      const clip = entry.clip
+      // Sample up to first 5 track bone names; if any match, this clip is compatible.
+      let hits = 0
+      for (let i = 0; i < Math.min(clip.tracks.length, 8); i++) {
+        const t = clip.tracks[i]
+        const dot = t.name.lastIndexOf('.')
+        const name = t.name.slice(0, dot).replace(/_\d+$/, '').toLowerCase()
+        if (boneNames.has(name)) hits++
+      }
+      if (hits > 0) return { id, entry }
+    }
+    return null
+  }
+
   private _tryStartIdle(): void {
     if (!this.pendingIdle || !this.mixer) return
-    const id    = this._pickNextIdle(this.currentEmotion)
-    const entry = this.dictionary.get(id)
+    let id    = this._pickNextIdle(this.currentEmotion)
+    let entry = this.dictionary.get(id)
     if (!entry) return  // dict not ready yet — retry next frame
+
+    let idleClip = this._getRetargeted(entry.clip)
+    if (!idleClip) {
+      // Emotion pool clip is incompatible with this skeleton — fall back to
+      // any compatible clip in the dictionary (CC4 pack, etc.).
+      const fb = this._findCompatibleClipInDict()
+      if (!fb) {
+        console.warn('[SkeletalController] No compatible idle in dict — retrying next frame')
+        return
+      }
+      id = fb.id
+      entry = fb.entry as typeof entry
+      idleClip = this._getRetargeted(entry.clip)
+      if (!idleClip) return  // shouldn't happen but bail safely
+      console.log(`[SkeletalController] Cross-skeleton fallback idle → "${id}"`)
+    }
 
     this.pendingIdle       = false
     this.currentIdleClipId = id
     this.isInGesture       = false
 
-    const idleClip   = this._getRetargeted(entry.clip)
     const idleAction = this.mixer.clipAction(idleClip)
     idleAction.setLoop(THREE.LoopRepeat, Infinity)
     idleAction.clampWhenFinished = false
@@ -627,9 +678,23 @@ export class SkeletalController {
 
   private _playIdle(emotion: EmotionId, idleId?: string): void {
     if (!this.mixer) return
-    const id    = idleId ?? this._pickNextIdle(emotion)
-    const entry = this.dictionary.get(id)
+    let id    = idleId ?? this._pickNextIdle(emotion)
+    let entry = this.dictionary.get(id)
     if (!entry) return
+
+    let idleClip = this._getRetargeted(entry.clip)
+    if (!idleClip) {
+      const fb = this._findCompatibleClipInDict()
+      if (!fb) {
+        console.warn(`[SkeletalController] _playIdle: no compatible clip in dict — skip`)
+        return
+      }
+      id = fb.id
+      entry = fb.entry as typeof entry
+      idleClip = this._getRetargeted(entry.clip)
+      if (!idleClip) return
+      console.log(`[SkeletalController] Cross-skeleton fallback idle → "${id}"`)
+    }
 
     // Clear stale pending cues — switching to idle means no active speech.
     // Prevents cues from a previous loadPerformance call firing on the next
@@ -641,7 +706,6 @@ export class SkeletalController {
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
-    const idleClip   = this._getRetargeted(entry.clip)
     const nextAction = this.mixer.clipAction(idleClip)
     nextAction.setLoop(THREE.LoopRepeat, Infinity)
     nextAction.clampWhenFinished = false
@@ -714,7 +778,14 @@ export class SkeletalController {
     // returning a cached already-played action for the same clip).
     const gestureClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(entry.clip))
     gestureClip.uuid  = THREE.MathUtils.generateUUID()
-    retargetClipToUUIDs(gestureClip, this.avatarRoot!)
+    const { bound: gestureBound } = retargetClipToUUIDs(gestureClip, this.avatarRoot!)
+    if (gestureBound === 0) {
+      console.warn(
+        `[SkeletalController] Gesture "${animId}" bound 0 tracks — cross-skeleton mismatch. Aborting play.`
+      )
+      this.isInGesture = false
+      return
+    }
 
     const nextAction = this.mixer.clipAction(gestureClip)
     nextAction.setLoop(THREE.LoopOnce, 1)
@@ -783,8 +854,8 @@ export class SkeletalController {
    */
   private _returnToIdleWithFade(fromAction: THREE.AnimationAction, fadeDuration = 0.6): void {
     if (!this.mixer) return
-    const id    = this._pickNextIdle(this.currentEmotion)
-    const entry = this.dictionary.get(id)
+    let id    = this._pickNextIdle(this.currentEmotion)
+    let entry = this.dictionary.get(id)
     if (!entry) {
       // Dict not ready — crossfade via pendingIdle retry.
       // Don’t hard-stop the clamped gesture: let it keep holding the pose.
@@ -794,10 +865,29 @@ export class SkeletalController {
       return
     }
 
+    let idleClip = this._getRetargeted(entry.clip)
+    if (!idleClip) {
+      const fb = this._findCompatibleClipInDict()
+      if (!fb) {
+        console.warn('[SkeletalController] return-to-idle: no compatible clip — clamping current')
+        this.pendingIdle   = true
+        this.currentAction = fromAction
+        return
+      }
+      id = fb.id
+      entry = fb.entry as typeof entry
+      idleClip = this._getRetargeted(entry.clip)
+      if (!idleClip) {
+        this.pendingIdle   = true
+        this.currentAction = fromAction
+        return
+      }
+      console.log(`[SkeletalController] Cross-skeleton fallback return-to-idle → "${id}"`)
+    }
+
     this.currentIdleClipId = id
     this.idlePoolTimer     = 0
 
-    const idleClip   = this._getRetargeted(entry.clip)
     const idleAction = this.mixer.clipAction(idleClip)
     idleAction.setLoop(THREE.LoopRepeat, Infinity)
     idleAction.clampWhenFinished = false
