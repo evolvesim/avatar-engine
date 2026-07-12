@@ -77,6 +77,7 @@ import {
   tickRespiration,
   tickHeadTracking,
   tickGaze,
+  tickGazeEyeContact,
   fixTPose,
   findBone,
 } from './procedural-animations'
@@ -361,6 +362,8 @@ function AvatarScene({
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
   const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven original scene bone
+  const leftEyeBone      = useRef<THREE.Bone | null>(null)  // for eye-contact gaze (CC4)
+  const rightEyeBone     = useRef<THREE.Bone | null>(null)
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
@@ -512,11 +515,19 @@ function AvatarScene({
     // clone's root primitive.
     console.info('[AvatarCanvas] init — clips count:', clips.length, clips.map(c=>c.name))
     engine.skeletal.init(gltf.scene, clips)
-    // Collect the head bone from the ORIGINAL scene (mixer-driven) for gaze.
-    // The cloned scene's bones are not driven by the mixer so their world
-    // matrices never update — tickGaze must read from gltf.scene.
-    headBoneOriginal.current = findBone(gltf.scene, 'Head')
-    console.info('[AvatarCanvas] headBoneOriginal:', headBoneOriginal.current?.name ?? 'NOT FOUND')
+    // Collect the head + eye bones from the ORIGINAL scene (mixer-driven) for
+    // gaze. The cloned scene's bones are not driven by the mixer so their world
+    // matrices never update — gaze must read from gltf.scene. Fall back to the
+    // CC4 (`CC_Base_*`) names so eye contact works on CC4 avatars too, whose
+    // head bone is `CC_Base_Head` rather than `Head`.
+    headBoneOriginal.current = findBone(gltf.scene, 'Head') ?? findBone(gltf.scene, 'CC_Base_Head')
+    leftEyeBone.current  = findBone(gltf.scene, 'LeftEye')  ?? findBone(gltf.scene, 'CC_Base_L_Eye')
+    rightEyeBone.current = findBone(gltf.scene, 'RightEye') ?? findBone(gltf.scene, 'CC_Base_R_Eye')
+    console.info('[AvatarCanvas] gaze bones:', {
+      head:  headBoneOriginal.current?.name ?? 'NONE',
+      lEye:  leftEyeBone.current?.name ?? 'NONE',
+      rEye:  rightEyeBone.current?.name ?? 'NONE',
+    })
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
@@ -740,14 +751,29 @@ function AvatarScene({
     // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
     // world matrices are fully resolved for this frame.
     cameraPosRef.current.copy(camera.position)
-    const gazeWeights = tickGaze(
-      gazeState.current,
-      delta,
-      headBoneOriginal.current,   // original scene — mixer keeps world matrix current
-      cameraPosRef.current,
-      eyeRotationX,
-      eyeRotationY,
-    )
+    // When the avatar exposes distinct eye bones (CC4), use the eye-bone-derived
+    // eye-contact gaze — it needs no head-bone axis assumption and aims at the
+    // real camera position, so eye direction follows the active camera preset.
+    // Otherwise fall back to the ARKit head-local gaze (Avaturn/RPM).
+    const gazeWeights = (leftEyeBone.current && rightEyeBone.current)
+      ? tickGazeEyeContact(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,
+          leftEyeBone.current,
+          rightEyeBone.current,
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+        )
+      : tickGaze(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,   // original scene — mixer keeps world matrix current
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+        )
 
     // ── 10d. Apply gaze weights + paint morph targets ───────────────────
     // Merge gaze blendshape weights into currentWeights THEN apply to mesh,

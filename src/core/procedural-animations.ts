@@ -395,6 +395,113 @@ export function tickGaze(
   return weights
 }
 
+// ── 4b. Eye-contact gaze (eye-bone-derived frame) — robust for CC4 ─────────────
+
+/**
+ * Camera-locking gaze that keeps the eyes on the viewer, tuned for rigs (CC4)
+ * where the head/eye bones don't follow the ARKit Z-forward convention and the
+ * head is left animation-driven (no head cam-lock).
+ *
+ * Unlike `tickGaze`, it derives the face's right/forward/up axes from the WORLD
+ * positions of the two eye bones and the head bone, so it needs no assumption
+ * about bone-local axes. It aims at the real camera position, so the eye
+ * direction is automatically correct for whatever camera preset is active
+ * (a wide shot and a close-up sit at different angles → different eye aim).
+ *
+ * The eyes hold the camera while it's within the eyes' comfortable travel cone;
+ * once the head turns far enough that the camera falls outside that cone (e.g. a
+ * "look away" gesture), the lock releases and the eyes ride neutrally with the
+ * head, then re-acquire smoothly when the head comes back.
+ *
+ * Returns ARKit eye-look weights (applied directly on ARKit rigs, aliased to
+ * Eye_*_Look_* on CC4). Empty when fully released.
+ */
+export function tickGazeEyeContact(
+  state:     GazeState,
+  delta:     number,
+  headBone:  THREE.Bone | null,
+  leftEye:   THREE.Bone | null,
+  rightEye:  THREE.Bone | null,
+  cameraPos: THREE.Vector3,
+  saccadeX:  number,
+  saccadeY:  number,
+  cfg:       GazeConfig = {},
+): Record<string, number> {
+  if (!headBone || !leftEye || !rightEye) return {}
+
+  const eyeLimitYaw   = Math.abs(cfg.eyeLimitYaw   ?? 30) * (Math.PI / 180)
+  const eyeLimitPitch = Math.abs(cfg.eyeLimitPitch ?? 22) * (Math.PI / 180)
+  // Release the lock once the camera needs more eye travel than this — a touch
+  // beyond the socket limit so the eyes release rather than pin at the edge.
+  const releaseYaw    = Math.abs(cfg.lockConeYaw   ?? 34) * (Math.PI / 180)
+  const releasePitch  = Math.abs(cfg.lockConePitch ?? 27) * (Math.PI / 180)
+  const acquireSpeed  = cfg.acquireSpeed ?? 8
+  const releaseSpeed  = cfg.releaseSpeed ?? 5
+
+  // ── Build the face frame from eye/head world positions (axis-agnostic) ─────
+  const lW = new THREE.Vector3(); leftEye.getWorldPosition(lW)
+  const rW = new THREE.Vector3(); rightEye.getWorldPosition(rW)
+  const hW = new THREE.Vector3(); headBone.getWorldPosition(hW)
+  const mid = lW.clone().add(rW).multiplyScalar(0.5)
+
+  const worldUp = new THREE.Vector3(0, 1, 0)
+  // right = from left eye to right eye = the character's right
+  const right = rW.clone().sub(lW).normalize()
+  // horizontal forward: perpendicular to `right` and world up
+  const fwd = new THREE.Vector3().crossVectors(worldUp, right).normalize()
+  // make sure forward points OUT of the face (away from the head pivot)
+  if (fwd.dot(mid.clone().sub(hW)) < 0) { fwd.negate(); right.negate() }
+
+  // ── Angles the eyes must turn to look at the camera ────────────────────────
+  const toCam = cameraPos.clone().sub(mid).normalize()
+  const fwdComp   = toCam.dot(fwd)
+  const rightComp = toCam.dot(right)
+  const upComp    = toCam.dot(worldUp)
+  const targetYaw   = Math.atan2(rightComp, fwdComp)                 // + = camera to char's right
+  const targetPitch = Math.atan2(upComp, Math.hypot(fwdComp, rightComp)) // + = camera above eye level
+
+  // ── Lock weight: released when the camera is outside the eyes' cone ────────
+  const insideCone = Math.abs(targetYaw) <= releaseYaw && Math.abs(targetPitch) <= releasePitch
+  const targetLock = insideCone ? 1 : 0
+  const lockSpeed  = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
+  state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
+
+  // Smooth the eye rotation toward the (clamped) target.
+  const clampedYaw   = THREE.MathUtils.clamp(targetYaw,   -eyeLimitYaw,   eyeLimitYaw)
+  const clampedPitch = THREE.MathUtils.clamp(targetPitch, -eyeLimitPitch, eyeLimitPitch)
+  const eyeLerp = 1 - Math.exp(-acquireSpeed * delta)
+  state.eyeYaw   = THREE.MathUtils.lerp(state.eyeYaw,   clampedYaw,   eyeLerp)
+  state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, clampedPitch, eyeLerp)
+
+  if (state.lockWeight < 0.01) return {}
+
+  // Small saccade micro-movement so the gaze isn't robotically still, only
+  // while locked, and never enough to break eye contact.
+  const finalYaw   = (state.eyeYaw   + saccadeY * 0.4) * state.lockWeight
+  const finalPitch = (state.eyePitch + saccadeX * 0.4) * state.lockWeight
+
+  // ── Map signed angles → ARKit eye-look weights (correct L/R/in/out) ────────
+  // yaw > 0 (camera to char's right) → both eyes look right:
+  //   right eye "out" (Eye_R_Look_R), left eye "in" (Eye_L_Look_R)
+  const nYaw   = finalYaw   / eyeLimitYaw
+  const nPitch = finalPitch / eyeLimitPitch
+  const lookR = THREE.MathUtils.clamp( nYaw,   0, 1)
+  const lookL = THREE.MathUtils.clamp(-nYaw,   0, 1)
+  const lookU = THREE.MathUtils.clamp( nPitch, 0, 1)
+  const lookD = THREE.MathUtils.clamp(-nPitch, 0, 1)
+
+  return {
+    eyeLookInLeft:    lookR,   // → Eye_L_Look_R
+    eyeLookOutRight:  lookR,   // → Eye_R_Look_R
+    eyeLookOutLeft:   lookL,   // → Eye_L_Look_L
+    eyeLookInRight:   lookL,   // → Eye_R_Look_L
+    eyeLookUpLeft:    lookU,
+    eyeLookUpRight:   lookU,
+    eyeLookDownLeft:  lookD,
+    eyeLookDownRight: lookD,
+  }
+}
+
 // ── 4. Arm T-pose correction ──────────────────────────────────────────────────
 
 /**
