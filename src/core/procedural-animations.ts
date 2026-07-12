@@ -29,6 +29,9 @@ export interface OcularState {
   blinkTimer:  number
   blinkPhase:  BlinkPhase
   blinkValue:  number
+  /** Seconds to wait before the next blink — rolled ONCE per blink so the gap
+   *  actually varies (rolling per-frame collapses it to a narrow band). */
+  blinkInterval: number
   /** Saccade target offsets (radians) — updated every 1.5–4s */
   saccadeX:    number
   saccadeY:    number
@@ -36,11 +39,20 @@ export interface OcularState {
   saccadeInterval: number
 }
 
+/** A natural gap until the next blink: usually 2–7s, occasionally a quick
+ *  double-blink (~0.2s) for variety. Rolled once, not per frame. */
+function nextBlinkInterval(): number {
+  return Math.random() < 0.12
+    ? 0.18 + Math.random() * 0.22   // quick double-blink
+    : 2 + Math.random() * 5         // 2–7s
+}
+
 export function createOcularState(): OcularState {
   return {
     blinkTimer:       0,
     blinkPhase:       0,
     blinkValue:       0,
+    blinkInterval:    nextBlinkInterval(),
     saccadeX:         0,
     saccadeY:         0,
     saccadeTimer:     0,
@@ -62,8 +74,8 @@ export function tickOcularMechanics(
   // ── Blink ────────────────────────────────────────────────────────────────
   state.blinkTimer += delta
 
-  // Open phase: wait 2–6 seconds before next blink
-  if (state.blinkPhase === 0 && state.blinkTimer > 2 + Math.random() * 4) {
+  // Open phase: wait blinkInterval seconds (rolled once) before the next blink.
+  if (state.blinkPhase === 0 && state.blinkTimer > state.blinkInterval) {
     state.blinkPhase = 1
     state.blinkTimer = 0
   }
@@ -78,6 +90,7 @@ export function tickOcularMechanics(
     if (state.blinkValue <= 0) {
       state.blinkPhase = 0
       state.blinkTimer = 0
+      state.blinkInterval = nextBlinkInterval()   // roll the next gap once
     }
   }
 
