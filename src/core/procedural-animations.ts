@@ -436,7 +436,7 @@ export function tickGazeEyeContact(
   if (!headBone || !leftEye || !rightEye) return {}
 
   // Max eye travel from the rest (forward) direction before we stop turning.
-  const eyeLimit     = Math.abs(cfg.eyeLimitYaw ?? 34) * (Math.PI / 180)
+  const eyeLimit     = Math.abs(cfg.eyeLimitYaw ?? 35) * (Math.PI / 180)
   // How far the head can twist (camera off the face's forward) before the lock
   // releases and the eyes ride with the head. Tuned so eye contact holds through
   // normal head motion but lets go on a deliberate look-away.
