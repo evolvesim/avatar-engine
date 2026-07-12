@@ -613,7 +613,17 @@ export class SkeletalController {
     if (!this.pendingIdle || !this.mixer) return
     let id    = this._pickNextIdle(this.currentEmotion)
     let entry = this.dictionary.get(id)
-    if (!entry) return  // dict not ready yet — retry next frame
+    if (!entry) {
+      // Picked idle isn't in the current dictionary. This is the normal case
+      // for a cross-skeleton pack (e.g. a CC4 pack, whose clips are CC_Base_*)
+      // because the idle pools only list Mixamo/RPM names. Fall back to any
+      // dict clip whose bones match this avatar instead of spinning on
+      // pendingIdle forever (which leaves the avatar with no idle driver).
+      const fb = this._findCompatibleClipInDict()
+      if (!fb) return  // dict genuinely not ready — retry next frame
+      id = fb.id
+      entry = this.dictionary.get(fb.id)!  // fb.id is guaranteed present in dict
+    }
 
     let idleClip = this._getRetargeted(entry.clip)
     if (!idleClip) {
@@ -680,7 +690,14 @@ export class SkeletalController {
     if (!this.mixer) return
     let id    = idleId ?? this._pickNextIdle(emotion)
     let entry = this.dictionary.get(id)
-    if (!entry) return
+    if (!entry) {
+      // Picked idle isn't in the dict (cross-skeleton pack, e.g. CC4). Fall back
+      // to a bone-compatible clip so emotion changes still land on a real idle.
+      const fb = this._findCompatibleClipInDict()
+      if (!fb) return
+      id = fb.id
+      entry = this.dictionary.get(fb.id)!  // fb.id is guaranteed present in dict
+    }
 
     let idleClip = this._getRetargeted(entry.clip)
     if (!idleClip) {
@@ -857,12 +874,23 @@ export class SkeletalController {
     let id    = this._pickNextIdle(this.currentEmotion)
     let entry = this.dictionary.get(id)
     if (!entry) {
-      // Dict not ready — crossfade via pendingIdle retry.
-      // Don’t hard-stop the clamped gesture: let it keep holding the pose.
-      // _tryStartIdle will crossfade from it when the dict resolves.
-      this.pendingIdle   = true
-      this.currentAction = fromAction  // keep reference so _tryStartIdle can fade FROM it
-      return
+      // Picked idle isn't in the dict — the normal case for a cross-skeleton
+      // pack (e.g. CC4, whose clips are CC_Base_*). Fall back to a
+      // bone-compatible clip so the finished gesture crossfades into a real
+      // idle instead of clamping on its final pose forever (the "frozen at the
+      // end" bug). Only defer to pendingIdle if the dict is genuinely empty.
+      const fb = this._findCompatibleClipInDict()
+      if (fb) {
+        id = fb.id
+        entry = this.dictionary.get(fb.id)!  // fb.id is guaranteed present in dict
+      } else {
+        // Dict not ready — crossfade via pendingIdle retry.
+        // Don’t hard-stop the clamped gesture: let it keep holding the pose.
+        // _tryStartIdle will crossfade from it when the dict resolves.
+        this.pendingIdle   = true
+        this.currentAction = fromAction  // keep reference so _tryStartIdle can fade FROM it
+        return
+      }
     }
 
     let idleClip = this._getRetargeted(entry.clip)
