@@ -693,6 +693,12 @@ function AvatarScene({
         currentWeights.current[name] = val
       }
     }
+    // Apply the blink lids directly — a blink is a fast ~80ms motion (already
+    // ramped in tickOcularMechanics) and the weight lerp above would damp it so
+    // the eyes never fully close. Overwrite after the lerp, like visemes.
+    for (const [name, val] of Object.entries(blinkWeights)) {
+      currentWeights.current[name] = val
+    }
 
     // ── 7. (morph targets applied after gaze — see step 10d) ────────────
 

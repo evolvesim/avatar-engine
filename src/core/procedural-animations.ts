@@ -21,6 +21,10 @@ import type { ARKitWeights } from './emotion-state'
 
 export type BlinkPhase = 0 | 1 | 2  // 0=open, 1=closing, 2=opening
 
+// Constant upper-lid lowering held at rest (0 = wide open, 1 = fully closed).
+// Relaxes the CC4 "staring" eye without looking sleepy.
+const EYE_REST_LID = 0.14
+
 export interface OcularState {
   blinkTimer:  number
   blinkPhase:  BlinkPhase
@@ -87,11 +91,16 @@ export function tickOcularMechanics(
     state.saccadeInterval = 1.5 + Math.random() * 2.5
   }
 
+  // Rest lid-lower: CC4 eyes sit wide open ("staring"). Hold the upper lids a
+  // little down at rest so the neutral eye reads relaxed, and let a blink take
+  // it the rest of the way to fully closed.
+  const lid = EYE_REST_LID + (1 - EYE_REST_LID) * state.blinkValue
+
   return {
     blinkWeights: {
-      eyeBlinkLeft:  state.blinkValue,
-      eyeBlinkRight: state.blinkValue,
-      eyesClosed:    state.blinkValue,
+      eyeBlinkLeft:  lid,
+      eyeBlinkRight: lid,
+      eyesClosed:    lid,
     },
     eyeRotationX: state.saccadeX,
     eyeRotationY: state.saccadeY,
