@@ -437,10 +437,10 @@ export function tickGazeEyeContact(
 
   // Max eye travel from the rest (forward) direction before we stop turning.
   const eyeLimit     = Math.abs(cfg.eyeLimitYaw ?? 34) * (Math.PI / 180)
-  // How far the camera can sit off the face's forward before the lock releases
-  // and the eyes ride with the head. Widened so eye contact holds through most
-  // head motion.
-  const releaseAngle = Math.abs(cfg.lockConeYaw ?? 55) * (Math.PI / 180)
+  // How far the head can twist (camera off the face's forward) before the lock
+  // releases and the eyes ride with the head. Tuned so eye contact holds through
+  // normal head motion but lets go on a deliberate look-away.
+  const releaseAngle = Math.abs(cfg.lockConeYaw ?? 45) * (Math.PI / 180)
   const acquireSpeed = cfg.acquireSpeed ?? 8
   const releaseSpeed = cfg.releaseSpeed ?? 5
 
