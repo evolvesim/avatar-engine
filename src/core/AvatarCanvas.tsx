@@ -676,7 +676,11 @@ function AvatarScene({
     const emotionWeights = engine.emotion.effectiveWeights(isSpeaking)
 
     // ── 4. Procedural layer (blink, saccades) ─────────────────────────────
-    const { blinkWeights, eyeRotationX, eyeRotationY } = tickOcularMechanics(ocular.current, delta)
+    // The rest lid-lower is a CC4-only relax (its neutral eye is wide/staring);
+    // Avaturn/RPM eyes are already relaxed, so pass restLid=0 to leave them be.
+    const isCC4Avatar = headBoneOriginal.current?.name === 'CC_Base_Head'
+    const { blinkWeights, eyeRotationX, eyeRotationY } =
+      tickOcularMechanics(ocular.current, delta, isCC4Avatar ? undefined : 0)
 
     // ── 5. Additive blend: emotion + viseme + procedural ───────────────────
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)

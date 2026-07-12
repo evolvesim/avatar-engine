@@ -69,7 +69,8 @@ export function createOcularState(): OcularState {
  */
 export function tickOcularMechanics(
   state: OcularState,
-  delta: number
+  delta: number,
+  restLid: number = EYE_REST_LID,
 ): { blinkWeights: ARKitWeights; eyeRotationX: number; eyeRotationY: number } {
   // ── Blink ────────────────────────────────────────────────────────────────
   state.blinkTimer += delta
@@ -104,10 +105,11 @@ export function tickOcularMechanics(
     state.saccadeInterval = 1.5 + Math.random() * 2.5
   }
 
-  // Rest lid-lower: CC4 eyes sit wide open ("staring"). Hold the upper lids a
-  // little down at rest so the neutral eye reads relaxed, and let a blink take
-  // it the rest of the way to fully closed.
-  const lid = EYE_REST_LID + (1 - EYE_REST_LID) * state.blinkValue
+  // Rest lid-lower: CC4 eyes sit wide open ("staring"), so `restLid` holds the
+  // upper lids a little down at rest; a blink takes it the rest of the way to
+  // fully closed. Callers pass 0 for rigs (Avaturn/RPM) whose neutral eye is
+  // already relaxed, leaving those eyes untouched.
+  const lid = restLid + (1 - restLid) * state.blinkValue
 
   return {
     blinkWeights: {
