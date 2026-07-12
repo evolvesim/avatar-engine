@@ -227,6 +227,12 @@ export interface GazeState {
   /** Reference head rotation at last acquire — used to compute head deviation. */
   refHeadYaw:    number
   refHeadPitch:  number
+  /** Rest LOCAL quaternions of the eye bones (captured once, since the mixer
+   *  never drives the eyes). Keyed by bone uuid so an avatar swap re-captures. */
+  eyeRestL?:     THREE.Quaternion
+  eyeRestR?:     THREE.Quaternion
+  eyeBoneLId?:   string
+  eyeBoneRId?:   string
 }
 
 export interface GazeConfig {
@@ -423,83 +429,84 @@ export function tickGazeEyeContact(
   leftEye:   THREE.Bone | null,
   rightEye:  THREE.Bone | null,
   cameraPos: THREE.Vector3,
-  saccadeX:  number,
-  saccadeY:  number,
+  _saccadeX: number,
+  _saccadeY: number,
   cfg:       GazeConfig = {},
 ): Record<string, number> {
   if (!headBone || !leftEye || !rightEye) return {}
 
-  const eyeLimitYaw   = Math.abs(cfg.eyeLimitYaw   ?? 30) * (Math.PI / 180)
-  const eyeLimitPitch = Math.abs(cfg.eyeLimitPitch ?? 22) * (Math.PI / 180)
-  // Release the lock once the camera needs more eye travel than this — a touch
-  // beyond the socket limit so the eyes release rather than pin at the edge.
-  const releaseYaw    = Math.abs(cfg.lockConeYaw   ?? 34) * (Math.PI / 180)
-  const releasePitch  = Math.abs(cfg.lockConePitch ?? 27) * (Math.PI / 180)
-  const acquireSpeed  = cfg.acquireSpeed ?? 8
-  const releaseSpeed  = cfg.releaseSpeed ?? 5
+  // Max eye travel from the rest (forward) direction before we stop turning.
+  const eyeLimit     = Math.abs(cfg.eyeLimitYaw ?? 34) * (Math.PI / 180)
+  // How far the camera can sit off the face's forward before the lock releases
+  // and the eyes ride with the head. Widened so eye contact holds through most
+  // head motion.
+  const releaseAngle = Math.abs(cfg.lockConeYaw ?? 55) * (Math.PI / 180)
+  const acquireSpeed = cfg.acquireSpeed ?? 8
+  const releaseSpeed = cfg.releaseSpeed ?? 5
 
-  // ── Build the face frame from eye/head world positions (axis-agnostic) ─────
+  // ── Capture the eyes' rest LOCAL orientation once (mixer never drives them,
+  //    but we overwrite them each frame, so re-capture on an avatar swap). ───
+  if (state.eyeBoneLId !== leftEye.uuid)  { state.eyeRestL = leftEye.quaternion.clone();  state.eyeBoneLId = leftEye.uuid }
+  if (state.eyeBoneRId !== rightEye.uuid) { state.eyeRestR = rightEye.quaternion.clone(); state.eyeBoneRId = rightEye.uuid }
+
+  // ── Face frame from eye/head world positions (axis-agnostic) ───────────────
   const lW = new THREE.Vector3(); leftEye.getWorldPosition(lW)
   const rW = new THREE.Vector3(); rightEye.getWorldPosition(rW)
   const hW = new THREE.Vector3(); headBone.getWorldPosition(hW)
   const mid = lW.clone().add(rW).multiplyScalar(0.5)
 
   const worldUp = new THREE.Vector3(0, 1, 0)
-  // right = from left eye to right eye = the character's right
-  const right = rW.clone().sub(lW).normalize()
-  // horizontal forward: perpendicular to `right` and world up
-  const fwd = new THREE.Vector3().crossVectors(worldUp, right).normalize()
-  // make sure forward points OUT of the face (away from the head pivot)
-  if (fwd.dot(mid.clone().sub(hW)) < 0) { fwd.negate(); right.negate() }
+  const right = rW.clone().sub(lW).normalize()          // toward the character's right
+  const fwd = new THREE.Vector3().crossVectors(worldUp, right).normalize()  // horizontal, out the face
+  if (fwd.dot(mid.clone().sub(hW)) < 0) fwd.negate()    // ensure it points forward, not back
 
-  // ── Angles the eyes must turn to look at the camera ────────────────────────
+  // ── Direction the eyes should look, clamped to the socket limit ────────────
   const toCam = cameraPos.clone().sub(mid).normalize()
-  const fwdComp   = toCam.dot(fwd)
-  const rightComp = toCam.dot(right)
-  const upComp    = toCam.dot(worldUp)
-  const targetYaw   = Math.atan2(rightComp, fwdComp)                 // + = camera to char's right
-  const targetPitch = Math.atan2(upComp, Math.hypot(fwdComp, rightComp)) // + = camera above eye level
+  const angle = Math.acos(THREE.MathUtils.clamp(fwd.dot(toCam), -1, 1))  // off-forward angle
 
-  // ── Lock weight: released when the camera is outside the eyes' cone ────────
-  const insideCone = Math.abs(targetYaw) <= releaseYaw && Math.abs(targetPitch) <= releasePitch
-  const targetLock = insideCone ? 1 : 0
+  const targetLock = angle <= releaseAngle ? 1 : 0
   const lockSpeed  = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
   state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
 
-  // Smooth the eye rotation toward the (clamped) target.
-  const clampedYaw   = THREE.MathUtils.clamp(targetYaw,   -eyeLimitYaw,   eyeLimitYaw)
-  const clampedPitch = THREE.MathUtils.clamp(targetPitch, -eyeLimitPitch, eyeLimitPitch)
-  const eyeLerp = 1 - Math.exp(-acquireSpeed * delta)
-  state.eyeYaw   = THREE.MathUtils.lerp(state.eyeYaw,   clampedYaw,   eyeLerp)
-  state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, clampedPitch, eyeLerp)
-
-  if (state.lockWeight < 0.01) return {}
-
-  // Small saccade micro-movement so the gaze isn't robotically still, only
-  // while locked, and never enough to break eye contact.
-  const finalYaw   = (state.eyeYaw   + saccadeY * 0.4) * state.lockWeight
-  const finalPitch = (state.eyePitch + saccadeX * 0.4) * state.lockWeight
-
-  // ── Map signed angles → ARKit eye-look weights (correct L/R/in/out) ────────
-  // yaw > 0 (camera to char's right) → both eyes look right:
-  //   right eye "out" (Eye_R_Look_R), left eye "in" (Eye_L_Look_R)
-  const nYaw   = finalYaw   / eyeLimitYaw
-  const nPitch = finalPitch / eyeLimitPitch
-  const lookR = THREE.MathUtils.clamp( nYaw,   0, 1)
-  const lookL = THREE.MathUtils.clamp(-nYaw,   0, 1)
-  const lookU = THREE.MathUtils.clamp( nPitch, 0, 1)
-  const lookD = THREE.MathUtils.clamp(-nPitch, 0, 1)
-
-  return {
-    eyeLookInLeft:    lookR,   // → Eye_L_Look_R
-    eyeLookOutRight:  lookR,   // → Eye_R_Look_R
-    eyeLookOutLeft:   lookL,   // → Eye_L_Look_L
-    eyeLookInRight:   lookL,   // → Eye_R_Look_L
-    eyeLookUpLeft:    lookU,
-    eyeLookUpRight:   lookU,
-    eyeLookDownLeft:  lookD,
-    eyeLookDownRight: lookD,
+  // Clamp the aim to within `eyeLimit` of forward so the eyes never over-rotate.
+  let aim = toCam.clone()
+  if (angle > eyeLimit) {
+    const axis = new THREE.Vector3().crossVectors(fwd, toCam)
+    if (axis.lengthSq() > 1e-8) {
+      axis.normalize()
+      aim = fwd.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
+    }
   }
+
+  // World-space delta that turns the rest-forward onto the aim, scaled by lock.
+  const fullDelta = new THREE.Quaternion().setFromUnitVectors(fwd, aim)
+  const worldDelta = new THREE.Quaternion().slerp(fullDelta, state.lockWeight)
+
+  // Apply to each eye bone: rotate its rest orientation by the world delta.
+  aimEyeBone(leftEye,  state.eyeRestL!,  worldDelta)
+  aimEyeBone(rightEye, state.eyeRestR!, worldDelta)
+
+  // Eyes are driven directly on the bones — no morph weights to return.
+  return {}
+}
+
+/**
+ * Point one eye bone by applying a WORLD-space delta rotation to its rest
+ * orientation, then converting the result back into the bone's local space.
+ * Rotating the rest (not the current, already-aimed) orientation keeps it
+ * stable frame to frame and correct as the head moves.
+ */
+function aimEyeBone(
+  eye:        THREE.Bone,
+  restLocal:  THREE.Quaternion,
+  worldDelta: THREE.Quaternion,
+): void {
+  const parentWorld = new THREE.Quaternion()
+  if (eye.parent) eye.parent.getWorldQuaternion(parentWorld)   // forces parent world matrix update
+  const restWorld   = parentWorld.clone().multiply(restLocal)  // eye's rest orientation in world
+  const targetWorld = worldDelta.clone().multiply(restWorld)   // apply the world-space turn
+  const localTarget = parentWorld.clone().invert().multiply(targetWorld)
+  eye.quaternion.copy(localTarget)
 }
 
 // ── 4. Arm T-pose correction ──────────────────────────────────────────────────
