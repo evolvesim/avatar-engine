@@ -443,19 +443,27 @@ export function tickGaze(
  * "look away" gesture), the lock releases and the eyes ride neutrally with the
  * head, then re-acquire smoothly when the head comes back.
  *
- * Returns ARKit eye-look weights (applied directly on ARKit rigs, aliased to
- * Eye_*_Look_* on CC4). Empty when fully released.
+ * Two output mechanisms, selected by `driveBones`:
+ *   • driveBones = true  (CC4): the eyeball follows its skeleton bone, so we
+ *     rotate the LeftEye/RightEye bones directly and return {} (no morphs).
+ *   • driveBones = false (RPM/Avaturn): the eyeball is morph-driven — the bones
+ *     exist as skin joints but rotating them doesn't move the eye. We convert
+ *     the same aim into signed yaw/pitch and return ARKit eyeLook morph weights.
+ *
+ * The camera-locking geometry (face frame, off-forward angle, lock cone) is
+ * shared; only the final application differs, so both rigs behave identically.
  */
 export function tickGazeEyeContact(
-  state:     GazeState,
-  delta:     number,
-  headBone:  THREE.Bone | null,
-  leftEye:   THREE.Bone | null,
-  rightEye:  THREE.Bone | null,
-  cameraPos: THREE.Vector3,
-  _saccadeX: number,
-  _saccadeY: number,
-  cfg:       GazeConfig = {},
+  state:      GazeState,
+  delta:      number,
+  headBone:   THREE.Bone | null,
+  leftEye:    THREE.Bone | null,
+  rightEye:   THREE.Bone | null,
+  cameraPos:  THREE.Vector3,
+  _saccadeX:  number,
+  _saccadeY:  number,
+  cfg:        GazeConfig = {},
+  driveBones: boolean = true,
 ): Record<string, number> {
   if (!headBone || !leftEye || !rightEye) return {}
 
@@ -492,26 +500,67 @@ export function tickGazeEyeContact(
   const lockSpeed  = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
   state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
 
-  // Clamp the aim to within `eyeLimit` of forward so the eyes never over-rotate.
-  let aim = toCam.clone()
-  if (angle > eyeLimit) {
-    const axis = new THREE.Vector3().crossVectors(fwd, toCam)
-    if (axis.lengthSq() > 1e-8) {
-      axis.normalize()
-      aim = fwd.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
+  if (driveBones) {
+    // ── CC4: rotate the eye bones directly ──────────────────────────────────
+    // Clamp the aim to within `eyeLimit` of forward so the eyes never over-rotate.
+    let aim = toCam.clone()
+    if (angle > eyeLimit) {
+      const axis = new THREE.Vector3().crossVectors(fwd, toCam)
+      if (axis.lengthSq() > 1e-8) {
+        axis.normalize()
+        aim = fwd.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
+      }
     }
+
+    // World-space delta that turns the rest-forward onto the aim, scaled by lock.
+    const fullDelta = new THREE.Quaternion().setFromUnitVectors(fwd, aim)
+    const worldDelta = new THREE.Quaternion().slerp(fullDelta, state.lockWeight)
+
+    // Apply to each eye bone: rotate its rest orientation by the world delta.
+    aimEyeBone(leftEye,  state.eyeRestL!,  worldDelta)
+    aimEyeBone(rightEye, state.eyeRestR!, worldDelta)
+
+    // Eyes are driven directly on the bones — no morph weights to return.
+    return {}
   }
 
-  // World-space delta that turns the rest-forward onto the aim, scaled by lock.
-  const fullDelta = new THREE.Quaternion().setFromUnitVectors(fwd, aim)
-  const worldDelta = new THREE.Quaternion().slerp(fullDelta, state.lockWeight)
+  // ── RPM/Avaturn: eyeball is morph-driven — emit ARKit eyeLook weights ──────
+  // Decompose the aim into signed yaw (around worldUp) and pitch (vertical),
+  // both relative to the face's forward direction.
+  //   yaw > 0  → camera is to the character's right  → char looks right
+  //   pitch > 0 → camera is above the eyes           → char looks up
+  const yaw   = Math.atan2(toCam.dot(right),   toCam.dot(fwd))
+  const pitch = Math.asin(THREE.MathUtils.clamp(toCam.dot(worldUp), -1, 1))
 
-  // Apply to each eye bone: rotate its rest orientation by the world delta.
-  aimEyeBone(leftEye,  state.eyeRestL!,  worldDelta)
-  aimEyeBone(rightEye, state.eyeRestR!, worldDelta)
+  // Smooth the eye direction for stability, then normalise to 0–1 morph weights
+  // where the socket limit maps to 1.0. Scale by lockWeight so the eyes ease
+  // back to neutral as the lock releases.
+  const eyeLerp = 1 - Math.exp(-acquireSpeed * delta)
+  state.eyeYaw   = THREE.MathUtils.lerp(state.eyeYaw,   yaw,   eyeLerp)
+  state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, pitch, eyeLerp)
 
-  // Eyes are driven directly on the bones — no morph weights to return.
-  return {}
+  if (state.lockWeight < 0.01) return {}
+
+  const normYaw   = THREE.MathUtils.clamp(state.eyeYaw   / eyeLimit, -1, 1) * state.lockWeight
+  const normPitch = THREE.MathUtils.clamp(state.eyePitch / eyeLimit, -1, 1) * state.lockWeight
+
+  // Anatomical convergence: looking right, the right eye rotates toward the
+  // temple (OUT) and the left eye toward the nose (IN); looking left, vice versa.
+  const lookRight = THREE.MathUtils.clamp( normYaw,   0, 1)
+  const lookLeft  = THREE.MathUtils.clamp(-normYaw,   0, 1)
+  const lookUp    = THREE.MathUtils.clamp( normPitch, 0, 1)
+  const lookDown  = THREE.MathUtils.clamp(-normPitch, 0, 1)
+
+  return {
+    eyeLookInLeft:    lookRight,
+    eyeLookOutLeft:   lookLeft,
+    eyeLookInRight:   lookLeft,
+    eyeLookOutRight:  lookRight,
+    eyeLookUpLeft:    lookUp,
+    eyeLookUpRight:   lookUp,
+    eyeLookDownLeft:  lookDown,
+    eyeLookDownRight: lookDown,
+  }
 }
 
 /**
