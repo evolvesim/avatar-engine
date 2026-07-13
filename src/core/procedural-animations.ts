@@ -512,8 +512,14 @@ export function tickGazeEyeContact(
   }
 
   // ── Off-forward angle (for the lock/release cone), measured at the eyes ────
+  // Use a PITCH/TURN-AWARE face forward, not the horizontal `fwd`: re-project the
+  // stored rest forward through the head's LIVE rotation (the same basis each
+  // eye's curLook uses). The horizontal `fwd` ignores head pitch, so a big up/down
+  // nod never grew the angle and the eyes never released on vertical head motion —
+  // only on left/right turns. This makes the release cone react to pitch too.
+  const faceFwd = (state.eyeFwdParentL ?? fwd).clone().applyQuaternion(lParentW).normalize()
   const toCam = cameraPos.clone().sub(mid).normalize()
-  const angle = Math.acos(THREE.MathUtils.clamp(fwd.dot(toCam), -1, 1))  // off-forward angle
+  const angle = Math.acos(THREE.MathUtils.clamp(faceFwd.dot(toCam), -1, 1))  // off-forward angle
 
   const targetLock = angle <= releaseAngle ? 1 : 0
   const lockSpeed  = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
