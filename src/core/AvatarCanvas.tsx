@@ -761,13 +761,13 @@ function AvatarScene({
     // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
     // world matrices are fully resolved for this frame.
     cameraPosRef.current.copy(camera.position)
-    // When the avatar exposes distinct eye bones (CC4 or RPM), use the
+    // When the avatar exposes distinct eye bones (CC4 or RPM/Avaturn), use the
     // eye-bone-derived eye-contact gaze — it needs no head-bone axis assumption
     // and aims at the real camera position, so eye direction follows the active
-    // camera preset. The eyeball is driven differently per rig: CC4 follows its
-    // bones (driveBones=true), RPM's eyeball is morph-driven so the same aim is
-    // emitted as ARKit eyeLook weights (driveBones=false). Only avatars with no
-    // eye bones at all fall back to the head-local ARKit gaze.
+    // camera preset. Both CC4 and RPM/Avaturn skin the eyeball mesh directly to
+    // the LeftEye/RightEye bones, so rotating those bones moves the eye — we
+    // drive the bones for both (driveBones=true). Only avatars with no eye bones
+    // at all fall back to the head-local ARKit-morph gaze.
     const gazeWeights = (leftEyeBone.current && rightEyeBone.current)
       ? tickGazeEyeContact(
           gazeState.current,
@@ -779,7 +779,7 @@ function AvatarScene({
           eyeRotationX,
           eyeRotationY,
           {},
-          isCC4Avatar,   // driveBones: CC4 rotates bones, RPM emits eyeLook morphs
+          true,   // driveBones: eyeball is skinned to the eye bones on CC4 & RPM
         )
       : tickGaze(
           gazeState.current,
