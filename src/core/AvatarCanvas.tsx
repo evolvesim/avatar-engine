@@ -778,7 +778,12 @@ function AvatarScene({
           cameraPosRef.current,
           eyeRotationX,
           eyeRotationY,
-          {},
+          // CC4's head turns with the animation, so its eyes travel a modest
+          // amount and 35° reads naturally. On RPM the head is locked facing
+          // forward (see step 10b), so the eyes do all the tracking — a full 35°
+          // then looks extreme. Give RPM a tighter socket so its eye contact
+          // stays comfortable while the head stays pinned.
+          isCC4Avatar ? {} : { eyeLimitYaw: 28 },
           true,   // driveBones: eyeball is skinned to the eye bones on CC4 & RPM
         )
       : tickGaze(
