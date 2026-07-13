@@ -778,10 +778,10 @@ function AvatarScene({
           cameraPosRef.current,
           eyeRotationX,
           eyeRotationY,
-          // 28° eye-travel socket for both characters. eyeLimitYaw is the single
+          // 25° eye-travel socket for both characters. eyeLimitYaw is the single
           // cone limit used by the eye-contact aim, so it caps travel equally in
           // every direction — side to side and up and down.
-          { eyeLimitYaw: 28 },
+          { eyeLimitYaw: 25 },
           true,   // driveBones: eyeball is skinned to the eye bones on CC4 & RPM
         )
       : tickGaze(
