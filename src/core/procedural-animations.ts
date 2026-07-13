@@ -257,6 +257,12 @@ export interface GazeState {
   eyeRestR?:     THREE.Quaternion
   eyeBoneLId?:   string
   eyeBoneRId?:   string
+  /** The face-forward direction expressed in each eye's PARENT-local space,
+   *  captured once. Re-applying the parent's live world rotation gives the eye's
+   *  current rest look direction, so the aim compensates for head pitch/turn
+   *  (the eye bones are children of the head and inherit its motion). */
+  eyeFwdParentL?: THREE.Vector3
+  eyeFwdParentR?: THREE.Vector3
 }
 
 export interface GazeConfig {
@@ -476,11 +482,6 @@ export function tickGazeEyeContact(
   const acquireSpeed = cfg.acquireSpeed ?? 8
   const releaseSpeed = cfg.releaseSpeed ?? 5
 
-  // ── Capture the eyes' rest LOCAL orientation once (mixer never drives them,
-  //    but we overwrite them each frame, so re-capture on an avatar swap). ───
-  if (state.eyeBoneLId !== leftEye.uuid)  { state.eyeRestL = leftEye.quaternion.clone();  state.eyeBoneLId = leftEye.uuid }
-  if (state.eyeBoneRId !== rightEye.uuid) { state.eyeRestR = rightEye.quaternion.clone(); state.eyeBoneRId = rightEye.uuid }
-
   // ── Face frame from eye/head world positions (axis-agnostic) ───────────────
   const lW = new THREE.Vector3(); leftEye.getWorldPosition(lW)
   const rW = new THREE.Vector3(); rightEye.getWorldPosition(rW)
@@ -492,7 +493,25 @@ export function tickGazeEyeContact(
   const fwd = new THREE.Vector3().crossVectors(worldUp, right).normalize()  // horizontal, out the face
   if (fwd.dot(mid.clone().sub(hW)) < 0) fwd.negate()    // ensure it points forward, not back
 
-  // ── Direction the eyes should look, clamped to the socket limit ────────────
+  // ── Capture per eye, once: the rest LOCAL orientation, plus the face-forward
+  //    expressed in the eye's PARENT-local space. Re-projecting that stored
+  //    vector through the parent's LIVE world rotation gives the eye's current
+  //    rest look direction — which follows the head's pitch/turn, so the aim
+  //    compensates for it instead of riding along with it. ───────────────────
+  const lParentW = new THREE.Quaternion(); if (leftEye.parent)  leftEye.parent.getWorldQuaternion(lParentW)
+  const rParentW = new THREE.Quaternion(); if (rightEye.parent) rightEye.parent.getWorldQuaternion(rParentW)
+  if (state.eyeBoneLId !== leftEye.uuid) {
+    state.eyeRestL      = leftEye.quaternion.clone()
+    state.eyeFwdParentL = fwd.clone().applyQuaternion(lParentW.clone().invert())
+    state.eyeBoneLId    = leftEye.uuid
+  }
+  if (state.eyeBoneRId !== rightEye.uuid) {
+    state.eyeRestR      = rightEye.quaternion.clone()
+    state.eyeFwdParentR = fwd.clone().applyQuaternion(rParentW.clone().invert())
+    state.eyeBoneRId    = rightEye.uuid
+  }
+
+  // ── Off-forward angle (for the lock/release cone), measured at the eyes ────
   const toCam = cameraPos.clone().sub(mid).normalize()
   const angle = Math.acos(THREE.MathUtils.clamp(fwd.dot(toCam), -1, 1))  // off-forward angle
 
@@ -501,24 +520,11 @@ export function tickGazeEyeContact(
   state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
 
   if (driveBones) {
-    // ── CC4: rotate the eye bones directly ──────────────────────────────────
-    // Clamp the aim to within `eyeLimit` of forward so the eyes never over-rotate.
-    let aim = toCam.clone()
-    if (angle > eyeLimit) {
-      const axis = new THREE.Vector3().crossVectors(fwd, toCam)
-      if (axis.lengthSq() > 1e-8) {
-        axis.normalize()
-        aim = fwd.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
-      }
-    }
-
-    // World-space delta that turns the rest-forward onto the aim, scaled by lock.
-    const fullDelta = new THREE.Quaternion().setFromUnitVectors(fwd, aim)
-    const worldDelta = new THREE.Quaternion().slerp(fullDelta, state.lockWeight)
-
-    // Apply to each eye bone: rotate its rest orientation by the world delta.
-    aimEyeBone(leftEye,  state.eyeRestL!,  worldDelta)
-    aimEyeBone(rightEye, state.eyeRestR!, worldDelta)
+    // ── CC4 & RPM: rotate the eye bones directly ────────────────────────────
+    // Each eye aims at the camera from its OWN position (natural convergence),
+    // starting from its live rest look direction so head pitch is compensated.
+    aimEyeAtCamera(leftEye,  state.eyeRestL!, state.eyeFwdParentL!, lParentW, cameraPos, eyeLimit, state.lockWeight)
+    aimEyeAtCamera(rightEye, state.eyeRestR!, state.eyeFwdParentR!, rParentW, cameraPos, eyeLimit, state.lockWeight)
 
     // Eyes are driven directly on the bones — no morph weights to return.
     return {}
@@ -564,20 +570,47 @@ export function tickGazeEyeContact(
 }
 
 /**
- * Point one eye bone by applying a WORLD-space delta rotation to its rest
- * orientation, then converting the result back into the bone's local space.
- * Rotating the rest (not the current, already-aimed) orientation keeps it
- * stable frame to frame and correct as the head moves.
+ * Point one eye bone at the camera from its own world position.
+ *
+ * The eye's current rest look direction is the stored parent-local forward
+ * projected through the parent's LIVE world rotation, so it already tracks the
+ * head's pitch/turn. We rotate FROM that live look direction TO the camera
+ * direction — so a nodded-down head makes the eye rotate back UP to hold the
+ * viewer, instead of riding down with the head. The turn is clamped to the
+ * socket limit and scaled by the lock weight, then written to the bone local.
  */
-function aimEyeBone(
-  eye:        THREE.Bone,
-  restLocal:  THREE.Quaternion,
-  worldDelta: THREE.Quaternion,
+function aimEyeAtCamera(
+  eye:         THREE.Bone,
+  restLocal:   THREE.Quaternion,
+  fwdParent:   THREE.Vector3,
+  parentWorld: THREE.Quaternion,
+  cameraPos:   THREE.Vector3,
+  eyeLimit:    number,
+  lockWeight:  number,
 ): void {
-  const parentWorld = new THREE.Quaternion()
-  if (eye.parent) eye.parent.getWorldQuaternion(parentWorld)   // forces parent world matrix update
-  const restWorld   = parentWorld.clone().multiply(restLocal)  // eye's rest orientation in world
-  const targetWorld = worldDelta.clone().multiply(restWorld)   // apply the world-space turn
+  const restWorld = parentWorld.clone().multiply(restLocal)     // eye's rest orientation in world
+  // Live rest look direction — follows the head because it rides the parent.
+  const curLook = fwdParent.clone().applyQuaternion(parentWorld).normalize()
+
+  const eyePos = new THREE.Vector3(); eye.getWorldPosition(eyePos)
+  const toCam  = cameraPos.clone().sub(eyePos).normalize()
+
+  // Clamp the aim to within `eyeLimit` of the current look so the eye never
+  // over-rotates past its socket (e.g. a strongly pitched head it can't fully
+  // catch up to — it turns as far as it can and the rest follows).
+  const ang = Math.acos(THREE.MathUtils.clamp(curLook.dot(toCam), -1, 1))
+  let aim = toCam
+  if (ang > eyeLimit) {
+    const axis = new THREE.Vector3().crossVectors(curLook, toCam)
+    if (axis.lengthSq() > 1e-8) {
+      axis.normalize()
+      aim = curLook.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
+    }
+  }
+
+  const fullDelta  = new THREE.Quaternion().setFromUnitVectors(curLook, aim)
+  const worldDelta = new THREE.Quaternion().slerp(fullDelta, lockWeight)  // scale by lock
+  const targetWorld = worldDelta.clone().multiply(restWorld)
   const localTarget = parentWorld.clone().invert().multiply(targetWorld)
   eye.quaternion.copy(localTarget)
 }
