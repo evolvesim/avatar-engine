@@ -236,6 +236,37 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
   ],
 }
 
+// ── CC4 (ActorCore CC_Base_* skeleton) sliced-pack idles ──────────────────────
+// The v3 CC4 packs carry their own idle slices; none of the RPM names above
+// exist in a CC4 dictionary, so without these entries every pool filters to
+// empty and the fallback grabs the FIRST dict clip — which can be an energetic
+// "random idle". Only the calm ambient stands belong here; the quirky ones
+// (elderly, bartender, random_02, short move-idles) stay gesture-only.
+const CC4_IDLES_CALM = [
+  'cc4_c_stand_idle_166534', // short, subtle stand — the preferred default
+  'cc4_c_idle_251105',
+  'cc4_c_idle_251087',
+  'cc4_c_idle_378963',
+  'cc4_c_stand_idle_279386',
+  'cc4_m_breathing',
+  'cc4_m_idle_279398',
+  'cc4_f_breathing',
+]
+// Slightly warmer/looser idles for the positive/receptive registers.
+const CC4_IDLES_RELAXED = [
+  'cc4_c_relax_378947',
+  'cc4_m_chat_relax',
+  'cc4_f_chat_listen',
+]
+EMOTION_IDLE_POOLS.neutral.push(...CC4_IDLES_CALM, ...CC4_IDLES_RELAXED)
+EMOTION_IDLE_POOLS.happy.push(...CC4_IDLES_CALM, ...CC4_IDLES_RELAXED)
+EMOTION_IDLE_POOLS.empathy.push(...CC4_IDLES_CALM, ...CC4_IDLES_RELAXED)
+EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_CALM, ...CC4_IDLES_RELAXED)
+EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_CALM)
+EMOTION_IDLE_POOLS.surprise.push(...CC4_IDLES_CALM)
+EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_CALM)
+EMOTION_IDLE_POOLS.tension.push(...CC4_IDLES_CALM)
+
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
 function logArmBoneQuats(label: string, root: THREE.Object3D): void {
@@ -366,14 +397,49 @@ function rebindSkeletons(root: THREE.Object3D): void {
   )
 }
 
+// Hips/root bone across supported skeletons: RPM/Mixamo "Hips"/"mixamorigHips",
+// CC4 "CC_Base_Hip". Anchored so e.g. "LeftHipCloth" never matches.
+const HIPS_BONE_RE = /^(mixamorig:?)?hips$|^cc_base_hip$/i
+
 function retargetClipToUUIDs(
   clip: THREE.AnimationClip,
-  avatarRoot: THREE.Object3D
+  avatarRoot: THREE.Object3D,
+  avatarHipsRestY?: number | null
 ): { clip: THREE.AnimationClip; bound: number; missed: number } {
   const nameToUUID = new Map<string, string>()
   avatarRoot.traverse((obj) => {
     if (obj.name) nameToUUID.set(obj.name.toLowerCase(), obj.uuid)
   })
+
+  // Hip-height scale: donor position tracks carry the DONOR's hip height, so a
+  // shorter/taller avatar visibly sinks or floats the moment a clip plays
+  // (~10cm drop seen with a 1.74m CC3 avatar on the pack donor). Scale hip
+  // position values by avatarRestHipY / donorFirstKeyHipY. Rotations and
+  // non-hip tracks are unaffected.
+  let hipsScale = 1
+  if (avatarHipsRestY != null && avatarHipsRestY > 0.2) {
+    for (const track of clip.tracks) {
+      const dotIdx = track.name.lastIndexOf('.')
+      if (track.name.slice(dotIdx) !== '.position') continue
+      const boneName = track.name.slice(0, dotIdx).replace(/_\d+$/, '')
+      if (!HIPS_BONE_RE.test(boneName)) continue
+      const donorY = track.values[1] // first key Y
+      if (Number.isFinite(donorY) && donorY > 0.2) {
+        hipsScale = Math.min(2, Math.max(0.5, avatarHipsRestY / donorY))
+      }
+      break
+    }
+    if (hipsScale !== 1) {
+      for (const track of clip.tracks) {
+        const dotIdx = track.name.lastIndexOf('.')
+        if (track.name.slice(dotIdx) !== '.position') continue
+        const boneName = track.name.slice(0, dotIdx).replace(/_\d+$/, '')
+        if (!HIPS_BONE_RE.test(boneName)) continue
+        for (let i = 0; i < track.values.length; i++) track.values[i] *= hipsScale
+      }
+      console.log(`[retargetClipToUUIDs] "${clip.name}": hips position scaled ×${hipsScale.toFixed(3)}`)
+    }
+  }
 
   let bound = 0, missed = 0
   const missedNames: string[] = []
@@ -425,6 +491,9 @@ export class SkeletalController {
 
   private dictionary:        AnimationDictionary
   private avatarRoot:        THREE.Object3D | null = null
+  /** Avatar's rest (bind-pose) hip local Y, captured at init for hip-height
+   *  scaling during clip retargets. null when no hips bone was found. */
+  private avatarHipsRestY:   number | null = null
   private pendingCues:       GestureCue[] = []
   private wordCounter:       number       = 0
   private currentEmotion:    EmotionId    = 'neutral'
@@ -463,7 +532,19 @@ export class SkeletalController {
 
     this.mixer      = new THREE.AnimationMixer(avatarRoot)
     this.avatarRoot = avatarRoot
-    console.log('[SkeletalController] init 0.5.2 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)')
+    // Capture the avatar's REST hip height (local Y, pre-animation) so clip
+    // retargets can scale donor hip-position tracks to this avatar's legs.
+    // Captured at init — later retargets happen mid-animation when the live
+    // hip Y already carries the donor's height and would poison the ratio.
+    let hipsRestY: number | null = null
+    avatarRoot.traverse((obj) => {
+      if (hipsRestY == null && HIPS_BONE_RE.test(obj.name)) {
+        hipsRestY = obj.position.y
+      }
+    })
+    this.avatarHipsRestY = hipsRestY
+    console.log('[SkeletalController] init 0.5.2 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)',
+      hipsRestY != null ? `hipsRestY=${(hipsRestY as number).toFixed(3)}` : '(no hips bone)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
@@ -570,7 +651,7 @@ export class SkeletalController {
     if (cached) return cached
     const cloned = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(clip))
     cloned.uuid = THREE.MathUtils.generateUUID()
-    const { bound } = retargetClipToUUIDs(cloned, this.avatarRoot!)
+    const { bound } = retargetClipToUUIDs(cloned, this.avatarRoot!, this.avatarHipsRestY)
     if (bound === 0) {
       console.warn(
         `[SkeletalController] Clip "${clip.name}" bound 0 tracks to avatar — ` +
@@ -680,6 +761,10 @@ export class SkeletalController {
     // to a race between the initial load and a subsequent loadPack call).
     const available = pool.filter(id => !!this.dictionary.get(id))
     const source    = available.length > 0 ? available : pool  // fallback: unfiltered (let _tryStartIdle handle miss)
+    // First idle of a session is deterministic: pools are curated best-first,
+    // so the opening pose is always the preferred calm stand rather than a
+    // random draw (which could open on the liveliest clip in the pool).
+    if (!this.currentIdleClipId && source.length > 0) return source[0]
     if (source.length === 1) return source[0]
     const candidates = source.filter(id => id !== this.currentIdleClipId)
     const pick = candidates.length > 0 ? candidates : source
@@ -795,7 +880,7 @@ export class SkeletalController {
     // returning a cached already-played action for the same clip).
     const gestureClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(entry.clip))
     gestureClip.uuid  = THREE.MathUtils.generateUUID()
-    const { bound: gestureBound } = retargetClipToUUIDs(gestureClip, this.avatarRoot!)
+    const { bound: gestureBound } = retargetClipToUUIDs(gestureClip, this.avatarRoot!, this.avatarHipsRestY)
     if (gestureBound === 0) {
       console.warn(
         `[SkeletalController] Gesture "${animId}" bound 0 tracks — cross-skeleton mismatch. Aborting play.`
