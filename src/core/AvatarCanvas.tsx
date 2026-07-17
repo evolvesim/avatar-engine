@@ -52,6 +52,7 @@ import React, {
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -77,6 +78,7 @@ import {
   tickRespiration,
   tickHeadTracking,
   tickGaze,
+  tickGazeEyeContact,
   fixTPose,
   findBone,
 } from './procedural-animations'
@@ -326,7 +328,36 @@ function AvatarScene({
     return bodyGltf
   }, [bodyGltf, donorGltf, mergeFaceRigMode])
 
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf])
+  // ── Per-mount working copy of the template scene ──────────────────────────
+  // useLoader caches the parsed GLTF by URL for the whole SPA session, and
+  // everything below MUTATES its scene: rebindSkeletons rewrites
+  // skeleton.bones, the mixer animates the bones, bodyRotationY is written
+  // every frame. Doing that to the cached template poisons the NEXT load of
+  // the same URL (switch away and back, or Sim Creator → sim navigation): the
+  // second clone inherits a skeleton wired to the previous mount's orphaned
+  // bones and the avatar renders as stretched spikes.
+  //
+  // Fix: deep-copy the template once per mount (SkeletonUtils.clone gives the
+  // copy its own bones AND its own Skeleton), then restore the file's EXACT
+  // bindMatrix/bindMatrixInverse pairs — SkeletonUtils calls bind(), which
+  // recomputes bindMatrixInverse as a true inverse, but the CC4 bindMatrix
+  // mismatch detection in rebindSkeletons must see the original (possibly
+  // inconsistent) pair from the file to apply its fix, exactly as it does on
+  // a first pristine load. The cached template itself is never mutated again.
+  const workingScene = useMemo(() => {
+    const copy = cloneWithSkeleton(gltf.scene) as THREE.Group
+    const srcMeshes: THREE.SkinnedMesh[] = []
+    const dstMeshes: THREE.SkinnedMesh[] = []
+    gltf.scene.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) srcMeshes.push(o as THREE.SkinnedMesh) })
+    copy.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) dstMeshes.push(o as THREE.SkinnedMesh) })
+    for (let i = 0; i < dstMeshes.length && i < srcMeshes.length; i++) {
+      dstMeshes[i].bindMatrix.copy(srcMeshes[i].bindMatrix)
+      dstMeshes[i].bindMatrixInverse.copy(srcMeshes[i].bindMatrixInverse)
+    }
+    return copy
+  }, [gltf])
+
+  const scene = useMemo(() => workingScene.clone(true), [workingScene])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── R3F camera (for VOR gaze) ─────────────────────────────────────────────
@@ -335,8 +366,8 @@ function AvatarScene({
   // ── Compute effective Y offset (auto-calibrate or supplied) ────────────────
   const effectiveYOffset = useMemo(() => {
     if (!autoCalibrate) return avatarYOffset
-    gltf.scene.updateMatrixWorld(true)
-    const head = findHeadBoneByNames(gltf.scene)
+    workingScene.updateMatrixWorld(true)
+    const head = findHeadBoneByNames(workingScene)
     if (!head) {
       console.warn(
         '[AvatarCanvas] autoCalibrate: no head bone found (tried head/mixamorigHead/Bip001_Head). ' +
@@ -361,6 +392,8 @@ function AvatarScene({
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
   const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven original scene bone
+  const leftEyeBone      = useRef<THREE.Bone | null>(null)  // for eye-contact gaze (CC4)
+  const rightEyeBone     = useRef<THREE.Bone | null>(null)
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
@@ -505,18 +538,27 @@ function AvatarScene({
       fixTPose(scene)
     }
 
-    // Initialise skeletal controller with the ORIGINAL gltf.scene — the mixer
-    // drives the original bones, and the cloned SkinnedMesh.skeleton still
-    // references those same bones (shared skeleton), so the clone renders with
-    // correct world positions while the avatarYOffset is applied only to the
-    // clone's root primitive.
+    // Initialise skeletal controller with the per-mount workingScene — the
+    // mixer drives ITS bones, and the rendered clone's SkinnedMesh.skeleton
+    // still references those same bones (shared skeleton within this mount),
+    // so the clone renders with correct world positions while the
+    // avatarYOffset is applied only to the clone's root primitive. The
+    // loader-cached template is never driven or mutated.
     console.info('[AvatarCanvas] init — clips count:', clips.length, clips.map(c=>c.name))
-    engine.skeletal.init(gltf.scene, clips)
-    // Collect the head bone from the ORIGINAL scene (mixer-driven) for gaze.
-    // The cloned scene's bones are not driven by the mixer so their world
-    // matrices never update — tickGaze must read from gltf.scene.
-    headBoneOriginal.current = findBone(gltf.scene, 'Head')
-    console.info('[AvatarCanvas] headBoneOriginal:', headBoneOriginal.current?.name ?? 'NOT FOUND')
+    engine.skeletal.init(workingScene, clips)
+    // Collect the head + eye bones from the WORKING scene (mixer-driven) for
+    // gaze. The rendered clone's bones are not driven by the mixer so their
+    // world matrices never update — gaze must read from workingScene. Fall
+    // back to the CC4 (`CC_Base_*`) names so eye contact works on CC4 avatars
+    // too, whose head bone is `CC_Base_Head` rather than `Head`.
+    headBoneOriginal.current = findBone(workingScene, 'Head') ?? findBone(workingScene, 'CC_Base_Head')
+    leftEyeBone.current  = findBone(workingScene, 'LeftEye')  ?? findBone(workingScene, 'CC_Base_L_Eye')
+    rightEyeBone.current = findBone(workingScene, 'RightEye') ?? findBone(workingScene, 'CC_Base_R_Eye')
+    console.info('[AvatarCanvas] gaze bones:', {
+      head:  headBoneOriginal.current?.name ?? 'NONE',
+      lEye:  leftEyeBone.current?.name ?? 'NONE',
+      rEye:  rightEyeBone.current?.name ?? 'NONE',
+    })
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
@@ -665,7 +707,11 @@ function AvatarScene({
     const emotionWeights = engine.emotion.effectiveWeights(isSpeaking)
 
     // ── 4. Procedural layer (blink, saccades) ─────────────────────────────
-    const { blinkWeights, eyeRotationX, eyeRotationY } = tickOcularMechanics(ocular.current, delta)
+    // The rest lid-lower is a CC4-only relax (its neutral eye is wide/staring);
+    // Avaturn/RPM eyes are already relaxed, so pass restLid=0 to leave them be.
+    const isCC4Avatar = headBoneOriginal.current?.name === 'CC_Base_Head'
+    const { blinkWeights, eyeRotationX, eyeRotationY } =
+      tickOcularMechanics(ocular.current, delta, isCC4Avatar ? undefined : 0)
 
     // ── 5. Additive blend: emotion + viseme + procedural ───────────────────
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
@@ -681,6 +727,12 @@ function AvatarScene({
       if (val > 0 || (currentWeights.current[name] ?? 0) > 0) {
         currentWeights.current[name] = val
       }
+    }
+    // Apply the blink lids directly — a blink is a fast ~80ms motion (already
+    // ramped in tickOcularMechanics) and the weight lerp above would damp it so
+    // the eyes never fully close. Overwrite after the lerp, like visemes.
+    for (const [name, val] of Object.entries(blinkWeights)) {
+      currentWeights.current[name] = val
     }
 
     // ── 7. (morph targets applied after gaze — see step 10d) ────────────
@@ -740,14 +792,37 @@ function AvatarScene({
     // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
     // world matrices are fully resolved for this frame.
     cameraPosRef.current.copy(camera.position)
-    const gazeWeights = tickGaze(
-      gazeState.current,
-      delta,
-      headBoneOriginal.current,   // original scene — mixer keeps world matrix current
-      cameraPosRef.current,
-      eyeRotationX,
-      eyeRotationY,
-    )
+    // When the avatar exposes distinct eye bones (CC4 or RPM/Avaturn), use the
+    // eye-bone-derived eye-contact gaze — it needs no head-bone axis assumption
+    // and aims at the real camera position, so eye direction follows the active
+    // camera preset. Both CC4 and RPM/Avaturn skin the eyeball mesh directly to
+    // the LeftEye/RightEye bones, so rotating those bones moves the eye — we
+    // drive the bones for both (driveBones=true). Only avatars with no eye bones
+    // at all fall back to the head-local ARKit-morph gaze.
+    const gazeWeights = (leftEyeBone.current && rightEyeBone.current)
+      ? tickGazeEyeContact(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,
+          leftEyeBone.current,
+          rightEyeBone.current,
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+          // 25° eye-travel socket for both characters. eyeLimitYaw is the single
+          // cone limit used by the eye-contact aim, so it caps travel equally in
+          // every direction — side to side and up and down.
+          { eyeLimitYaw: 25 },
+          true,   // driveBones: eyeball is skinned to the eye bones on CC4 & RPM
+        )
+      : tickGaze(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,   // original scene — mixer keeps world matrix current
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+        )
 
     // ── 10d. Apply gaze weights + paint morph targets ───────────────────
     // Merge gaze blendshape weights into currentWeights THEN apply to mesh,
@@ -764,11 +839,11 @@ function AvatarScene({
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
     // after useEffect when using <primitive> without a position prop.
-    // Also apply bodyRotationY to the original gltf.scene so bone world
-    // matrices include the intended facing direction.
+    // Also apply bodyRotationY to the mixer-driven workingScene so bone
+    // world matrices include the intended facing direction.
     scene.position.set(avatarXOffset, effectiveYOffset, 0)
-    gltf.scene.rotation.y = bodyRotationY
-    gltf.scene.updateMatrixWorld(true)
+    workingScene.rotation.y = bodyRotationY
+    workingScene.updateMatrixWorld(true)
   })
 
   return (
