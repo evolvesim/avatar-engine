@@ -423,9 +423,12 @@ function retargetClipToUUIDs(
       if (track.name.slice(dotIdx) !== '.position') continue
       const boneName = track.name.slice(0, dotIdx).replace(/_\d+$/, '')
       if (!HIPS_BONE_RE.test(boneName)) continue
-      const donorY = track.values[1] // first key Y
-      if (Number.isFinite(donorY) && donorY > 0.2) {
-        hipsScale = Math.min(2, Math.max(0.5, avatarHipsRestY / donorY))
+      // Compare translation MAGNITUDES, not a fixed axis: RPM/Mixamo hips are
+      // Y-up in bone-local space, but the CC4 bone root is rotated -90°X so
+      // its hip height lives in local Z ((0, 0, 0.976) for the pack donor).
+      const donorLen = Math.hypot(track.values[0] ?? 0, track.values[1] ?? 0, track.values[2] ?? 0)
+      if (Number.isFinite(donorLen) && donorLen > 0.2) {
+        hipsScale = Math.min(2, Math.max(0.5, avatarHipsRestY / donorLen))
       }
       break
     }
@@ -536,15 +539,17 @@ export class SkeletalController {
     // retargets can scale donor hip-position tracks to this avatar's legs.
     // Captured at init — later retargets happen mid-animation when the live
     // hip Y already carries the donor's height and would poison the ratio.
+    // Magnitude, not .y: CC4's bone root is Z-up, so its hip height lives in
+    // local Z; RPM/Mixamo hips live in local Y. Length covers both.
     let hipsRestY: number | null = null
     avatarRoot.traverse((obj) => {
       if (hipsRestY == null && HIPS_BONE_RE.test(obj.name)) {
-        hipsRestY = obj.position.y
+        hipsRestY = obj.position.length()
       }
     })
     this.avatarHipsRestY = hipsRestY
-    console.log('[SkeletalController] init 0.5.2 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)',
-      hipsRestY != null ? `hipsRestY=${(hipsRestY as number).toFixed(3)}` : '(no hips bone)')
+    console.log('[SkeletalController] init 0.5.18 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)',
+      hipsRestY != null ? `hipsRest=${(hipsRestY as number).toFixed(3)}` : '(no hips bone)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
     // Verify there are no embedded clips that could interfere.
