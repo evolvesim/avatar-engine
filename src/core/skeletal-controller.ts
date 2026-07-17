@@ -351,6 +351,10 @@ function rebindSkeletons(root: THREE.Object3D): void {
   root.traverse((obj) => {
     const mesh = obj as THREE.SkinnedMesh
     if (!mesh.isSkinnedMesh || !mesh.skeleton) return
+    // NOTE: this rewrites skeleton.bones in place. The tree passed here must be
+    // a PER-MOUNT copy (AvatarCanvas clones the loader-cached template before
+    // init) — never the GLTFLoader URL-cached scene itself, or the mutation
+    // poisons every later load of the same URL. See AvatarScene.
     mesh.skeleton.bones = mesh.skeleton.bones.map((originalBone) => {
       const cloned = boneMap.get(originalBone.name) as THREE.Bone | undefined
       if (cloned && cloned !== originalBone) {
@@ -548,7 +552,7 @@ export class SkeletalController {
       }
     })
     this.avatarHipsRestY = hipsRestY
-    console.log('[SkeletalController] init 0.5.18 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)',
+    console.log('[SkeletalController] init 0.5.20 (rebindSkeletons + bindMatrix fix + CC4 native) —', avatarRoot.name || '(unnamed)',
       hipsRestY != null ? `hipsRest=${(hipsRestY as number).toFixed(3)}` : '(no hips bone)')
 
     // No avaturn_animation lookup — this is the T-pose GLB with no embedded anim.
