@@ -190,12 +190,25 @@ export function applyWeightsToMeshes(
 ): void {
   for (const mesh of Object.values(meshRefs)) {
     if (!mesh?.morphTargetDictionary || !mesh.morphTargetInfluences) continue
+    // CC4 aliasing is many-ARKit-names-to-one-CC4-morph (e.g. `viseme_aa` AND
+    // `mouthOpen` both land on `V_Open`; `viseme_O`/`viseme_U`/`viseme_RR` all
+    // land on `V_Tight_O`). A plain per-name assignment lets whichever aliased
+    // key happens to be enumerated last clobber the earlier one — a weak 0.16
+    // support shape silently overwrote the 0.52 primary vowel every frame,
+    // which is why CC4 mouths barely moved. Resolve every name first, keep the
+    // strongest weight per morph index, then write once. On ARKit/Avaturn
+    // rigs every name is a distinct index, so this is behaviour-identical.
+    const resolved = new Map<number, number>()
     for (const [name, value] of Object.entries(weights)) {
       const indices = resolveMorphIndices(mesh, name)
       const v = value ?? 0
       for (const idx of indices) {
-        mesh.morphTargetInfluences[idx] = v
+        const prev = resolved.get(idx)
+        if (prev === undefined || v > prev) resolved.set(idx, v)
       }
+    }
+    for (const [idx, v] of resolved) {
+      mesh.morphTargetInfluences[idx] = v
     }
   }
 }

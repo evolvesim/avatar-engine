@@ -34,6 +34,7 @@
 //     that reach the browser without going through processGlb.
 
 import * as THREE from 'three'
+import { isCC4Dictionary } from './cc4-morph-alias'
 
 /**
  * Structural GLTF type — we only depend on `scene` and `animations`, the two
@@ -79,8 +80,13 @@ const VISEME_PROBE_KEYS = ['viseme_aa', 'jawOpen', 'mouthSmileLeft']
 
 /**
  * Returns true when the given (loaded) GLB scene already contains a SkinnedMesh
- * with ARKit-style blendshapes. When false, the caller should merge the donor
- * face rig before initialising the engine.
+ * with ARKit-style blendshapes OR a CC4 Standard morph dictionary. When false,
+ * the caller should merge the donor face rig before initialising the engine.
+ *
+ * CC4 exports carry a complete native face rig (V_* visemes, Jaw_Open,
+ * Eye_Blink_L…) that the engine drives through the CC4 alias layer — merging
+ * the Avaturn donor face onto them would graft a second, mismatched head. So
+ * `mergeFaceRig: 'auto'` must treat CC4 as already-rigged.
  */
 export function hasFaceRig(scene: THREE.Object3D): boolean {
   let found = false
@@ -93,6 +99,7 @@ export function hasFaceRig(scene: THREE.Object3D): boolean {
     for (const key of VISEME_PROBE_KEYS) {
       if (key in dict) { found = true; return }
     }
+    if (isCC4Dictionary(dict)) { found = true }
   })
   return found
 }

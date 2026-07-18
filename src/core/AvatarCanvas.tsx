@@ -264,6 +264,12 @@ const mergedBodies = new WeakSet<object>()
 // putting the head at the camera's look-at point and framing it correctly.
 const CAMERA_TARGET_Y = 0.1
 
+// CC4 bone-assisted jaw: radians of jaw-bone pitch per unit of `jawOpen` weight.
+// jawOpen peaks at ~0.30 for open vowels, so the bone contributes ~6° of chin
+// drop at full open — a natural speech jaw excursion on top of the Jaw_Open
+// morph, well short of a yawn.
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.35
+
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
   root.traverse((obj) => {
@@ -364,6 +370,22 @@ function AvatarScene({
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
+
+  // ── CC4 jaw bone assist ────────────────────────────────────────────────────
+  // CC4 exports skin the chin/lower-lip region AND the lower-teeth/tongue meshes
+  // to the `CC_Base_JawRoot` BONE — the `Jaw_Open` morph moves the skin but the
+  // teeth meshes carry no morph targets at all, so a morph-only jaw reads as
+  // talking through clenched teeth. During speech we rotate the jaw bone (on the
+  // mixer-driven ORIGINAL scene — the clone's SkinnedMeshes deform from those
+  // bones) in proportion to the engine's `jawOpen` weight so chin, lower teeth
+  // and tongue drop together. Avaturn/RPM rigs have no CC_Base_JawRoot, so this
+  // is inert for them.
+  const jawBoneOriginal = useRef<THREE.Bone | null>(null)
+  const jawRestQuat     = useRef<THREE.Quaternion | null>(null)
+  // The jaw's hinge axis (the avatar's left-right axis) expressed in the jaw
+  // bone's PARENT space, captured once at rest. Anatomically fixed relative to
+  // the skull, so it stays valid while the head animates.
+  const jawHingeAxis    = useRef<THREE.Vector3 | null>(null)
 
 
   // ── Bind-pose flash guard ──────────────────────────────────────────────────
@@ -516,6 +538,25 @@ function AvatarScene({
     // The cloned scene's bones are not driven by the mixer so their world
     // matrices never update — tickGaze must read from gltf.scene.
     headBoneOriginal.current = findBone(gltf.scene, 'Head')
+
+    // CC4 jaw bone (original scene — the skin-driving skeleton). Capture the
+    // rest pose and the hinge axis: the avatar's left-right axis (world X at
+    // rest, before bodyRotationY is applied in the frame loop) expressed in the
+    // jaw bone's parent space. Rotating about that axis pitches the chin down.
+    const jaw = findBone(gltf.scene, 'CC_Base_JawRoot')
+    jawBoneOriginal.current = jaw
+    if (jaw && jaw.parent) {
+      gltf.scene.updateMatrixWorld(true)
+      const parentWorldQuat = jaw.parent.getWorldQuaternion(new THREE.Quaternion())
+      jawHingeAxis.current = new THREE.Vector3(1, 0, 0)
+        .applyQuaternion(parentWorldQuat.invert())
+        .normalize()
+      jawRestQuat.current = jaw.quaternion.clone()
+      console.info('[AvatarCanvas] CC4 jaw bone found — bone-assisted jaw enabled')
+    } else {
+      jawHingeAxis.current = null
+      jawRestQuat.current = null
+    }
     console.info('[AvatarCanvas] headBoneOriginal:', headBoneOriginal.current?.name ?? 'NOT FOUND')
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
@@ -726,6 +767,25 @@ function AvatarScene({
       } else {
         // Phase B: hard-zero yaw every frame after mixer — mixer cannot win
         bone.quaternion.copy(targetQ)
+      }
+    }
+
+    // ── 10b². CC4 bone-assisted jaw ─────────────────────────────────────────
+    // Rotate CC_Base_JawRoot about its (rest-captured) hinge axis in proportion
+    // to the current jawOpen weight, on top of the rest pose. Runs AFTER the
+    // mixer so a body clip can never freeze the jaw shut; inert on non-CC4 rigs
+    // (no jaw bone found). The Jaw_Open MORPH still fires through the alias
+    // layer — the bone adds the chin/teeth/tongue drop the morph cannot give.
+    if (jawBoneOriginal.current && jawRestQuat.current && jawHingeAxis.current) {
+      const jawOpen = currentWeights.current['jawOpen'] ?? 0
+      const bone = jawBoneOriginal.current
+      bone.quaternion.copy(jawRestQuat.current)
+      if (jawOpen > 0.001) {
+        const deltaQ = new THREE.Quaternion().setFromAxisAngle(
+          jawHingeAxis.current,
+          jawOpen * CC4_JAW_BONE_RAD_PER_WEIGHT,
+        )
+        bone.quaternion.premultiply(deltaQ)
       }
     }
 
