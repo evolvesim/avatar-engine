@@ -21,13 +21,13 @@ describe('VirtualDirector', () => {
 
   it('parses a valid LLM response', async () => {
     mockFetch(JSON.stringify({
-      base_emotion: 'joy',
+      base_emotion: 'happy',
       emotion_intensity: 0.6,
       gesture_cues: [],
     }))
     const vd = new VirtualDirector({ endpoint: 'x', apiKey: 'y' }, [])
     const result = await vd.analyse('hello there')
-    expect(result.base_emotion).toBe('joy')
+    expect(result.base_emotion).toBe('happy')
     expect(result.emotion_intensity).toBeCloseTo(0.6, 5)
   })
 

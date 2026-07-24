@@ -20,8 +20,8 @@
  *   - SkeletalAnimationController.queue() (gesture cues)
  *   - talking alias selection             (which talking clip plays during TTS)
  *
- * Emotion taxonomy (v0.3.86 — 8 emotions):
- *   neutral, happy, sadness, surprise, empathy, thoughtful, displeasure, tension
+ * Emotion palette (v0.5.34 — 7 emotions; empathy is face-only):
+ *   neutral, happy, thoughtful, sadness, displeasure, shy, empathy
  *
  * Expression persistence model:
  *   - set_expression is a PERSISTENT state — it stays on the avatar's face
@@ -61,8 +61,7 @@ const PerformanceDataSchema = z.object({
    * Stays active until the next Virtual Director call changes it.
    */
   base_emotion:      z.enum([
-    'neutral', 'happy', 'sadness', 'surprise',
-    'empathy', 'thoughtful', 'displeasure', 'tension',
+    'neutral', 'happy', 'thoughtful', 'sadness', 'displeasure', 'shy', 'empathy',
   ]),
   /**
    * Scalar intensity multiplier 0.0–1.0.
@@ -87,8 +86,7 @@ const PerformanceDataSchema = z.object({
    * The expression stays on the face until the next set_expression call.
    */
   set_expression: z.enum([
-    'neutral', 'happy', 'sadness', 'surprise',
-    'empathy', 'thoughtful', 'displeasure', 'tension',
+    'neutral', 'happy', 'thoughtful', 'sadness', 'displeasure', 'shy', 'empathy',
   ]).nullable().optional(),
 
   /**
@@ -182,15 +180,18 @@ export class VirtualDirector {
       ?? `You are a Virtual Director for a real-time 3D avatar system. Your only job is to analyse dialogue and output a JSON performance script.`
     return `${intro}
 
-━━━ EMOTION TAXONOMY (8 emotions — use exact string) ━━━
-neutral      — resting/baseline, professional composure
-happy        — warm, positive, engaged (Duchenne smile)
-sadness      — grief, disappointment, low energy
-surprise     — shock, delight, unexpected news
-empathy      — compassion, understanding, attentive listening
-thoughtful   — reflecting, analysing, problem-solving (furrowed brow)
-displeasure  — frustration, annoyance, disapproval
-tension      — stress, anxiety, concern, high stakes
+━━━ EMOTION PALETTE (exactly 7 — use the exact string) ━━━
+These 7 are the ONLY valid emotions. Map every feeling onto the closest one —
+do NOT invent others (there is no "surprise" or "tension").
+neutral      — resting/baseline, professional composure, mild curiosity
+happy        — pleased, warm, agreeing, encouraging, delighted, ecstatic (Duchenne smile)
+thoughtful   — reflecting, analysing, considering, curious (furrowed brow)
+sadness      — disappointment, sorrow, regret, low energy
+displeasure  — anger, frustration, skepticism, annoyance, disapproval, stress/concern
+shy          — bashful, hesitant, timid, embarrassed, reserved, demure
+empathy      — compassion, understanding, attentive/caring listening
+             (FACE-ONLY: there is no empathy gesture/idle — the empathy face is
+              layered over a neutral body, so use it freely for genuine care)
 
 ━━━ EXPRESSION PERSISTENCE RULES ━━━
 CRITICAL: set_expression is PERSISTENT STATE — it stays on the avatar's face
@@ -274,7 +275,7 @@ Respond with ONLY this JSON, no explanation, no markdown:
 }
 
 HARD RULES:
-1. base_emotion MUST be one of: neutral, happy, sadness, surprise, empathy, thoughtful, displeasure, tension
+1. base_emotion MUST be one of: neutral, happy, thoughtful, sadness, displeasure, shy, empathy
 2. anim_id MUST be one of the available animation IDs listed above (or omit gesture_cues entirely).
 3. emotion_intensity 0.1 = subtle, 0.5 = moderate, 1.0 = maximum. Vary it to prevent mechanical repetition.
 4. word_index is zero-based, counting ALL words in the dialogue string split by spaces.

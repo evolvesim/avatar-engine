@@ -48,7 +48,7 @@ import type { GestureCue } from './virtual-director'
 // evolve_idle_*) also work as idles in single-layer mode: they drive
 // head/spine only, leaving arms at their last-keyframed position.
 // Mixing both gives natural variation while keeping arms alive.
-const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
+const BASE_IDLE_POOLS = {
   neutral: [
     // mcu — Pack 8 MCU Motion Capture Unity idles / listen (v9.1 foot-lock IK)
     'mcu_neutral_stand_idle_01',
@@ -158,17 +158,6 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'mc_m_listen_03_negative',
     'mc_f_listen_01_neutral',
   ],
-  surprise: [
-    'mx_m_standard_idle',
-    'mx_f_idle_standard',
-    'rpm_neutral_idle_var_001',
-    'rpm_neutral_idle_002',
-    'quaternius_neutral_idle',
-    'rpm2_idle_var_001',
-    'rpm2_idle_var_004',
-    'mc_m_idle_01',
-    'mc_f_idle_01',
-  ],
   empathy: [
     'mx_m_neutral_idle_foot_forward',
     'mx_f_idle_shifting',
@@ -221,20 +210,57 @@ const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
     'mc_m_listen_03_negative',
     'mc_f_idle_01',
   ],
-  // tension (replaces fear)
-  tension: [
-    'mx_m_idle_still',
-    'mx_f_idle_standard',
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_002',
-    'quaternius_fear_frozen_idle',
-    'evolve_stress_suppressed_still',
-    'rpm2_idle_002',
-    'rpm2_idle_var_006',
-    'mc_m_idle_01',
-    'mc_f_listen_01_neutral',
-  ],
 }
+
+// Canonical palette needs an idle pool for `shy` (new). It inherits the neutral
+// pool's RPM/mcu idles so EVERY rig (Avaturn/RPM included) always has a valid
+// rest loop; CC4 idles are appended below. `sadness` stays canonical; `empathy`
+// keeps its own pool (face-only for CC4, but RPM empathy idles still apply).
+const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
+  ...BASE_IDLE_POOLS,
+  shy: [...BASE_IDLE_POOLS.neutral],
+  // empathy is a FACE-ONLY emotion — the body rests on the neutral pool while the
+  // empathy facial expression is layered on top (no dedicated empathy body loop).
+  empathy: [...BASE_IDLE_POOLS.neutral],
+}
+
+// v0.5.34 — CC4 idle pools for the 4-pack / 7-emotion remap. Only clips present
+// in the loaded pack GLB are ever used (see _pickNextIdle's dict filter), so
+// listing every surviving CC4 idle here is safe across all four packs. Idles are
+// grouped by their mapped emotion; CC4_IDLES_NEUTRAL is appended everywhere as
+// the universal fallback (guarantees the gesture-heavy Expressive packs always
+// have a rest loop). RPM/Avaturn pools already carry their own idles, so these
+// CC4 ids simply filter out for non-CC4 rigs.
+const CC4_IDLES_NEUTRAL = [
+  'cc4_c_stand_idle_166534', // preferred default — short subtle stand
+  'cc4_c_idle_251105',
+  'cc4_m_basic_move_idle',
+  'cc4_f_basic_move_idle',
+  'cc4_m_chat_relax',
+  'cc4_f_chat_listen',
+]
+const CC4_IDLES_DISPLEASURE = [
+  'cc4_c_idle_251087',
+  'cc4_c_stand_idle_279386',
+  'cc4_m_idle_279398',
+  'cc4_c_idle_random_02',
+  'cc4_m_carriage_leaning',
+]
+const CC4_IDLES_THOUGHTFUL = ['cc4_c_bartender_cleaning_idle']
+const CC4_IDLES_SAD = ['cc4_c_elderly_idle']
+// Each emotion pool gets ONLY its own on-tone CC4 idles — a neutral character
+// must never draw a displeasure/sad idle, and vice versa. Emotions with no
+// dedicated CC4 idle (happy/shy/empathy) rest on the neutral body while their
+// FACE carries the emotion. When a given pack doesn't contain an emotion's idle
+// (e.g. the gesture-heavy Expressive packs), _pickNextIdle falls back to the
+// neutral idle rather than mixing off-tone idles in here.
+EMOTION_IDLE_POOLS.neutral.push(...CC4_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.happy.push(...CC4_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.shy.push(...CC4_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.empathy.push(...CC4_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL)
+EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD)
+EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE)
 
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
@@ -430,7 +456,7 @@ export class SkeletalController {
   private currentEmotion:    EmotionId    = 'neutral'
   private currentIdleClipId: string       = ''
   private idlePoolTimer:     number       = 0
-  private idlePoolInterval:  number       = 10
+  private idlePoolInterval:  number       = 22
   private isInGesture:       boolean      = false
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
@@ -496,7 +522,10 @@ export class SkeletalController {
       this.idlePoolTimer += delta
       if (this.idlePoolTimer >= this.idlePoolInterval) {
         this.idlePoolTimer    = 0
-        this.idlePoolInterval = 8 + Math.random() * 7
+        // v0.5.35 — slower idle cycling (was 8–15s, which read as restless
+        // "jumping"). A resting avatar holds a pose ~18–34s before drifting to
+        // another in the SAME emotion pool.
+        this.idlePoolInterval = 18 + Math.random() * 16
         const next = this._pickNextIdle(this.currentEmotion)
         if (next !== this.currentIdleClipId) this._playIdle(this.currentEmotion, next)
       }
@@ -668,8 +697,15 @@ export class SkeletalController {
     // Prevents cross-pack arm-pose jumps when e.g. pack5 is loaded but the
     // pool still contains pack1 clip names (which may exist in the dict due
     // to a race between the initial load and a subsequent loadPack call).
-    const available = pool.filter(id => !!this.dictionary.get(id))
-    const source    = available.length > 0 ? available : pool  // fallback: unfiltered (let _tryStartIdle handle miss)
+    let available = pool.filter(id => !!this.dictionary.get(id))
+    // If this pack carries no idle for the emotion (e.g. an Expressive pack in a
+    // non-neutral state), rest on the neutral pool — the emotion FACE still
+    // shows; only the body idle falls back. Prevents both a freeze and an
+    // off-tone idle from another emotion's pool.
+    if (available.length === 0 && emotion !== 'neutral') {
+      available = EMOTION_IDLE_POOLS.neutral.filter(id => !!this.dictionary.get(id))
+    }
+    const source    = available.length > 0 ? available : pool  // last resort: unfiltered (let _tryStartIdle handle miss)
     if (source.length === 1) return source[0]
     const candidates = source.filter(id => id !== this.currentIdleClipId)
     const pick = candidates.length > 0 ? candidates : source
