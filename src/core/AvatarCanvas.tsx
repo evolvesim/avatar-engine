@@ -52,6 +52,7 @@ import React, {
 } from 'react'
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -77,6 +78,7 @@ import {
   tickRespiration,
   tickHeadTracking,
   tickGaze,
+  tickGazeEyeContact,
   fixTPose,
   findBone,
 } from './procedural-animations'
@@ -237,15 +239,20 @@ function CameraSetup({
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
 function Lighting({ preset }: { preset: LightingPreset }) {
+  // v0.5.22 — boardroom softened for lifelike skin: the key was a hard white
+  // 1.4 directional that blew a specular hotspot on skin. Warmed slightly and
+  // eased, fill warmed + lifted, and ambient raised so the face is lit by soft
+  // room fill rather than a single spotlight. consumer/education keep their prior
+  // look (ambientIntensity 0.7). Per-preset ambientIntensity.
   const configs = {
-    boardroom: { ambient: '#d4e6f1', key: '#ffffff', keyIntensity: 1.4, fill: '#bfc9ca', fillIntensity: 0.6 },
-    consumer:  { ambient: '#c7a8f5', key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4 },
-    education: { ambient: '#e8f5e9', key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.95, key: '#fdfdff', keyIntensity: 1.5, fill: '#dde4ea', fillIntensity: 0.9 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5 },
   }
   const c = configs[preset]
   return (
     <>
-      <ambientLight color={c.ambient} intensity={0.7} />
+      <ambientLight color={c.ambient} intensity={c.ambientIntensity} />
       <directionalLight color={c.key}  intensity={c.keyIntensity}  position={[2, 4, 3]} castShadow />
       <directionalLight color={c.fill} intensity={c.fillIntensity} position={[-2, 2, -1]} />
     </>
@@ -268,7 +275,7 @@ const CAMERA_TARGET_Y = 0.1
 // jawOpen peaks at ~0.30 for open vowels, so the bone contributes ~6° of chin
 // drop at full open — a natural speech jaw excursion on top of the Jaw_Open
 // morph, well short of a yawn.
-const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.35
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
 
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
@@ -332,7 +339,34 @@ function AvatarScene({
     return bodyGltf
   }, [bodyGltf, donorGltf, mergeFaceRigMode])
 
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf])
+  // ── Per-mount working copy of the template scene ──────────────────────────
+  // useLoader caches the parsed GLTF by URL for the whole SPA session, and
+  // everything below MUTATES its scene: rebindSkeletons rewrites skeleton.bones,
+  // the mixer animates the bones, bodyRotationY is written every frame. Doing
+  // that to the cached template poisons the NEXT load of the same URL (switch
+  // away and back, or Sim Creator → sim navigation): the second clone inherits a
+  // skeleton wired to the previous mount's orphaned bones and the avatar renders
+  // as stretched spikes.
+  //
+  // Fix: deep-copy the template once per mount (SkeletonUtils.clone gives the
+  // copy its own bones AND its own Skeleton), then restore the file's EXACT
+  // bindMatrix/bindMatrixInverse pairs — SkeletonUtils calls bind(), which
+  // recomputes bindMatrixInverse as a true inverse, but rebindSkeletons' CC4
+  // bindMatrix mismatch detection must see the original (possibly inconsistent)
+  // pair from the file to apply its fix, exactly as on a first pristine load.
+  const workingScene = useMemo(() => {
+    const copy = cloneWithSkeleton(gltf.scene)
+    const srcMeshes: THREE.SkinnedMesh[] = []
+    const dstMeshes: THREE.SkinnedMesh[] = []
+    gltf.scene.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) srcMeshes.push(o as THREE.SkinnedMesh) })
+    copy.traverse((o) => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) dstMeshes.push(o as THREE.SkinnedMesh) })
+    for (let i = 0; i < dstMeshes.length && i < srcMeshes.length; i++) {
+      dstMeshes[i].bindMatrix.copy(srcMeshes[i].bindMatrix)
+      dstMeshes[i].bindMatrixInverse.copy(srcMeshes[i].bindMatrixInverse)
+    }
+    return copy
+  }, [gltf])
+  const scene = useMemo(() => workingScene.clone(true), [workingScene])
   const clips = gltf.animations  // animations live on gltf, NOT on gltf.scene
 
   // ── R3F camera (for VOR gaze) ─────────────────────────────────────────────
@@ -341,8 +375,8 @@ function AvatarScene({
   // ── Compute effective Y offset (auto-calibrate or supplied) ────────────────
   const effectiveYOffset = useMemo(() => {
     if (!autoCalibrate) return avatarYOffset
-    gltf.scene.updateMatrixWorld(true)
-    const head = findHeadBoneByNames(gltf.scene)
+    workingScene.updateMatrixWorld(true)
+    const head = findHeadBoneByNames(workingScene)
     if (!head) {
       console.warn(
         '[AvatarCanvas] autoCalibrate: no head bone found (tried head/mixamorigHead/Bip001_Head). ' +
@@ -366,7 +400,9 @@ function AvatarScene({
 
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
-  const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven original scene bone
+  const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven working scene bone
+  const leftEyeBone  = useRef<THREE.Bone | null>(null)      // eye-contact gaze (CC4 + RPM)
+  const rightEyeBone = useRef<THREE.Bone | null>(null)
   const neckBone   = useRef<THREE.Bone | null>(null)
   const spineBone  = useRef<THREE.Bone | null>(null)
   const chestBone  = useRef<THREE.Bone | null>(null)
@@ -512,6 +548,70 @@ function AvatarScene({
             mat.needsUpdate = true
           }
         }
+        // Skin de-shine / lifelike pass (v0.5.31). CC skin
+        // (Std_Skin_Head/Body/Arm/Leg, Std_Nails) reads "plastic" for two
+        // reasons: (1) roughness is a single flat scalar with no roughness map,
+        // so the whole surface reflects uniformly — the classic CG tell; (2) no
+        // subsurface scatter, so a hard key produces a wet/plastic hotspot. CC4
+        // exports ~0.55 with a KHR_materials_specular layer; CC5 Headshot 3
+        // exports ~0.7 as a plain MeshStandardMaterial with NO specular ext.
+        // Fix, per material, once: roughen hard (floor 0.97); add a soft warm
+        // sheen (subsurface-like scatter — sheen needs MeshPhysicalMaterial, so
+        // upgrade plain-standard skin); tame specularIntensity + kill clearcoat.
+        // Wrapped so any failure leaves the (roughened) standard material intact.
+        if (/^(Std_Skin|Std_Nails)/i.test(matName)) {
+          const std = m as THREE.MeshStandardMaterial & { __skinLifelike?: boolean }
+          if (!std.__skinLifelike) {
+            const apply = (mat: THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean }) => {
+              mat.metalness = 0
+              if (typeof mat.roughness === 'number') mat.roughness = Math.max(mat.roughness, 0.97)
+              if ('specularIntensity' in mat) mat.specularIntensity = 0.08
+              if ('sheen' in mat) {
+                mat.sheen = 0.15
+                mat.sheenRoughness = 1.0
+                mat.sheenColor = new THREE.Color(0xffd9c8)
+              }
+              if ('clearcoat' in mat) mat.clearcoat = 0
+              if ('envMapIntensity' in mat) mat.envMapIntensity = 0.3
+              if (mat.normalMap && mat.normalScale) mat.normalScale.multiplyScalar(1.3)
+              mat.__skinLifelike = true
+              mat.needsUpdate = true
+            }
+            if ('sheen' in std) {
+              // Already physical (e.g. CC4 KHR_materials_specular rig).
+              apply(std as unknown as THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean })
+            } else {
+              // Plain MeshStandardMaterial (CC5 Headshot export): rebuild as
+              // physical so sheen is available. Carry every map/flag that defines
+              // the look; only the shading terms change.
+              try {
+                const phys = new THREE.MeshPhysicalMaterial() as THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean }
+                phys.name = std.name
+                phys.color.copy(std.color)
+                phys.map = std.map
+                phys.normalMap = std.normalMap
+                if (std.normalScale && phys.normalScale) phys.normalScale.copy(std.normalScale)
+                phys.aoMap = std.aoMap
+                phys.aoMapIntensity = std.aoMapIntensity
+                phys.emissive.copy(std.emissive)
+                phys.emissiveMap = std.emissiveMap
+                phys.transparent = std.transparent
+                phys.alphaTest = std.alphaTest
+                phys.depthWrite = std.depthWrite
+                phys.side = std.side
+                apply(phys)
+                if (Array.isArray(obj.material))
+                  obj.material = obj.material.map((mm) => (mm === std ? phys : mm))
+                else
+                  obj.material = phys
+                std.__skinLifelike = true
+              } catch (e) {
+                console.warn('[AvatarCanvas] skin physical upgrade failed; roughening in place:', e)
+                apply(std as unknown as THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean })
+              }
+            }
+          }
+        }
       }
     })
 
@@ -527,26 +627,36 @@ function AvatarScene({
       fixTPose(scene)
     }
 
-    // Initialise skeletal controller with the ORIGINAL gltf.scene — the mixer
-    // drives the original bones, and the cloned SkinnedMesh.skeleton still
-    // references those same bones (shared skeleton), so the clone renders with
-    // correct world positions while the avatarYOffset is applied only to the
-    // clone's root primitive.
+    // Initialise skeletal controller with the per-mount workingScene — the
+    // mixer drives ITS bones, and the rendered clone's SkinnedMesh.skeleton
+    // still references those same bones (shared skeleton within this mount),
+    // so the clone renders with correct world positions while the avatarYOffset
+    // is applied only to the clone's root primitive. The loader-cached template
+    // is never driven or mutated.
     console.info('[AvatarCanvas] init — clips count:', clips.length, clips.map(c=>c.name))
-    engine.skeletal.init(gltf.scene, clips)
-    // Collect the head bone from the ORIGINAL scene (mixer-driven) for gaze.
-    // The cloned scene's bones are not driven by the mixer so their world
-    // matrices never update — tickGaze must read from gltf.scene.
-    headBoneOriginal.current = findBone(gltf.scene, 'Head')
+    engine.skeletal.init(workingScene, clips)
+    // Collect the head + eye bones from the WORKING scene (mixer-driven) for
+    // gaze. The rendered clone's bones are not driven by the mixer so their
+    // world matrices never update — gaze must read from workingScene. Fall back
+    // to the CC4 (`CC_Base_*`) names so eye contact works on CC4 avatars too,
+    // whose head bone is `CC_Base_Head` rather than `Head`.
+    headBoneOriginal.current = findBone(workingScene, 'Head') ?? findBone(workingScene, 'CC_Base_Head')
+    leftEyeBone.current = findBone(workingScene, 'LeftEye') ?? findBone(workingScene, 'CC_Base_L_Eye')
+    rightEyeBone.current = findBone(workingScene, 'RightEye') ?? findBone(workingScene, 'CC_Base_R_Eye')
+    console.info('[AvatarCanvas] gaze bones:', {
+      head: headBoneOriginal.current?.name ?? 'NONE',
+      lEye: leftEyeBone.current?.name ?? 'NONE',
+      rEye: rightEyeBone.current?.name ?? 'NONE',
+    })
 
-    // CC4 jaw bone (original scene — the skin-driving skeleton). Capture the
+    // CC4 jaw bone (working scene — the skin-driving skeleton). Capture the
     // rest pose and the hinge axis: the avatar's left-right axis (world X at
-    // rest, before bodyRotationY is applied in the frame loop) expressed in the
-    // jaw bone's parent space. Rotating about that axis pitches the chin down.
-    const jaw = findBone(gltf.scene, 'CC_Base_JawRoot')
+    // rest, before bodyRotationY applies in the frame loop) expressed in the
+    // jaw bone's parent space. Rotating about it pitches the chin down.
+    const jaw = findBone(workingScene, 'CC_Base_JawRoot')
     jawBoneOriginal.current = jaw
     if (jaw && jaw.parent) {
-      gltf.scene.updateMatrixWorld(true)
+      workingScene.updateMatrixWorld(true)
       const parentWorldQuat = jaw.parent.getWorldQuaternion(new THREE.Quaternion())
       jawHingeAxis.current = new THREE.Vector3(1, 0, 0)
         .applyQuaternion(parentWorldQuat.invert())
@@ -557,7 +667,6 @@ function AvatarScene({
       jawHingeAxis.current = null
       jawRestQuat.current = null
     }
-    console.info('[AvatarCanvas] headBoneOriginal:', headBoneOriginal.current?.name ?? 'NOT FOUND')
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
@@ -618,7 +727,7 @@ function AvatarScene({
       // Primary Oculus mouth shape(s) at 0.6 + conservative ARKit support shapes
       // (cheeks / funnel / pucker / press / lower-lip) layered per viseme.
       // Support shapes the GLB lacks are ignored harmlessly in applyWeightsToMeshes.
-      const { weights, jaw, hold } = buildVisemeTargets(id, 0.6)
+      const { weights, jaw, hold } = buildVisemeTargets(id, 0.78)
       for (const [shapeName, value] of Object.entries(weights)) {
         targetW.current[shapeName] = value
       }
@@ -706,7 +815,10 @@ function AvatarScene({
     const emotionWeights = engine.emotion.effectiveWeights(isSpeaking)
 
     // ── 4. Procedural layer (blink, saccades) ─────────────────────────────
-    const { blinkWeights, eyeRotationX, eyeRotationY } = tickOcularMechanics(ocular.current, delta)
+    // The rest lid-lower is a CC4-only relax (its neutral eye is wide/staring);
+    // Avaturn/RPM eyes are already relaxed, so pass restLid=0 to leave them be.
+    const isCC4Avatar = headBoneOriginal.current?.name === 'CC_Base_Head'
+    const { blinkWeights, eyeRotationX, eyeRotationY } = tickOcularMechanics(ocular.current, delta, isCC4Avatar ? undefined : 0)
 
     // ── 5. Additive blend: emotion + viseme + procedural ───────────────────
     const blended = additiveBlend(emotionWeights, activeVisemeWeights, blinkWeights)
@@ -722,6 +834,12 @@ function AvatarScene({
       if (val > 0 || (currentWeights.current[name] ?? 0) > 0) {
         currentWeights.current[name] = val
       }
+    }
+    // Apply the blink lids directly — a blink is a fast ~80ms motion (already
+    // ramped in tickOcularMechanics) and the weight lerp above would damp it so
+    // the eyes never fully close. Overwrite after the lerp, like visemes.
+    for (const [name, val] of Object.entries(blinkWeights)) {
+      currentWeights.current[name] = val as number
     }
 
     // ── 7. (morph targets applied after gaze — see step 10d) ────────────
@@ -778,14 +896,14 @@ function AvatarScene({
     // layer — the bone adds the chin/teeth/tongue drop the morph cannot give.
     if (jawBoneOriginal.current && jawRestQuat.current && jawHingeAxis.current) {
       const jawOpen = currentWeights.current['jawOpen'] ?? 0
-      const bone = jawBoneOriginal.current
-      bone.quaternion.copy(jawRestQuat.current)
+      const jawBone = jawBoneOriginal.current
+      jawBone.quaternion.copy(jawRestQuat.current)
       if (jawOpen > 0.001) {
         const deltaQ = new THREE.Quaternion().setFromAxisAngle(
           jawHingeAxis.current,
           jawOpen * CC4_JAW_BONE_RAD_PER_WEIGHT,
         )
-        bone.quaternion.premultiply(deltaQ)
+        jawBone.quaternion.premultiply(deltaQ)
       }
     }
 
@@ -800,14 +918,36 @@ function AvatarScene({
     // tickGaze is called AFTER skeletal.update() AND head cam-lock so all
     // world matrices are fully resolved for this frame.
     cameraPosRef.current.copy(camera.position)
-    const gazeWeights = tickGaze(
-      gazeState.current,
-      delta,
-      headBoneOriginal.current,   // original scene — mixer keeps world matrix current
-      cameraPosRef.current,
-      eyeRotationX,
-      eyeRotationY,
-    )
+    // When the avatar exposes distinct eye bones (CC4 or RPM/Avaturn), use the
+    // eye-bone-derived eye-contact gaze — it needs no head-bone axis assumption
+    // and aims at the real camera position, so eye direction follows the active
+    // camera preset. Both CC4 and RPM/Avaturn skin the eyeball mesh directly to
+    // the LeftEye/RightEye bones, so rotating those bones moves the eye — we drive
+    // the bones for both (driveBones=true). Only avatars with no eye bones at all
+    // fall back to the head-local ARKit-morph gaze.
+    const gazeWeights = (leftEyeBone.current && rightEyeBone.current)
+      ? tickGazeEyeContact(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,
+          leftEyeBone.current,
+          rightEyeBone.current,
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+          // 25° eye-travel socket for both characters — eyeLimitYaw caps travel
+          // equally in every direction (side to side and up and down).
+          { eyeLimitYaw: 25 },
+          true,
+        )
+      : tickGaze(
+          gazeState.current,
+          delta,
+          headBoneOriginal.current,   // working scene — mixer keeps world matrix current
+          cameraPosRef.current,
+          eyeRotationX,
+          eyeRotationY,
+        )
 
     // ── 10d. Apply gaze weights + paint morph targets ───────────────────
     // Merge gaze blendshape weights into currentWeights THEN apply to mesh,
@@ -824,11 +964,11 @@ function AvatarScene({
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
     // after useEffect when using <primitive> without a position prop.
-    // Also apply bodyRotationY to the original gltf.scene so bone world
+    // Also apply bodyRotationY to the mixer-driven workingScene so bone world
     // matrices include the intended facing direction.
     scene.position.set(avatarXOffset, effectiveYOffset, 0)
-    gltf.scene.rotation.y = bodyRotationY
-    gltf.scene.updateMatrixWorld(true)
+    workingScene.rotation.y = bodyRotationY
+    workingScene.updateMatrixWorld(true)
   })
 
   return (

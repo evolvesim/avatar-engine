@@ -21,10 +21,23 @@ import type { ARKitWeights } from './emotion-state'
 
 export type BlinkPhase = 0 | 1 | 2  // 0=open, 1=closing, 2=opening
 
+// Constant upper-lid lowering held at rest (0 = wide open, 1 = fully closed).
+// Relaxes the CC4 "staring" eye without looking sleepy.
+const EYE_REST_LID = 0.14
+
+/** A natural gap until the next blink: usually 2–7s, occasionally a quick
+ *  double-blink (~0.2s) for variety. Rolled once, not per frame. */
+function nextBlinkInterval(): number {
+  return Math.random() < 0.12
+    ? 0.18 + Math.random() * 0.22 // quick double-blink
+    : 2 + Math.random() * 5       // 2–7s
+}
+
 export interface OcularState {
   blinkTimer:  number
   blinkPhase:  BlinkPhase
   blinkValue:  number
+  blinkInterval: number
   /** Saccade target offsets (radians) — updated every 1.5–4s */
   saccadeX:    number
   saccadeY:    number
@@ -37,6 +50,7 @@ export function createOcularState(): OcularState {
     blinkTimer:       0,
     blinkPhase:       0,
     blinkValue:       0,
+    blinkInterval:    nextBlinkInterval(),
     saccadeX:         0,
     saccadeY:         0,
     saccadeTimer:     0,
@@ -53,13 +67,14 @@ export function createOcularState(): OcularState {
  */
 export function tickOcularMechanics(
   state: OcularState,
-  delta: number
+  delta: number,
+  restLid = EYE_REST_LID
 ): { blinkWeights: ARKitWeights; eyeRotationX: number; eyeRotationY: number } {
   // ── Blink ────────────────────────────────────────────────────────────────
   state.blinkTimer += delta
 
-  // Open phase: wait 2–6 seconds before next blink
-  if (state.blinkPhase === 0 && state.blinkTimer > 2 + Math.random() * 4) {
+  // Open phase: wait blinkInterval seconds (rolled once) before the next blink.
+  if (state.blinkPhase === 0 && state.blinkTimer > state.blinkInterval) {
     state.blinkPhase = 1
     state.blinkTimer = 0
   }
@@ -74,6 +89,7 @@ export function tickOcularMechanics(
     if (state.blinkValue <= 0) {
       state.blinkPhase = 0
       state.blinkTimer = 0
+      state.blinkInterval = nextBlinkInterval() // roll the next gap once
     }
   }
 
@@ -87,11 +103,17 @@ export function tickOcularMechanics(
     state.saccadeInterval = 1.5 + Math.random() * 2.5
   }
 
+  // Rest lid-lower: CC4 eyes sit wide open ("staring"), so `restLid` holds the
+  // upper lids a little down at rest; a blink takes it the rest of the way to
+  // fully closed. Callers pass 0 for rigs (Avaturn/RPM) whose neutral eye is
+  // already relaxed, leaving those eyes untouched.
+  const lid = restLid + (1 - restLid) * state.blinkValue
+
   return {
     blinkWeights: {
-      eyeBlinkLeft:  state.blinkValue,
-      eyeBlinkRight: state.blinkValue,
-      eyesClosed:    state.blinkValue,
+      eyeBlinkLeft:  lid,
+      eyeBlinkRight: lid,
+      eyesClosed:    lid,
     },
     eyeRotationX: state.saccadeX,
     eyeRotationY: state.saccadeY,
@@ -227,6 +249,14 @@ export interface GazeState {
   /** Reference head rotation at last acquire — used to compute head deviation. */
   refHeadYaw:    number
   refHeadPitch:  number
+  /** Eye-contact gaze (tickGazeEyeContact) per-eye captured rest state. Captured
+   *  lazily on first frame per eye bone, so all optional. */
+  eyeBoneLId?:    string
+  eyeBoneRId?:    string
+  eyeRestL?:      THREE.Quaternion
+  eyeRestR?:      THREE.Quaternion
+  eyeFwdParentL?: THREE.Vector3
+  eyeFwdParentR?: THREE.Vector3
 }
 
 export interface GazeConfig {
@@ -431,4 +461,142 @@ export function findBone(scene: THREE.Object3D, name: string): THREE.Bone | null
     }
   })
   return found
+}
+
+// ── 4b. Eye-contact gaze (eye-bone-derived frame) — robust for CC4 ─────────────
+/**
+ * Camera-locking gaze that keeps the eyes on the viewer, tuned for rigs (CC4)
+ * where the head/eye bones don't follow the ARKit Z-forward convention and the
+ * head is left animation-driven (no head cam-lock).
+ *
+ * Derives the face's right/forward/up axes from the WORLD positions of the two
+ * eye bones and the head bone, so it needs no assumption about bone-local axes.
+ * It aims at the real camera position, so the eye direction is automatically
+ * correct for whatever camera preset is active.
+ *
+ * Two output mechanisms, selected by `driveBones`:
+ *   • driveBones = true  (CC4): rotate the LeftEye/RightEye bones directly, return {}.
+ *   • driveBones = false (RPM/Avaturn): convert the aim into ARKit eyeLook weights.
+ */
+export function tickGazeEyeContact(
+  state:     GazeState,
+  delta:     number,
+  headBone:  THREE.Object3D | null,
+  leftEye:   THREE.Object3D | null,
+  rightEye:  THREE.Object3D | null,
+  cameraPos: THREE.Vector3,
+  _saccadeX: number,
+  _saccadeY: number,
+  cfg:       GazeConfig = {},
+  driveBones = true,
+): ARKitWeights {
+  if (!headBone || !leftEye || !rightEye) return {}
+  // Max eye travel from the rest (forward) direction before we stop turning.
+  const eyeLimit = Math.abs(cfg.eyeLimitYaw ?? 35) * (Math.PI / 180)
+  // How far the head can twist before the lock releases and the eyes ride along.
+  const releaseAngle = Math.abs(cfg.lockConeYaw ?? 40) * (Math.PI / 180)
+  const acquireSpeed = cfg.acquireSpeed ?? 8
+  const releaseSpeed = cfg.releaseSpeed ?? 5
+
+  // ── Face frame from eye/head world positions (axis-agnostic) ───────────────
+  const lW = new THREE.Vector3(); leftEye.getWorldPosition(lW)
+  const rW = new THREE.Vector3(); rightEye.getWorldPosition(rW)
+  const hW = new THREE.Vector3(); headBone.getWorldPosition(hW)
+  const mid = lW.clone().add(rW).multiplyScalar(0.5)
+  const worldUp = new THREE.Vector3(0, 1, 0)
+  const right = rW.clone().sub(lW).normalize()                        // toward the character's right
+  const fwd = new THREE.Vector3().crossVectors(worldUp, right).normalize()  // horizontal, out the face
+  if (fwd.dot(mid.clone().sub(hW)) < 0) fwd.negate()
+
+  // ── Capture per eye, once: rest LOCAL orientation + face-forward in the eye's
+  //    PARENT-local space (re-projected each frame through the parent's live world
+  //    rotation → follows head pitch/turn). ───────────────────────────────────
+  const lParentW = new THREE.Quaternion()
+  if (leftEye.parent) leftEye.parent.getWorldQuaternion(lParentW)
+  const rParentW = new THREE.Quaternion()
+  if (rightEye.parent) rightEye.parent.getWorldQuaternion(rParentW)
+  if (state.eyeBoneLId !== leftEye.uuid) {
+    state.eyeRestL = leftEye.quaternion.clone()
+    state.eyeFwdParentL = fwd.clone().applyQuaternion(lParentW.clone().invert())
+    state.eyeBoneLId = leftEye.uuid
+  }
+  if (state.eyeBoneRId !== rightEye.uuid) {
+    state.eyeRestR = rightEye.quaternion.clone()
+    state.eyeFwdParentR = fwd.clone().applyQuaternion(rParentW.clone().invert())
+    state.eyeBoneRId = rightEye.uuid
+  }
+
+  // ── Off-forward angle (for the lock/release cone), measured at the eyes ────
+  const faceFwd = (state.eyeFwdParentL ?? fwd).clone().applyQuaternion(lParentW).normalize()
+  const toCam = cameraPos.clone().sub(mid).normalize()
+  const angle = Math.acos(THREE.MathUtils.clamp(faceFwd.dot(toCam), -1, 1))
+  const targetLock = angle <= releaseAngle ? 1 : 0
+  const lockSpeed = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
+  state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
+
+  if (driveBones) {
+    // ── CC4 & RPM: rotate the eye bones directly ────────────────────────────
+    aimEyeAtCamera(leftEye,  state.eyeRestL!,  state.eyeFwdParentL!, lParentW, cameraPos, eyeLimit, state.lockWeight)
+    aimEyeAtCamera(rightEye, state.eyeRestR!,  state.eyeFwdParentR!, rParentW, cameraPos, eyeLimit, state.lockWeight)
+    return {}
+  }
+
+  // ── RPM/Avaturn: eyeball is morph-driven — emit ARKit eyeLook weights ──────
+  const yaw = Math.atan2(toCam.dot(right), toCam.dot(fwd))
+  const pitch = Math.asin(THREE.MathUtils.clamp(toCam.dot(worldUp), -1, 1))
+  const eyeLerp = 1 - Math.exp(-acquireSpeed * delta)
+  state.eyeYaw = THREE.MathUtils.lerp(state.eyeYaw, yaw, eyeLerp)
+  state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, pitch, eyeLerp)
+  if (state.lockWeight < 0.01) return {}
+  const normYaw = THREE.MathUtils.clamp(state.eyeYaw / eyeLimit, -1, 1) * state.lockWeight
+  const normPitch = THREE.MathUtils.clamp(state.eyePitch / eyeLimit, -1, 1) * state.lockWeight
+  const lookRight = THREE.MathUtils.clamp(normYaw, 0, 1)
+  const lookLeft = THREE.MathUtils.clamp(-normYaw, 0, 1)
+  const lookUp = THREE.MathUtils.clamp(normPitch, 0, 1)
+  const lookDown = THREE.MathUtils.clamp(-normPitch, 0, 1)
+  return {
+    eyeLookInLeft:   lookRight,
+    eyeLookOutLeft:  lookLeft,
+    eyeLookInRight:  lookLeft,
+    eyeLookOutRight: lookRight,
+    eyeLookUpLeft:   lookUp,
+    eyeLookUpRight:  lookUp,
+    eyeLookDownLeft: lookDown,
+    eyeLookDownRight: lookDown,
+  }
+}
+
+/**
+ * Point one eye bone at the camera from its own world position. Rotates FROM the
+ * eye's live rest look direction (parent-local forward through the parent's live
+ * world rotation, so it tracks head pitch/turn) TO the camera direction, clamped
+ * to the socket limit and scaled by the lock weight.
+ */
+function aimEyeAtCamera(
+  eye:         THREE.Object3D,
+  restLocal:   THREE.Quaternion,
+  fwdParent:   THREE.Vector3,
+  parentWorld: THREE.Quaternion,
+  cameraPos:   THREE.Vector3,
+  eyeLimit:    number,
+  lockWeight:  number,
+): void {
+  const restWorld = parentWorld.clone().multiply(restLocal)
+  const curLook = fwdParent.clone().applyQuaternion(parentWorld).normalize()
+  const eyePos = new THREE.Vector3(); eye.getWorldPosition(eyePos)
+  const toCam = cameraPos.clone().sub(eyePos).normalize()
+  const ang = Math.acos(THREE.MathUtils.clamp(curLook.dot(toCam), -1, 1))
+  let aim = toCam
+  if (ang > eyeLimit) {
+    const axis = new THREE.Vector3().crossVectors(curLook, toCam)
+    if (axis.lengthSq() > 1e-8) {
+      axis.normalize()
+      aim = curLook.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
+    }
+  }
+  const fullDelta = new THREE.Quaternion().setFromUnitVectors(curLook, aim)
+  const worldDelta = new THREE.Quaternion().slerp(fullDelta, lockWeight)
+  const targetWorld = worldDelta.clone().multiply(restWorld)
+  const localTarget = parentWorld.clone().invert().multiply(targetWorld)
+  eye.quaternion.copy(localTarget)
 }

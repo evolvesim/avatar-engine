@@ -15,15 +15,19 @@
  *                                      ↓
  *              AvatarCanvas useFrame → additive blend with viseme layer
  *
- * Taxonomy (8 emotions, v0.3.86):
- *   neutral      — baseline, no expression
- *   happy        — replaces joy (Duchenne smile)
- *   sadness      — unchanged
- *   surprise     — unchanged
- *   empathy      — unchanged
- *   thoughtful   — replaces concentration + confusion (brow furrow, reflective)
- *   displeasure  — replaces anger + disgust (brow down, press, sneer)
- *   tension      — replaces fear (brow up, wide eyes, mouth stretch)
+ * Taxonomy (v0.5.34 — 7 emotions; surprise + tension removed):
+ *   neutral      — baseline, professional composure
+ *   happy        — pleased / agreeing / delighted (Duchenne smile)
+ *   thoughtful   — reflecting / analysing / considering (brow furrow)
+ *   sadness      — disappointment / empathetic sorrow / low energy
+ *   displeasure  — anger / skepticism / annoyance / frustration
+ *   shy          — bashful / hesitant / demure (uses the empathy face)
+ *   empathy      — compassion / understanding (FACE-ONLY: no dedicated
+ *                  gesture/idle; layered over a neutral body)
+ *
+ * `sadness` is the canonical token for the sad register (its preset actually
+ * moves the face). `shy` reuses the empathy preset. Body animation exists for
+ * every token except `empathy`, which the VD applies as a facial layer only.
  */
 
 // ── Emotion identifiers ───────────────────────────────────────────────────────
@@ -31,12 +35,11 @@
 export type EmotionId =
   | 'neutral'
   | 'happy'
-  | 'sadness'
-  | 'surprise'
-  | 'empathy'
   | 'thoughtful'
+  | 'sadness'
   | 'displeasure'
-  | 'tension'
+  | 'shy'
+  | 'empathy'
 
 // ── ARKit blendshape weight map ───────────────────────────────────────────────
 
@@ -88,14 +91,16 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     mouthSmileRight:   0.16,
   },
 
-  // surprise — full frontalis elevation + masseter relaxation (jaw drop)
-  surprise: {
-    browOuterUpLeft:   0.55,
-    browOuterUpRight:  0.55,
-    browInnerUp:       0.55,
-    eyeWideLeft:       0.45,
-    eyeWideRight:      0.45,
-    jawOpen:           0.3,
+  // shy — reuses the empathy face (soft inner-brow, gentle downward gaze,
+  // faint frown-into-smile). Reads as bashful/demure, not sad.
+  shy: {
+    browInnerUp:       0.38,
+    mouthFrownLeft:    0.22,
+    mouthFrownRight:   0.22,
+    eyeLookDownLeft:   0.14,
+    eyeLookDownRight:  0.14,
+    mouthSmileLeft:    0.16,
+    mouthSmileRight:   0.16,
   },
 
   // thoughtful (replaces concentration + confusion) — brow furrow, reflective
@@ -121,18 +126,6 @@ const EMOTION_PRESETS: Record<EmotionId, ARKitWeights> = {
     noseSneerRight:    0.28,
     mouthFrownLeft:    0.22,
     mouthFrownRight:   0.22,
-  },
-
-  // tension (replaces fear) — brow up + wide eyes + slight mouth stretch
-  tension: {
-    browOuterUpLeft:   0.48,
-    browOuterUpRight:  0.48,
-    browInnerUp:       0.42,
-    eyeWideLeft:       0.45,
-    eyeWideRight:      0.45,
-    mouthStretchLeft:  0.28,
-    mouthStretchRight: 0.28,
-    jawOpen:           0.2,
   },
 }
 

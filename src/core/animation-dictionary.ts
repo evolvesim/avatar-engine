@@ -513,50 +513,12 @@ export const ANIMATION_MANIFEST: Record<string, Omit<AnimationEntry, 'clip'>> = 
   'mcu_m_standconv_talk_08_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
   'mcu_m_standconv_talk_09_neutral':         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.4 },
 
-  // ── CC4 / ActorCore packs (animations-pack-cc4-{male,female,common}.glb) ──
-  // Native CC_Base_* skeleton clips for Character Creator 4 avatars — no
-  // Avaturn retarget. Curated from the playground pack QA: idles loop, speech
-  // beats/gestures play once. Without these entries loadPack indexes every CC4
-  // clip as LoopOnce/neutral, so the baseline idle plays once and freezes.
-
-  // Pack CC4 Male (cc4_m_*)
-  'cc4_m_agreed_goodjob':                       { emotion: 'joy',           loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_m_confused_scratching':                  { emotion: 'confusion',     loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_m_basic_move_idle':                      { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_m_chat_relax':                           { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_m_breathing':                            { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_m_carriage_leaning':                     { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_m_chat_stand':                           { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_m_stand_talk_1':                         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_m_stand_talk_2':                         { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_m_idle_279398':                          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-
-  // Pack CC4 Female (cc4_f_*)
-  'cc4_f_basic_move_idle':                      { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_f_chat_listen':                          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_f_chat_response':                        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_f_breathing':                            { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-
-  // Pack CC4 Common (cc4_c_*, ungendered)
-  'cc4_c_idle_random_02':                       { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_nod_start_speech':                     { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_both_hands_together_speech':           { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_right_hand_on_chest_speech':           { emotion: 'empathy',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_both_hands_illustrative_explanation':  { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_hands_outward_denial':                 { emotion: 'disgust',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_right_hand_waving_explanation':        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_single_swing_left_explanation':        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_stand_talk_378997':                    { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_chat_child_g1':                        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_chat_child_g3':                        { emotion: 'neutral',       loop: THREE.LoopOnce,   defaultCrossfade: 0.25 },
-  'cc4_c_elderly_idle':                         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_bartender_cleaning_idle':              { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_stand_idle_166534':                    { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_stand_idle_279386':                    { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_idle_251105':                          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_idle_251087':                          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_idle_378963':                          { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
-  'cc4_c_relax_378947':                         { emotion: 'neutral',       loop: THREE.LoopRepeat, defaultCrossfade: 0.5  },
+  // NOTE: CC4 clips are intentionally NOT in this manifest. The four curated CC4
+  // packs (gender × register) serve sliced clips (…_pN); idle-vs-gesture
+  // selection and per-emotion idle pools live in skeletal-controller.ts, and
+  // loadPack applies neutral LoopOnce defaults for any clip without an entry.
+  // The old full-length CC4 manifest (and the packs it described) were removed in
+  // v0.5.34 when the four-pack remap became the only CC4 packs.
 }
 
 // ── Animation dictionary ──────────────────────────────────────────────────────
