@@ -248,16 +248,19 @@ const CC4_IDLES_DISPLEASURE = [
 ]
 const CC4_IDLES_THOUGHTFUL = ['cc4_c_bartender_cleaning_idle']
 const CC4_IDLES_SAD = ['cc4_c_elderly_idle']
-const CC4_IDLES_ALL = [
-  ...CC4_IDLES_NEUTRAL, ...CC4_IDLES_DISPLEASURE, ...CC4_IDLES_THOUGHTFUL, ...CC4_IDLES_SAD,
-]
-EMOTION_IDLE_POOLS.neutral.push(...CC4_IDLES_ALL)
+// Each emotion pool gets ONLY its own on-tone CC4 idles — a neutral character
+// must never draw a displeasure/sad idle, and vice versa. Emotions with no
+// dedicated CC4 idle (happy/shy/empathy) rest on the neutral body while their
+// FACE carries the emotion. When a given pack doesn't contain an emotion's idle
+// (e.g. the gesture-heavy Expressive packs), _pickNextIdle falls back to the
+// neutral idle rather than mixing off-tone idles in here.
+EMOTION_IDLE_POOLS.neutral.push(...CC4_IDLES_NEUTRAL)
 EMOTION_IDLE_POOLS.happy.push(...CC4_IDLES_NEUTRAL)
 EMOTION_IDLE_POOLS.shy.push(...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL, ...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD, ...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE, ...CC4_IDLES_NEUTRAL)
 EMOTION_IDLE_POOLS.empathy.push(...CC4_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL)
+EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD)
+EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE)
 
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
@@ -453,7 +456,7 @@ export class SkeletalController {
   private currentEmotion:    EmotionId    = 'neutral'
   private currentIdleClipId: string       = ''
   private idlePoolTimer:     number       = 0
-  private idlePoolInterval:  number       = 10
+  private idlePoolInterval:  number       = 22
   private isInGesture:       boolean      = false
   private pendingIdle:       boolean      = false
   private pendingIdleFrames  = 0
@@ -519,7 +522,10 @@ export class SkeletalController {
       this.idlePoolTimer += delta
       if (this.idlePoolTimer >= this.idlePoolInterval) {
         this.idlePoolTimer    = 0
-        this.idlePoolInterval = 8 + Math.random() * 7
+        // v0.5.35 — slower idle cycling (was 8–15s, which read as restless
+        // "jumping"). A resting avatar holds a pose ~18–34s before drifting to
+        // another in the SAME emotion pool.
+        this.idlePoolInterval = 18 + Math.random() * 16
         const next = this._pickNextIdle(this.currentEmotion)
         if (next !== this.currentIdleClipId) this._playIdle(this.currentEmotion, next)
       }
@@ -691,8 +697,15 @@ export class SkeletalController {
     // Prevents cross-pack arm-pose jumps when e.g. pack5 is loaded but the
     // pool still contains pack1 clip names (which may exist in the dict due
     // to a race between the initial load and a subsequent loadPack call).
-    const available = pool.filter(id => !!this.dictionary.get(id))
-    const source    = available.length > 0 ? available : pool  // fallback: unfiltered (let _tryStartIdle handle miss)
+    let available = pool.filter(id => !!this.dictionary.get(id))
+    // If this pack carries no idle for the emotion (e.g. an Expressive pack in a
+    // non-neutral state), rest on the neutral pool — the emotion FACE still
+    // shows; only the body idle falls back. Prevents both a freeze and an
+    // off-tone idle from another emotion's pool.
+    if (available.length === 0 && emotion !== 'neutral') {
+      available = EMOTION_IDLE_POOLS.neutral.filter(id => !!this.dictionary.get(id))
+    }
+    const source    = available.length > 0 ? available : pool  // last resort: unfiltered (let _tryStartIdle handle miss)
     if (source.length === 1) return source[0]
     const candidates = source.filter(id => id !== this.currentIdleClipId)
     const pick = candidates.length > 0 ? candidates : source
