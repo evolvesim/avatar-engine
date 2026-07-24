@@ -8,7 +8,8 @@
 # then commit the vendored change in each product.
 #
 # Usage: scripts/sync-vendor.sh [product-dir ...]
-#   Defaults to the sibling ../evolve-sim-portal and ../avatar-playground.
+#   Defaults to the sibling ../evolve-sim-portal, ../avatar-playground and
+#   ../acts-education-portal.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ENGINE_ROOT="$(pwd)"
@@ -18,7 +19,7 @@ npm run build >/dev/null
 
 TARGETS=("$@")
 if [ ${#TARGETS[@]} -eq 0 ]; then
-  TARGETS=("../evolve-sim-portal" "../avatar-playground")
+  TARGETS=("../evolve-sim-portal" "../avatar-playground" "../acts-education-portal")
 fi
 
 for product in "${TARGETS[@]}"; do
