@@ -233,7 +233,7 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   // hard so the closure is unmistakable. jaw stays 0 (lips sealed). The fast
   // attack lerp in the render loop snaps this closed quickly; the fast release
   // (consonant hold) lets it part cleanly into the following vowel.
-  21: { support: { mouthClose: 0.35, mouthRollLower: 0.06, mouthRollUpper: 0.14, mouthPressLeft: 0.16, mouthPressRight: 0.16 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
+  21: { support: { mouthClose: 0.45, mouthRollLower: 0.18, mouthRollUpper: 0.14, mouthPressLeft: 0.16, mouthPressRight: 0.16 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
 }
 
 /**
