@@ -53,6 +53,7 @@ import React, {
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -236,6 +237,52 @@ function CameraSetup({
   return null
 }
 
+// ── Image-based lighting ──────────────────────────────────────────────────────
+//
+// v0.5.37 — the missing half of the v0.5.36 lighting rebalance. Cutting total
+// light energy (to stop skin highlights clipping into ACES tonemapping's white
+// rolloff) left the scene simply DARK, because nothing replaced the energy the
+// flat ambient had been supplying.
+//
+// An environment map is the right replacement: it puts the light back as soft,
+// directional, all-around illumination instead of a flat ambient term, which is
+// also what gives skin its gradients and a believable fresnel falloff. three
+// ships RoomEnvironment (a small procedurally-lit box), so this needs NO HDRI
+// download, no CDN fetch, and no new dependency — important because the engine
+// must build offline and the products vendor it as a plain file: dependency.
+//
+// Note: `scene.environmentIntensity` does not exist in three 0.160, so env
+// strength is controlled per-material via `envMapIntensity` (see ENV_MAP_*).
+function EnvironmentIBL() {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const room = new RoomEnvironment()
+    const rt = pmrem.fromScene(room, 0.04)
+    scene.environment = rt.texture
+    return () => {
+      scene.environment = null
+      rt.dispose()
+      pmrem.dispose()
+      // RoomEnvironment builds real geometry/materials — release them.
+      room.traverse((o) => {
+        const mesh = o as THREE.Mesh
+        if (!mesh.isMesh) return
+        mesh.geometry?.dispose()
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach((mm) => mm?.dispose())
+      })
+    }
+  }, [gl, scene])
+  return null
+}
+
+// How strongly the environment lights each surface. Skin sits slightly lower so
+// the IBL reads as soft scatter rather than a reflective sheen — the exact
+// problem we are trying to remove.
+const ENV_MAP_INTENSITY      = 1.0
+const ENV_MAP_INTENSITY_SKIN = 0.85
+
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
 function Lighting({ preset }: { preset: LightingPreset }) {
@@ -251,13 +298,15 @@ function Lighting({ preset }: { preset: LightingPreset }) {
   // highlights sit inside the tonemap's linear range instead of clipping.
   // A back/rim light adds edge separation (the shape cue flat frontal lighting
   // destroys) at a cost the energy reduction more than pays for.
-  // NOTE: with no environment map in the scene, ambient is still doing real
-  // work here — it cannot be dropped to IBL-era levels without underlighting
-  // the avatar, so it is eased rather than gutted.
+  // v0.5.37 — now that EnvironmentIBL supplies broad soft illumination, ambient
+  // steps back to a small tint term (it was the flat, shape-destroying part) and
+  // the key comes back up. Direct total ~2.4 PLUS the environment, which lands
+  // brighter overall than the original 3.35 flat-ambient setup while keeping
+  // highlights inside the tonemap's linear range.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.55, key: '#fdfdff', keyIntensity: 1.0,  fill: '#dde4ea', fillIntensity: 0.65, rim: '#eaf2ff', rimIntensity: 0.45 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.45, key: '#ffffff', keyIntensity: 1.05, fill: '#8e44ad', fillIntensity: 0.35, rim: '#d9c2ff', rimIntensity: 0.40 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.45, key: '#ffffff', keyIntensity: 1.0,  fill: '#aed6f1', fillIntensity: 0.40, rim: '#dcefff', rimIntensity: 0.40 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.30, key: '#fdfdff', keyIntensity: 1.15, fill: '#dde4ea', fillIntensity: 0.55, rim: '#eaf2ff', rimIntensity: 0.40 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.28, key: '#ffffff', keyIntensity: 1.15, fill: '#8e44ad', fillIntensity: 0.35, rim: '#d9c2ff', rimIntensity: 0.38 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.28, key: '#ffffff', keyIntensity: 1.10, fill: '#aed6f1', fillIntensity: 0.38, rim: '#dcefff', rimIntensity: 0.38 },
   }
   const c = configs[preset]
   return (
@@ -708,10 +757,19 @@ function AvatarScene({
         // subsurface scatter, so a hard key produces a wet/plastic hotspot. CC4
         // exports ~0.55 with a KHR_materials_specular layer; CC5 Headshot 3
         // exports ~0.7 as a plain MeshStandardMaterial with NO specular ext.
-        // Fix, per material, once: roughen hard (floor 0.97); add a soft warm
-        // sheen (subsurface-like scatter — sheen needs MeshPhysicalMaterial, so
-        // upgrade plain-standard skin); tame specularIntensity + kill clearcoat.
+        // Fix, per material, once: drive roughness from a procedural noise map
+        // so it VARIES (v0.5.36 — the old flat 0.97 floor just read as clay);
+        // add a soft warm sheen (subsurface-like scatter — sheen needs
+        // MeshPhysicalMaterial, so upgrade plain-standard skin); add pore-scale
+        // detail-normal; tame specularIntensity + kill clearcoat.
         // Wrapped so any failure leaves the (roughened) standard material intact.
+        // Environment response for every lit material (hair, clothing, eyes…).
+        // three defaults envMapIntensity to 1, but set it explicitly so the
+        // scene's IBL strength is tunable from one constant. Skin overrides this
+        // below with ENV_MAP_INTENSITY_SKIN.
+        if ('envMapIntensity' in m) {
+          (m as THREE.MeshStandardMaterial).envMapIntensity = ENV_MAP_INTENSITY
+        }
         if (/^(Std_Skin|Std_Nails)/i.test(matName)) {
           const std = m as THREE.MeshStandardMaterial & { __skinLifelike?: boolean }
           if (!std.__skinLifelike) {
@@ -736,7 +794,7 @@ function AvatarScene({
                 mat.sheenColor = new THREE.Color(0xffd9c8)
               }
               if ('clearcoat' in mat) mat.clearcoat = 0
-              if ('envMapIntensity' in mat) mat.envMapIntensity = 0.3
+              if ('envMapIntensity' in mat) mat.envMapIntensity = ENV_MAP_INTENSITY_SKIN
               if (mat.normalMap && mat.normalScale) mat.normalScale.multiplyScalar(1.3)
               // Pore-scale micro-detail — recovers what a 512px normal export loses.
               attachSkinDetailNormal(mat, detail)
@@ -1192,6 +1250,7 @@ export function AvatarCanvas({
         shadows
       >
         <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
+        <EnvironmentIBL />
         <Lighting preset={lightingPreset} />
         <Suspense fallback={null}>
           <AvatarScene
