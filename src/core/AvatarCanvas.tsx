@@ -244,10 +244,20 @@ function Lighting({ preset }: { preset: LightingPreset }) {
   // eased, fill warmed + lifted, and ambient raised so the face is lit by soft
   // room fill rather than a single spotlight. consumer/education keep their prior
   // look (ambientIntensity 0.7). Per-preset ambientIntensity.
+  // v0.5.36 — total light energy cut and a rim added. Every preset summed to
+  // ~3.3–3.4 across ambient+key+fill, which pushed skin highlights into ACES
+  // tonemapping's white rolloff — read as a waxy sheen no amount of roughness
+  // could remove. Totals now land ~2.6: the face is still clearly lit, but the
+  // highlights sit inside the tonemap's linear range instead of clipping.
+  // A back/rim light adds edge separation (the shape cue flat frontal lighting
+  // destroys) at a cost the energy reduction more than pays for.
+  // NOTE: with no environment map in the scene, ambient is still doing real
+  // work here — it cannot be dropped to IBL-era levels without underlighting
+  // the avatar, so it is eased rather than gutted.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.95, key: '#fdfdff', keyIntensity: 1.5, fill: '#dde4ea', fillIntensity: 0.9 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.55, key: '#fdfdff', keyIntensity: 1.0,  fill: '#dde4ea', fillIntensity: 0.65, rim: '#eaf2ff', rimIntensity: 0.45 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.45, key: '#ffffff', keyIntensity: 1.05, fill: '#8e44ad', fillIntensity: 0.35, rim: '#d9c2ff', rimIntensity: 0.40 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.45, key: '#ffffff', keyIntensity: 1.0,  fill: '#aed6f1', fillIntensity: 0.40, rim: '#dcefff', rimIntensity: 0.40 },
   }
   const c = configs[preset]
   return (
@@ -255,6 +265,8 @@ function Lighting({ preset }: { preset: LightingPreset }) {
       <ambientLight color={c.ambient} intensity={c.ambientIntensity} />
       <directionalLight color={c.key}  intensity={c.keyIntensity}  position={[2, 4, 3]} castShadow />
       <directionalLight color={c.fill} intensity={c.fillIntensity} position={[-2, 2, -1]} />
+      {/* Rim / back light — behind and above, opposite the key. */}
+      <directionalLight color={c.rim}  intensity={c.rimIntensity}  position={[-1.5, 2.5, -3]} />
     </>
   )
 }
@@ -276,6 +288,147 @@ const CAMERA_TARGET_Y = 0.1
 // drop at full open — a natural speech jaw excursion on top of the Jaw_Open
 // morph, well short of a yawn.
 const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
+
+// ── Procedural skin detail (v0.5.36) ──────────────────────────────────────────
+//
+// CC exports ship NO roughness map and NO AO map — verified against real CC5
+// Headshot 3 GLBs (Std_Skin_* carry a flat roughnessFactor 0.7 plus baseColor +
+// normal, nothing else). A single flat roughness scalar means every square
+// millimetre of the face reflects light identically, which is the classic "CG
+// plastic" tell — far more than the roughness VALUE itself. And once the normal
+// map is exported at 512 (needed to keep GLBs small) the pore-scale detail that
+// breaks up skin shading is simply gone, so the surface reads glass-smooth.
+//
+// Both are fixed here at zero asset cost: one small tileable noise texture,
+// generated once and shared by every avatar, used two ways —
+//   • as a roughnessMap, so specular varies across the face (oily vs matte)
+//   • as a fine detail-normal (shader-injected), restoring pore-scale shading
+// This is why the export resolution stops mattering for pores: the micro-detail
+// comes from here, not from the GLB's normal map.
+const SKIN_DETAIL_TEX_SIZE = 256
+// Roughness range the noise is mapped into. Mean ≈ 0.80 — real skin sits around
+// 0.6–0.9 and VARIES; the old flat 0.97 floor traded "shiny plastic" for
+// "matte clay", which is equally unconvincing.
+const SKIN_ROUGH_MIN = 0.66
+const SKIN_ROUGH_MAX = 0.94
+// How many times the noise tiles across the skin UV atlas for each use.
+const SKIN_ROUGH_REPEAT  = 6   // broad oily/dry zones
+const SKIN_DETAIL_REPEAT = 26  // pore-scale micro-shading
+const SKIN_DETAIL_STRENGTH = 0.55
+
+let skinDetailTex: THREE.DataTexture | null = null
+
+/**
+ * Build (once) a small tileable greyscale value-noise texture used for both the
+ * skin roughness map and the injected detail normal. Deterministic — a fixed
+ * hash, not Math.random — so every avatar and every reload gets the same grain.
+ */
+function getSkinDetailTexture(): THREE.DataTexture {
+  if (skinDetailTex) return skinDetailTex
+
+  const N = SKIN_DETAIL_TEX_SIZE
+  const data = new Uint8Array(N * N * 4)
+
+  // Deterministic hash → [0,1)
+  const hash = (x: number, y: number): number => {
+    const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+    return h - Math.floor(h)
+  }
+  // Tileable value noise at a given cell frequency (wraps via modulo).
+  const valueNoise = (u: number, v: number, freq: number): number => {
+    const x = u * freq
+    const y = v * freq
+    const xi = Math.floor(x)
+    const yi = Math.floor(y)
+    const xf = x - xi
+    const yf = y - yi
+    // smoothstep interpolation
+    const sx = xf * xf * (3 - 2 * xf)
+    const sy = yf * yf * (3 - 2 * yf)
+    const w = (a: number, b: number) => ((a % b) + b) % b
+    const p00 = hash(w(xi, freq),     w(yi, freq))
+    const p10 = hash(w(xi + 1, freq), w(yi, freq))
+    const p01 = hash(w(xi, freq),     w(yi + 1, freq))
+    const p11 = hash(w(xi + 1, freq), w(yi + 1, freq))
+    return (p00 * (1 - sx) + p10 * sx) * (1 - sy) + (p01 * (1 - sx) + p11 * sx) * sy
+  }
+
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const u = x / N
+      const v = y / N
+      // Multi-octave so the grain clumps like pores rather than looking like TV static.
+      const n =
+        valueNoise(u, v, 8)  * 0.5 +
+        valueNoise(u, v, 16) * 0.3 +
+        valueNoise(u, v, 32) * 0.2
+      const r = SKIN_ROUGH_MIN + n * (SKIN_ROUGH_MAX - SKIN_ROUGH_MIN)
+      const b = Math.round(THREE.MathUtils.clamp(r, 0, 1) * 255)
+      const i = (y * N + x) * 4
+      data[i] = b; data[i + 1] = b; data[i + 2] = b; data[i + 3] = 255
+    }
+  }
+
+  const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.minFilter = THREE.LinearMipmapLinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.generateMipmaps = true
+  tex.needsUpdate = true
+  skinDetailTex = tex
+  return tex
+}
+
+/**
+ * Inject a tiled detail-normal into a skin material's fragment shader.
+ *
+ * three applies bumpMap only when no normalMap is present (`#elif` in
+ * normal_fragment_maps), and CC skin always has a normalMap — so a second layer
+ * of micro-detail has to be added by hand, after the base normal is resolved.
+ * The perturbation is deliberately tiny, so approximating the tangent frame in
+ * view space is imperceptible and avoids needing tangents.
+ */
+function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uDetailMap      = { value: detail }
+    shader.uniforms.uDetailScale    = { value: SKIN_DETAIL_REPEAT }
+    shader.uniforms.uDetailStrength = { value: SKIN_DETAIL_STRENGTH }
+    // A missing chunk name would make .replace() a silent no-op — the detail
+    // would just never appear, with no error. Fail loudly instead.
+    if (!shader.fragmentShader.includes('#include <normal_fragment_maps>')) {
+      console.warn(
+        '[AvatarCanvas] skin detail-normal: <normal_fragment_maps> chunk not found — ' +
+        'three.js shader layout changed; pore detail is inactive.',
+      )
+      return
+    }
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform sampler2D uDetailMap;
+         uniform float uDetailScale;
+         uniform float uDetailStrength;`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+         #if defined( USE_MAP )
+         {
+           vec2 dUv = vMapUv * uDetailScale;
+           float e  = 1.0 / ${SKIN_DETAIL_TEX_SIZE.toFixed(1)};
+           float h  = texture2D( uDetailMap, dUv ).g;
+           float hx = texture2D( uDetailMap, dUv + vec2( e, 0.0 ) ).g;
+           float hy = texture2D( uDetailMap, dUv + vec2( 0.0, e ) ).g;
+           normal = normalize( normal + uDetailStrength * vec3( h - hx, h - hy, 0.0 ) );
+         }
+         #endif`,
+      )
+  }
+  // Distinct cache key so these programs never collide with un-patched materials.
+  mat.customProgramCacheKey = () => 'evolve-skin-detail-v1'
+}
 
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
@@ -564,8 +717,19 @@ function AvatarScene({
           if (!std.__skinLifelike) {
             const apply = (mat: THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean }) => {
               mat.metalness = 0
-              if (typeof mat.roughness === 'number') mat.roughness = Math.max(mat.roughness, 0.97)
-              if ('specularIntensity' in mat) mat.specularIntensity = 0.08
+              // v0.5.36 — spatially-varying roughness replaces the old flat 0.97
+              // floor. three multiplies `roughness` by roughnessMap.g, so the
+              // scalar is 1.0 and the map alone carries the SKIN_ROUGH_MIN..MAX
+              // range. Varying specular is what reads as skin; a uniform value
+              // reads as plastic (high gloss) or clay (low gloss) either way.
+              const detail = getSkinDetailTexture()
+              mat.roughness = 1.0
+              mat.roughnessMap = detail.clone()
+              mat.roughnessMap.wrapS = THREE.RepeatWrapping
+              mat.roughnessMap.wrapT = THREE.RepeatWrapping
+              mat.roughnessMap.repeat.set(SKIN_ROUGH_REPEAT, SKIN_ROUGH_REPEAT)
+              mat.roughnessMap.needsUpdate = true
+              if ('specularIntensity' in mat) mat.specularIntensity = 0.20
               if ('sheen' in mat) {
                 mat.sheen = 0.15
                 mat.sheenRoughness = 1.0
@@ -574,6 +738,8 @@ function AvatarScene({
               if ('clearcoat' in mat) mat.clearcoat = 0
               if ('envMapIntensity' in mat) mat.envMapIntensity = 0.3
               if (mat.normalMap && mat.normalScale) mat.normalScale.multiplyScalar(1.3)
+              // Pore-scale micro-detail — recovers what a 512px normal export loses.
+              attachSkinDetailNormal(mat, detail)
               mat.__skinLifelike = true
               mat.needsUpdate = true
             }
