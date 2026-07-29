@@ -308,7 +308,14 @@ const ENV_MAP_INTENSITY_SKIN = 0.50
 // and RPM materials are), needs its LTC lookup tables initialised once, and does
 // not cast shadows — the low directional key below stays for that.
 const SOFT_KEY_SIZE     = 2.6
-const SOFT_KEY_POSITION: [number, number, number] = [1.1, 0.9, 1.7]
+// Offset RELATIVE to the lit subject's face, not absolute world space. The
+// portal leaves CC4 bodies at full height and raises the camera to eyeHeight
+// (~1.67m) instead of auto-calibrating the head down to CAMERA_TARGET_Y, so a
+// hard-coded world position put this softbox at chest height aimed at the FLOOR.
+// RectAreaLight is single-sided, so the face — above and behind its emitting
+// surface — received exactly nothing, leaving the environment map to do all the
+// lighting: bright and flat, the very symptom the softbox was added to fix.
+const SOFT_KEY_OFFSET: [number, number, number] = [1.1, 0.8, 1.7]
 // RectAreaLight intensity is not in the same units as a directionalLight, so the
 // preset's `keyIntensity` is scaled by this to keep one intuitive slider range.
 const SOFT_KEY_GAIN = 3.5
@@ -320,18 +327,18 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.41'
+const ENGINE_BUILD = '0.5.42'
 let lightingFingerprintLogged = false
 
-function SoftKeyLight({ color, intensity }: { color: string; intensity: number }) {
+function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
   const ref = useRef<THREE.RectAreaLight>(null)
   if (!rectAreaLibReady) {
     RectAreaLightUniformsLib.init()
     rectAreaLibReady = true
   }
   useEffect(() => {
-    // Aim at the head. autoCalibrate parks the head bone at CAMERA_TARGET_Y.
-    ref.current?.lookAt(0, CAMERA_TARGET_Y, 0)
+    // Aim at the face, wherever it actually is for this rig and framing.
+    ref.current?.lookAt(0, focusY, 0)
   })
   return (
     <rectAreaLight
@@ -340,7 +347,7 @@ function SoftKeyLight({ color, intensity }: { color: string; intensity: number }
       intensity={intensity * SOFT_KEY_GAIN}
       width={SOFT_KEY_SIZE}
       height={SOFT_KEY_SIZE}
-      position={SOFT_KEY_POSITION}
+      position={[SOFT_KEY_OFFSET[0], focusY + SOFT_KEY_OFFSET[1], SOFT_KEY_OFFSET[2]]}
     />
   )
 }
@@ -371,17 +378,17 @@ const RIM_RADIUS            = 4.18
 const RIM_AZIMUTH_DEFAULT   = -153.4
 const RIM_ELEVATION_DEFAULT = 36.7
 
-function rimPosition(azimuthDeg: number, elevationDeg: number): [number, number, number] {
+function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
   const a = (azimuthDeg   * Math.PI) / 180
   const e = (elevationDeg * Math.PI) / 180
   return [
     RIM_RADIUS * Math.cos(e) * Math.sin(a),
-    RIM_RADIUS * Math.sin(e),
+    focusY + RIM_RADIUS * Math.sin(e),
     RIM_RADIUS * Math.cos(e) * Math.cos(a),
   ]
 }
 
-function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: LightingOverrides }) {
+function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overrides?: LightingOverrides; focusY: number }) {
   // v0.5.22 — boardroom softened for lifelike skin: the key was a hard white
   // 1.4 directional that blew a specular hotspot on skin. Warmed slightly and
   // eased, fill warmed + lifted, and ambient raised so the face is lit by soft
@@ -450,6 +457,9 @@ function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: L
         rim:     overrides?.rim     ?? c.rimIntensity,
         env:     overrides?.env     ?? ENV_MAP_INTENSITY,
         softKeyIsRectAreaLight: true,
+        // The height the lights are aimed at. If this reads ~0.1 for a CC4
+        // avatar framed at eye height (~1.4-1.7), the key is missing the face.
+        focusY: Number(focusY.toFixed(3)),
       },
     )
   }
@@ -460,16 +470,17 @@ function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: L
   const rimPos   = rimPosition(
     overrides?.rimAzimuth   ?? RIM_AZIMUTH_DEFAULT,
     overrides?.rimElevation ?? RIM_ELEVATION_DEFAULT,
+    focusY,
   )
   return (
     <>
       <ambientLight color={c.ambient} intensity={ambientI} />
       {/* Soft key — the main shaping light (softbox, not a bare directional). */}
-      <SoftKeyLight color={c.key} intensity={keyI} />
+      <SoftKeyLight color={c.key} intensity={keyI} focusY={focusY} />
       {/* Low directional along the key axis, kept only so shadows still cast
           (RectAreaLight cannot cast shadows). */}
-      <directionalLight color={c.key}  intensity={keyI * 0.25} position={[2, 4, 3]} castShadow />
-      <directionalLight color={c.fill} intensity={fillI} position={[-2, 2, -1]} />
+      <directionalLight color={c.key}  intensity={keyI * 0.25} position={[2, focusY + 4, 3]} castShadow />
+      <directionalLight color={c.fill} intensity={fillI} position={[-2, focusY + 2, -1]} />
       {/* Rim / back light — behind and above, opposite the key. */}
       <directionalLight color={c.rim}  intensity={rimI}  position={rimPos} />
     </>
@@ -1430,7 +1441,15 @@ export function AvatarCanvas({
       >
         <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
         <EnvironmentIBL />
-        <Lighting preset={lightingPreset} overrides={lightingOverrides} />
+        {/* Lights are placed relative to whatever the camera is looking at, so
+            they follow the face for both conventions: auto-calibrated rigs
+            (head parked near CAMERA_TARGET_Y) and full-height CC4 bodies framed
+            at their real eye height (~1.4-1.7m), which the portal uses. */}
+        <Lighting
+          preset={lightingPreset}
+          overrides={lightingOverrides}
+          focusY={(cameraTarget ?? CAMERA_PRESETS[cameraPreset].target)[1]}
+        />
         <Suspense fallback={null}>
           <AvatarScene
             engine={engine}
