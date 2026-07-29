@@ -54,6 +54,7 @@ import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
@@ -136,6 +137,12 @@ export interface AvatarCanvasProps {
   mergeFaceRig?:   'auto' | boolean
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
+  /**
+   * Per-light intensity overrides on top of `lightingPreset`. Intended for live
+   * tuning (the playground exposes these as sliders); omit in production to use
+   * the preset's calibrated values.
+   */
+  lightingOverrides?: LightingOverrides
   bodyRotationY?:  number
   /**
    * Y offset applied to the avatar primitive in world space.
@@ -288,9 +295,61 @@ function EnvironmentIBL() {
 const ENV_MAP_INTENSITY      = 0.55
 const ENV_MAP_INTENSITY_SKIN = 0.40
 
+// ── Soft key (softbox) ────────────────────────────────────────────────────────
+//
+// v0.5.39 — a directionalLight is a hard, infinitely-distant source: it gives a
+// sharp terminator and a small specular hotspot, which is exactly the "lit by a
+// bare bulb" look. A RectAreaLight is a real area source (a softbox), so the
+// terminator is broad and the specular is a soft rectangle rather than a point.
+// That is what "soft directional" means physically, and it lets ambient — the
+// flat, shape-destroying term — be cut right back while the face still reads.
+//
+// RectAreaLight only affects MeshStandardMaterial / MeshPhysicalMaterial (all CC
+// and RPM materials are), needs its LTC lookup tables initialised once, and does
+// not cast shadows — the low directional key below stays for that.
+const SOFT_KEY_SIZE     = 2.6
+const SOFT_KEY_POSITION: [number, number, number] = [1.1, 0.9, 1.7]
+// RectAreaLight intensity is not in the same units as a directionalLight, so the
+// preset's `keyIntensity` is scaled by this to keep one intuitive slider range.
+const SOFT_KEY_GAIN = 3.5
+
+let rectAreaLibReady = false
+
+function SoftKeyLight({ color, intensity }: { color: string; intensity: number }) {
+  const ref = useRef<THREE.RectAreaLight>(null)
+  if (!rectAreaLibReady) {
+    RectAreaLightUniformsLib.init()
+    rectAreaLibReady = true
+  }
+  useEffect(() => {
+    // Aim at the head. autoCalibrate parks the head bone at CAMERA_TARGET_Y.
+    ref.current?.lookAt(0, CAMERA_TARGET_Y, 0)
+  })
+  return (
+    <rectAreaLight
+      ref={ref}
+      color={color}
+      intensity={intensity * SOFT_KEY_GAIN}
+      width={SOFT_KEY_SIZE}
+      height={SOFT_KEY_SIZE}
+      position={SOFT_KEY_POSITION}
+    />
+  )
+}
+
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
-function Lighting({ preset }: { preset: LightingPreset }) {
+/** Per-light intensity overrides, for live tuning (see the playground panel). */
+export interface LightingOverrides {
+  ambient?: number
+  key?:     number
+  fill?:    number
+  rim?:     number
+  /** Environment-map strength (applied to materials, skin scaled down). */
+  env?:     number
+}
+
+function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: LightingOverrides }) {
   // v0.5.22 — boardroom softened for lifelike skin: the key was a hard white
   // 1.4 directional that blew a specular hotspot on skin. Warmed slightly and
   // eased, fill warmed + lifted, and ambient raised so the face is lit by soft
@@ -313,19 +372,41 @@ function Lighting({ preset }: { preset: LightingPreset }) {
   // clips first on skin. Avatars composite over a photographic backdrop, so the
   // target is matching that plate's exposure, not "as bright as possible" —
   // over-lighting the avatar relative to its background is what reads as pasted-on.
+  // v0.5.39 — two corrections.
+  //
+  // 1. AMBIENT DOWN, DIRECTIONAL UP. Ambient is a flat term applied equally to
+  //    every surface, so it actively destroys the shading gradients that make a
+  //    face read as a face. It is now a small tint only; shaping comes from the
+  //    soft key.
+  // 2. PRESETS MATCHED BY LUMINANCE, NOT RAW INTENSITY. The presets previously
+  //    summed to similar intensity numbers but very different actual brightness,
+  //    because boardroom's lights are near-white while consumer's fill is a dark
+  //    saturated purple. Measured with Rec.709 luma, boardroom came out ~40%
+  //    brighter than consumer — which is exactly why the portal (boardroom) read
+  //    "too bright" while the playground (consumer) read "too dark" at the same
+  //    numbers. Intensities are now scaled per preset so all three land at a
+  //    comparable luminance, and the low-luma purple fill is compensated up.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.20, key: '#fdfdff', keyIntensity: 0.85, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.30 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.85, fill: '#8e44ad', fillIntensity: 0.26, rim: '#d9c2ff', rimIntensity: 0.28 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.85, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.28 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.10, key: '#fdfdff', keyIntensity: 0.72, fill: '#dde4ea', fillIntensity: 0.30, rim: '#eaf2ff', rimIntensity: 0.26 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.74, fill: '#8e44ad', fillIntensity: 0.90, rim: '#d9c2ff', rimIntensity: 0.38 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.14, key: '#ffffff', keyIntensity: 0.73, fill: '#aed6f1', fillIntensity: 0.42, rim: '#dcefff', rimIntensity: 0.30 },
   }
   const c = configs[preset]
+  const ambientI = overrides?.ambient ?? c.ambientIntensity
+  const keyI     = overrides?.key     ?? c.keyIntensity
+  const fillI    = overrides?.fill    ?? c.fillIntensity
+  const rimI     = overrides?.rim     ?? c.rimIntensity
   return (
     <>
-      <ambientLight color={c.ambient} intensity={c.ambientIntensity} />
-      <directionalLight color={c.key}  intensity={c.keyIntensity}  position={[2, 4, 3]} castShadow />
-      <directionalLight color={c.fill} intensity={c.fillIntensity} position={[-2, 2, -1]} />
+      <ambientLight color={c.ambient} intensity={ambientI} />
+      {/* Soft key — the main shaping light (softbox, not a bare directional). */}
+      <SoftKeyLight color={c.key} intensity={keyI} />
+      {/* Low directional along the key axis, kept only so shadows still cast
+          (RectAreaLight cannot cast shadows). */}
+      <directionalLight color={c.key}  intensity={keyI * 0.25} position={[2, 4, 3]} castShadow />
+      <directionalLight color={c.fill} intensity={fillI} position={[-2, 2, -1]} />
       {/* Rim / back light — behind and above, opposite the key. */}
-      <directionalLight color={c.rim}  intensity={c.rimIntensity}  position={[-1.5, 2.5, -3]} />
+      <directionalLight color={c.rim}  intensity={rimI}  position={[-1.5, 2.5, -3]} />
     </>
   )
 }
@@ -510,6 +591,7 @@ function AvatarScene({
   applyTPoseFix,
   avatarXOffset,
   autoCalibrate,
+  envIntensity,
 }: {
   engine:           AvatarEngine
   glbUrl:           string
@@ -520,6 +602,7 @@ function AvatarScene({
   applyTPoseFix:    boolean
   avatarXOffset:    number
   autoCalibrate:    boolean
+  envIntensity?:    number
 }) {
   // Decide up-front whether we need the donor face rig. When `mergeFaceRigMode`
   // is explicitly false the donor URL is omitted from the loader call so the
@@ -903,6 +986,26 @@ function AvatarScene({
     }
   }, [scene, gltf, clips, engine, applyTPoseFix])
 
+  // Live environment-map strength. The load pass sets this once from the
+  // ENV_MAP_* constants; this re-applies it whenever a caller drives the
+  // `lightingOverrides.env` slider, so the playground can tune it without a
+  // reload. No-op in production, where `envIntensity` is undefined.
+  useEffect(() => {
+    if (envIntensity == null) return
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh
+      if (!mesh.isMesh) return
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const mm of mats) {
+        if (!mm || !('envMapIntensity' in mm)) continue
+        const isSkin = /^(Std_Skin|Std_Nails)/i.test(mm.name ?? '')
+        ;(mm as THREE.MeshStandardMaterial).envMapIntensity = isSkin
+          ? envIntensity * (ENV_MAP_INTENSITY_SKIN / ENV_MAP_INTENSITY)
+          : envIntensity
+      }
+    })
+  }, [scene, envIntensity])
+
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
   useEffect(() => {
     scene.visible = false
@@ -1223,6 +1326,7 @@ export function AvatarCanvas({
   mergeFaceRig: mergeFaceRigMode = 'auto',
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
+  lightingOverrides,
   bodyRotationY  = 0.5,
   avatarYOffset  = -1.52,
   avatarXOffset  = 0,
@@ -1261,7 +1365,7 @@ export function AvatarCanvas({
       >
         <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
         <EnvironmentIBL />
-        <Lighting preset={lightingPreset} />
+        <Lighting preset={lightingPreset} overrides={lightingOverrides} />
         <Suspense fallback={null}>
           <AvatarScene
             engine={engine}
@@ -1269,6 +1373,7 @@ export function AvatarCanvas({
             faceRigUrl={faceRigUrl}
             mergeFaceRigMode={mergeFaceRigMode}
             bodyRotationY={bodyRotationY}
+            envIntensity={lightingOverrides?.env}
             avatarYOffset={avatarYOffset}
             avatarXOffset={avatarXOffset}
             applyTPoseFix={applyTPoseFix}
