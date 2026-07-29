@@ -315,6 +315,14 @@ const SOFT_KEY_GAIN = 3.5
 
 let rectAreaLibReady = false
 
+/**
+ * Build fingerprint, logged once on mount. Bump with the package version — it is
+ * the only way to tell "this lighting change looks wrong" apart from "this build
+ * is not the code you think it is", which cost several release cycles once.
+ */
+const ENGINE_BUILD = '0.5.41'
+let lightingFingerprintLogged = false
+
 function SoftKeyLight({ color, intensity }: { color: string; intensity: number }) {
   const ref = useRef<THREE.RectAreaLight>(null)
   if (!rectAreaLibReady) {
@@ -426,6 +434,25 @@ function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: L
     education: { ambient: '#e8f5e9', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.41, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.67 },
   }
   const c = configs[preset]
+  // v0.5.41 — build/lighting fingerprint. The portal spent several releases
+  // rendering a stale vendored engine while looking identical, which is
+  // indistinguishable from "the lighting change did nothing" unless the running
+  // build identifies itself. Logged once per mount so which code is actually
+  // live is never a guess again.
+  if (!lightingFingerprintLogged) {
+    lightingFingerprintLogged = true
+    console.info(
+      `[AvatarCanvas] ENGINE ${ENGINE_BUILD} — lighting '${preset}':`,
+      {
+        ambient: overrides?.ambient ?? c.ambientIntensity,
+        softKey: overrides?.key     ?? c.keyIntensity,
+        fill:    overrides?.fill    ?? c.fillIntensity,
+        rim:     overrides?.rim     ?? c.rimIntensity,
+        env:     overrides?.env     ?? ENV_MAP_INTENSITY,
+        softKeyIsRectAreaLight: true,
+      },
+    )
+  }
   const ambientI = overrides?.ambient ?? c.ambientIntensity
   const keyI     = overrides?.key     ?? c.keyIntensity
   const fillI    = overrides?.fill    ?? c.fillIntensity
