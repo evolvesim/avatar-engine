@@ -292,8 +292,8 @@ function EnvironmentIBL() {
 // and lit the avatar much hotter than the backdrop plate it composites over,
 // which reads as "pasted on". Skin is pulled down hardest — it is the surface
 // whose highlights clip first and the one we most need to keep midtones in.
-const ENV_MAP_INTENSITY      = 0.69
-const ENV_MAP_INTENSITY_SKIN = 0.50
+const ENV_MAP_INTENSITY      = 0.65
+const ENV_MAP_INTENSITY_SKIN = 0.47
 
 // ── Soft key (softbox) ────────────────────────────────────────────────────────
 //
@@ -327,7 +327,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.42'
+const ENGINE_BUILD = '0.5.43'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -375,8 +375,11 @@ export interface LightingOverrides {
 // Rim placement. Defaults reproduce the previous hard-coded [-1.5, 2.5, -3]
 // exactly (verified by round-trip), so this is a pure refactor until overridden.
 const RIM_RADIUS            = 4.18
-const RIM_AZIMUTH_DEFAULT   = -153.4
-const RIM_ELEVATION_DEFAULT = 36.7
+// v0.5.43 — dialled in on a CC5 character. Elevation is NEGATIVE: the rim now
+// sits behind and slightly BELOW the face rather than above it, which skims the
+// jaw and neck instead of the top of the head.
+const RIM_AZIMUTH_DEFAULT   = -152
+const RIM_ELEVATION_DEFAULT = -20
 
 function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
   const a = (azimuthDeg   * Math.PI) / 180
@@ -436,9 +439,9 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // (#dde4ea), so it needs ~6x the intensity to contribute the same light. This
   // is the correction that stopped the two previews disagreeing.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.00, key: '#fdfdff', keyIntensity: 0.41, fill: '#dde4ea', fillIntensity: 0.23, rim: '#eaf2ff', rimIntensity: 0.63 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.41, fill: '#8e44ad', fillIntensity: 1.38, rim: '#d9c2ff', rimIntensity: 0.93 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.41, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.67 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.00, key: '#fdfdff', keyIntensity: 0.17, fill: '#dde4ea', fillIntensity: 0.23, rim: '#eaf2ff', rimIntensity: 0.26 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.17, fill: '#8e44ad', fillIntensity: 1.38, rim: '#d9c2ff', rimIntensity: 0.39 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.17, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.28 },
   }
   const c = configs[preset]
   // v0.5.41 — build/lighting fingerprint. The portal spent several releases
