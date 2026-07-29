@@ -262,6 +262,32 @@ EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL)
 EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD)
 EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE)
 
+// CC5 idle pools — the two CC5 packs (the 45 Mixamo clips retargeted to the CC
+// rig; see scripts/build-cc5-packs.md). Same contract as the CC4 pools above:
+// _pickNextIdle filters to clips actually present in the loaded pack, so listing
+// both genders' idles here is safe for every rig. Membership in a pool is also
+// what marks a clip as an idle (_isIdleClip) and gets it played LoopRepeat —
+// a CC5 idle left out of these lists would play once as a gesture and stop.
+const CC5_IDLES_NEUTRAL = [
+  'cc5_m_standard_idle',
+  'cc5_m_idle_still',
+  'cc5_m_breathing_idle_fast_breathing',
+  'cc5_m_neutral_idle_foot_forward',
+  'cc5_f_idle_standard',
+  'cc5_f_idle_shifting',
+  'cc5_f_idle_foot_forward_slouch',
+  'cc5_f_standing_idle_footfoward',
+]
+const CC5_IDLES_HAPPY = ['cc5_m_happy_idle_swaying']
+// NOTE: cc5_f_sitting_hands_crossed is deliberately absent. It's a genuine
+// looping idle (and is tagged as one in the playground manifest), but it is
+// SEATED — auto-selecting it would sit a standing character down mid-scene. It
+// stays fireable by id for seated scenarios; it must never enter a standing pool.
+EMOTION_IDLE_POOLS.neutral.push(...CC5_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.happy.push(...CC5_IDLES_HAPPY, ...CC5_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.shy.push(...CC5_IDLES_NEUTRAL)
+EMOTION_IDLE_POOLS.empathy.push(...CC5_IDLES_NEUTRAL)
+
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
 function logArmBoneQuats(label: string, root: THREE.Object3D): void {

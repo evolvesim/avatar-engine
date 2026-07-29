@@ -203,6 +203,8 @@ export interface AvatarCanvasProps {
    *   '/avatar-engine/animations-pack6.glb'  — Pack 6: MoCap Central Female (mc_f_)
    *   '/avatar-engine/animations-pack7.glb'  — Pack 7: Legal test set (Judge, Lawyer x2, Witness)
    *   '/avatar-engine/animations-pack8.glb'  — Pack 8: MCU Motion Capture Unity idle (mcu_)
+   *   '/avatar-engine/animations-pack-cc5-male.glb'   — CC5 Male (cc5_m_): packs 1/2/5's Mixamo clips on the CC rig
+   *   '/avatar-engine/animations-pack-cc5-female.glb' — CC5 Female (cc5_f_)
    *
    * Default: undefined (keeps the engine's existing loaded dictionary)
    */
