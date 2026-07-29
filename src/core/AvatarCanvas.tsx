@@ -280,8 +280,13 @@ function EnvironmentIBL() {
 // How strongly the environment lights each surface. Skin sits slightly lower so
 // the IBL reads as soft scatter rather than a reflective sheen — the exact
 // problem we are trying to remove.
-const ENV_MAP_INTENSITY      = 1.0
-const ENV_MAP_INTENSITY_SKIN = 0.85
+// v0.5.38 — halved. RoomEnvironment is a brightly-lit box and contributes far
+// more irradiance than first assumed: at 1.0 it blew skin midtones out entirely
+// and lit the avatar much hotter than the backdrop plate it composites over,
+// which reads as "pasted on". Skin is pulled down hardest — it is the surface
+// whose highlights clip first and the one we most need to keep midtones in.
+const ENV_MAP_INTENSITY      = 0.55
+const ENV_MAP_INTENSITY_SKIN = 0.40
 
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
@@ -303,10 +308,15 @@ function Lighting({ preset }: { preset: LightingPreset }) {
   // the key comes back up. Direct total ~2.4 PLUS the environment, which lands
   // brighter overall than the original 3.35 flat-ambient setup while keeping
   // highlights inside the tonemap's linear range.
+  // v0.5.38 — direct light cut alongside ENV_MAP_INTENSITY. The key takes the
+  // largest reduction because it is what produces the specular hotspot that
+  // clips first on skin. Avatars composite over a photographic backdrop, so the
+  // target is matching that plate's exposure, not "as bright as possible" —
+  // over-lighting the avatar relative to its background is what reads as pasted-on.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.30, key: '#fdfdff', keyIntensity: 1.15, fill: '#dde4ea', fillIntensity: 0.55, rim: '#eaf2ff', rimIntensity: 0.40 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.28, key: '#ffffff', keyIntensity: 1.15, fill: '#8e44ad', fillIntensity: 0.35, rim: '#d9c2ff', rimIntensity: 0.38 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.28, key: '#ffffff', keyIntensity: 1.10, fill: '#aed6f1', fillIntensity: 0.38, rim: '#dcefff', rimIntensity: 0.38 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.20, key: '#fdfdff', keyIntensity: 0.85, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.30 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.85, fill: '#8e44ad', fillIntensity: 0.26, rim: '#d9c2ff', rimIntensity: 0.28 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.85, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.28 },
   }
   const c = configs[preset]
   return (
