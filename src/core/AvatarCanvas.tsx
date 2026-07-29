@@ -292,8 +292,8 @@ function EnvironmentIBL() {
 // and lit the avatar much hotter than the backdrop plate it composites over,
 // which reads as "pasted on". Skin is pulled down hardest — it is the surface
 // whose highlights clip first and the one we most need to keep midtones in.
-const ENV_MAP_INTENSITY      = 0.55
-const ENV_MAP_INTENSITY_SKIN = 0.40
+const ENV_MAP_INTENSITY      = 0.69
+const ENV_MAP_INTENSITY_SKIN = 0.50
 
 // ── Soft key (softbox) ────────────────────────────────────────────────────────
 //
@@ -347,6 +347,30 @@ export interface LightingOverrides {
   rim?:     number
   /** Environment-map strength (applied to materials, skin scaled down). */
   env?:     number
+  /**
+   * Rim light direction, in degrees. Azimuth is measured from straight behind
+   * the camera axis (+Z) rotating toward the avatar's left (+X); elevation is
+   * height above the horizon. Rim angle matters more than rim intensity for
+   * edge separation, so these are exposed for tuning.
+   */
+  rimAzimuth?:   number
+  rimElevation?: number
+}
+
+// Rim placement. Defaults reproduce the previous hard-coded [-1.5, 2.5, -3]
+// exactly (verified by round-trip), so this is a pure refactor until overridden.
+const RIM_RADIUS            = 4.18
+const RIM_AZIMUTH_DEFAULT   = -153.4
+const RIM_ELEVATION_DEFAULT = 36.7
+
+function rimPosition(azimuthDeg: number, elevationDeg: number): [number, number, number] {
+  const a = (azimuthDeg   * Math.PI) / 180
+  const e = (elevationDeg * Math.PI) / 180
+  return [
+    RIM_RADIUS * Math.cos(e) * Math.sin(a),
+    RIM_RADIUS * Math.sin(e),
+    RIM_RADIUS * Math.cos(e) * Math.cos(a),
+  ]
 }
 
 function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: LightingOverrides }) {
@@ -386,16 +410,30 @@ function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: L
   //    "too bright" while the playground (consumer) read "too dark" at the same
   //    numbers. Intensities are now scaled per preset so all three land at a
   //    comparable luminance, and the low-luma purple fill is compensated up.
+  // v0.5.40 — boardroom is now the values dialled in on a real CC5 character
+  // against the café backdrop (ambient 0, key 0.41, fill 0.23, rim 0.63,
+  // env 0.69). Ambient lands at ZERO: the softbox and the environment carry the
+  // whole frame, which is what finally removed the flat, pasted-on look.
+  //
+  // consumer/education keep their colour identity but are derived from those
+  // numbers by matching Rec.709 LUMINANCE per channel, not by copying the raw
+  // values — e.g. consumer's fill (#8e44ad) has ~1/6th the luma of boardroom's
+  // (#dde4ea), so it needs ~6x the intensity to contribute the same light. This
+  // is the correction that stopped the two previews disagreeing.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.10, key: '#fdfdff', keyIntensity: 0.72, fill: '#dde4ea', fillIntensity: 0.30, rim: '#eaf2ff', rimIntensity: 0.26 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.18, key: '#ffffff', keyIntensity: 0.74, fill: '#8e44ad', fillIntensity: 0.90, rim: '#d9c2ff', rimIntensity: 0.38 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.14, key: '#ffffff', keyIntensity: 0.73, fill: '#aed6f1', fillIntensity: 0.42, rim: '#dcefff', rimIntensity: 0.30 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.00, key: '#fdfdff', keyIntensity: 0.41, fill: '#dde4ea', fillIntensity: 0.23, rim: '#eaf2ff', rimIntensity: 0.63 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.41, fill: '#8e44ad', fillIntensity: 1.38, rim: '#d9c2ff', rimIntensity: 0.93 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.41, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.67 },
   }
   const c = configs[preset]
   const ambientI = overrides?.ambient ?? c.ambientIntensity
   const keyI     = overrides?.key     ?? c.keyIntensity
   const fillI    = overrides?.fill    ?? c.fillIntensity
   const rimI     = overrides?.rim     ?? c.rimIntensity
+  const rimPos   = rimPosition(
+    overrides?.rimAzimuth   ?? RIM_AZIMUTH_DEFAULT,
+    overrides?.rimElevation ?? RIM_ELEVATION_DEFAULT,
+  )
   return (
     <>
       <ambientLight color={c.ambient} intensity={ambientI} />
@@ -406,7 +444,7 @@ function Lighting({ preset, overrides }: { preset: LightingPreset; overrides?: L
       <directionalLight color={c.key}  intensity={keyI * 0.25} position={[2, 4, 3]} castShadow />
       <directionalLight color={c.fill} intensity={fillI} position={[-2, 2, -1]} />
       {/* Rim / back light — behind and above, opposite the key. */}
-      <directionalLight color={c.rim}  intensity={rimI}  position={[-1.5, 2.5, -3]} />
+      <directionalLight color={c.rim}  intensity={rimI}  position={rimPos} />
     </>
   )
 }
