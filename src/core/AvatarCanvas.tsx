@@ -335,7 +335,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.44'
+const ENGINE_BUILD = '0.5.45'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -486,10 +486,15 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // values — e.g. consumer's fill (#8e44ad) has ~1/6th the luma of boardroom's
   // (#dde4ea), so it needs ~6x the intensity to contribute the same light. This
   // is the correction that stopped the two previews disagreeing.
+  // v0.5.45 — main's (0.5.35) values restored verbatim for ambient/key/fill,
+  // because main is the version that actually looked right. The only addition is
+  // a modest rim, which main did not have; set rim to 0 to get main exactly.
+  // Tune from here with the playground sliders rather than from first principles
+  // — every value derived analytically so far has been wrong in practice.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.00, key: '#fdfdff', keyIntensity: 0.17, fill: '#dde4ea', fillIntensity: 0.23, rim: '#eaf2ff', rimIntensity: 0.26 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.17, fill: '#8e44ad', fillIntensity: 1.38, rim: '#d9c2ff', rimIntensity: 0.39 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.00, key: '#ffffff', keyIntensity: 0.17, fill: '#aed6f1', fillIntensity: 0.28, rim: '#dcefff', rimIntensity: 0.28 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.95, key: '#fdfdff', keyIntensity: 1.5, fill: '#dde4ea', fillIntensity: 0.9, rim: '#eaf2ff', rimIntensity: 0.25 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4, rim: '#d9c2ff', rimIntensity: 0.30 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5, rim: '#dcefff', rimIntensity: 0.28 },
   }
   const c = configs[preset]
   // v0.5.41 — build/lighting fingerprint. The portal spent several releases
@@ -527,15 +532,17 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   )
   return (
     <>
+      {/* v0.5.45 — back to main's rig: ambient + directionals, no softbox.
+          The RectAreaLight is gone with the environment map. On its own, without
+          IBL to fill the shadow side, a single area light left the face
+          half-dark, and it cannot cast shadows either. main's arrangement is the
+          one that actually looked right; it is the baseline again, with the
+          lights aimed at the face and a rim available on top. */}
       <ambientLight color={c.ambient} intensity={ambientI} />
-      {/* Soft key — the main shaping light (softbox, not a bare directional). */}
-      <SoftKeyLight color={c.key} intensity={keyI} focusY={focusY} />
-      {/* Low directional along the key axis, kept only so shadows still cast
-          (RectAreaLight cannot cast shadows). */}
-      <AimedDirectionalLight color={c.key}  intensity={keyI * 0.25} position={[2, focusY + 4, 3]}  focusY={focusY} castShadow />
-      <AimedDirectionalLight color={c.fill} intensity={fillI}       position={[-2, focusY + 2, -1]} focusY={focusY} />
+      <AimedDirectionalLight color={c.key}  intensity={keyI}  position={[2, focusY + 4, 3]}   focusY={focusY} castShadow />
+      <AimedDirectionalLight color={c.fill} intensity={fillI} position={[-2, focusY + 2, -1]} focusY={focusY} />
       {/* Rim / back light — direction set by rimAzimuth / rimElevation. */}
-      <AimedDirectionalLight color={c.rim}  intensity={rimI}        position={rimPos}               focusY={focusY} />
+      <AimedDirectionalLight color={c.rim}  intensity={rimI}  position={rimPos}               focusY={focusY} />
     </>
   )
 }
@@ -1493,7 +1500,13 @@ export function AvatarCanvas({
         shadows
       >
         <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
-        <EnvironmentIBL />
+        {/* v0.5.45 — EnvironmentIBL REMOVED. main (0.5.35) had no environment
+            map and no softbox, only ambient + two directionals, and looked
+            better than everything built on top of it. RoomEnvironment lights
+            from every direction at once, so it flattened the face AND made the
+            direct lights irrelevant: cutting env 0.69 -> 0.18 and dropping the
+            key still produced an identical render, because the environment was
+            doing effectively all the work. */}
         {/* Lights are placed relative to whatever the camera is looking at, so
             they follow the face for both conventions: auto-calibrated rigs
             (head parked near CAMERA_TARGET_Y) and full-height CC4 bodies framed
