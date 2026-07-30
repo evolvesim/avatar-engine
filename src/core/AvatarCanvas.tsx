@@ -335,7 +335,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.45'
+const ENGINE_BUILD = '0.5.46'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -426,8 +426,8 @@ const RIM_RADIUS            = 4.18
 // v0.5.43 — dialled in on a CC5 character. Elevation is NEGATIVE: the rim now
 // sits behind and slightly BELOW the face rather than above it, which skims the
 // jaw and neck instead of the top of the head.
-const RIM_AZIMUTH_DEFAULT   = -152
-const RIM_ELEVATION_DEFAULT = -20
+const RIM_AZIMUTH_DEFAULT   = -147
+const RIM_ELEVATION_DEFAULT = -6
 
 function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
   const a = (azimuthDeg   * Math.PI) / 180
@@ -486,15 +486,18 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // values — e.g. consumer's fill (#8e44ad) has ~1/6th the luma of boardroom's
   // (#dde4ea), so it needs ~6x the intensity to contribute the same light. This
   // is the correction that stopped the two previews disagreeing.
-  // v0.5.45 — main's (0.5.35) values restored verbatim for ambient/key/fill,
-  // because main is the version that actually looked right. The only addition is
-  // a modest rim, which main did not have; set rim to 0 to get main exactly.
-  // Tune from here with the playground sliders rather than from first principles
-  // — every value derived analytically so far has been wrong in practice.
+  // v0.5.46 — boardroom dialled in on Kenji (a real CC5 character) in the
+  // playground, against main's restored rig. Ambient comes well down from main's
+  // 0.95 and the key carries more of the frame, which is the "soft directional
+  // over flat ambient" look asked for — reachable only once the environment map
+  // was gone and the direct lights actually governed the image.
+  // consumer/education are derived by matching Rec.709 luminance per channel, so
+  // they keep their colour identity at equivalent brightness; consumer's dark
+  // purple fill needs ~6x boardroom's intensity to contribute the same light.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.95, key: '#fdfdff', keyIntensity: 1.5, fill: '#dde4ea', fillIntensity: 0.9, rim: '#eaf2ff', rimIntensity: 0.25 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4, rim: '#d9c2ff', rimIntensity: 0.30 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5, rim: '#dcefff', rimIntensity: 0.28 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.37, key: '#fdfdff', keyIntensity: 1.18, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.24 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.16, fill: '#8e44ad', fillIntensity: 2.38, rim: '#d9c2ff', rimIntensity: 0.35 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.37, key: '#ffffff', keyIntensity: 1.16, fill: '#aed6f1', fillIntensity: 0.48, rim: '#dcefff', rimIntensity: 0.25 },
   }
   const c = configs[preset]
   // v0.5.41 — build/lighting fingerprint. The portal spent several releases
