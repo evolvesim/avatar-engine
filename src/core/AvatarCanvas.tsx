@@ -335,7 +335,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.46'
+const ENGINE_BUILD = '0.5.47'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -495,9 +495,9 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // they keep their colour identity at equivalent brightness; consumer's dark
   // purple fill needs ~6x boardroom's intensity to contribute the same light.
   const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.37, key: '#fdfdff', keyIntensity: 1.18, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.24 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.16, fill: '#8e44ad', fillIntensity: 2.38, rim: '#d9c2ff', rimIntensity: 0.35 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.37, key: '#ffffff', keyIntensity: 1.16, fill: '#aed6f1', fillIntensity: 0.48, rim: '#dcefff', rimIntensity: 0.25 },
+    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.37, key: '#fdfdff', keyIntensity: 1.50, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.24 },
+    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.48, fill: '#8e44ad', fillIntensity: 2.38, rim: '#d9c2ff', rimIntensity: 0.35 },
+    education: { ambient: '#e8f5e9', ambientIntensity: 0.37, key: '#ffffff', keyIntensity: 1.48, fill: '#aed6f1', fillIntensity: 0.48, rim: '#dcefff', rimIntensity: 0.25 },
   }
   const c = configs[preset]
   // v0.5.41 — build/lighting fingerprint. The portal spent several releases
