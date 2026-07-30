@@ -232,13 +232,40 @@ export function tickHeadTracking(
  * gesture), the eye lock releases and eyes ride naturally with the head.
  * When the head returns inside the cone, eyes smoothly re-acquire.
  *
- * Parameters:
- *   lockConeYaw   — max head yaw (°) before eye lock releases  (default 20°)
- *   lockConePitch — max head pitch (°) before eye lock releases (default 15°)
- *   releaseSpeed  — lerp alpha/s when releasing lock (default 4 = ~0.25s)
- *   acquireSpeed  — lerp alpha/s when re-acquiring  (default 8 = ~0.12s)
- *   eyeLimitYaw   — max eye socket yaw rotation (°) from neutral (default 28°)
- *   eyeLimitPitch — max eye socket pitch rotation (°) from neutral (default 20°)
+ * Yaw and pitch are treated SEPARATELY, because they are not equally forgiving.
+ * Horizontal eye travel is framed by the eyelid opening and reads naturally;
+ * vertical travel exposes sclera above or below the iris and is what reads as
+ * "creepy". Human vertical eye range is also markedly smaller than horizontal.
+ * So the pitch cone and pitch socket limit are tighter than their yaw twins, and
+ * a head pitched further than lockConePitch hands the eyes over to the head
+ * rather than straining them to hold contact.
+ *
+ * The lock also releases while the head is moving FAST, regardless of angle:
+ * smooth pursuit cannot hold a target through a quick head throw, and eyes that
+ * counter-rotate perfectly through a large fast arc are the classic doll's-eyes
+ * look. Release is measured on the face's WORLD forward direction, so head pitch
+ * driven by torso/spine lean counts the same as head-bone rotation — many clips
+ * generate 15°+ of head pitch entirely below the neck.
+ *
+ * KNOWN LIMITATION — the cones are measured relative to the face direction
+ * captured on the FIRST frame, not the true world horizon. `fwd` is derived as
+ * cross(worldUp, eyeLine) and is therefore horizontal by construction, so it
+ * carries no pitch at capture time; thereafter faceFwd tracks head movement
+ * relative to that captured pose. In practice the avatar mounts in a near-level
+ * idle so the reference is close to level, but if the first rendered frame lands
+ * mid-gesture with the head pitched, every cone is biased by that amount for the
+ * rest of the session. Fixing it properly needs a rig-calibrated head-local gaze
+ * axis (this function deliberately avoids bone-local axis assumptions).
+ *
+ * Parameters (defaults in brackets):
+ *   lockConeYaw       — max off-camera yaw (°) before the lock releases    [40°]
+ *   lockConePitch     — max off-camera pitch (°) before the lock releases  [15°]
+ *   releaseHeadSpeed  — face angular speed (°/s) above which it releases  [100]
+ *   reacquireDelay    — seconds of calm required before re-acquiring     [0.12]
+ *   releaseSpeed      — lerp alpha/s when releasing lock                    [5]
+ *   acquireSpeed      — lerp alpha/s when re-acquiring                      [8]
+ *   eyeLimitYaw       — max eye socket yaw rotation (°) from neutral       [35°]
+ *   eyeLimitPitch     — max eye socket pitch rotation (°) from neutral     [12°]
  */
 export interface GazeState {
   /** Current eye weight: 1 = fully locked on camera, 0 = riding with head. */
@@ -257,15 +284,23 @@ export interface GazeState {
   eyeRestR?:      THREE.Quaternion
   eyeFwdParentL?: THREE.Vector3
   eyeFwdParentR?: THREE.Vector3
+  /** Face world-forward from the previous frame — drives the head-speed release. */
+  prevFaceFwd?:   THREE.Vector3
+  /** Seconds the face has been inside the cone AND slow. Gates re-acquiring. */
+  calmTime:       number
 }
 
 export interface GazeConfig {
-  lockConeYaw?:   number   // degrees, default 20
-  lockConePitch?: number   // degrees, default 15
-  releaseSpeed?:  number   // lerp/s, default 4
-  acquireSpeed?:  number   // lerp/s, default 8
-  eyeLimitYaw?:   number   // degrees, default 28
-  eyeLimitPitch?: number   // degrees, default 20
+  lockConeYaw?:      number   // degrees, default 40
+  lockConePitch?:    number   // degrees, default 15
+  releaseSpeed?:     number   // lerp/s, default 5
+  acquireSpeed?:     number   // lerp/s, default 8
+  eyeLimitYaw?:      number   // degrees, default 35
+  eyeLimitPitch?:    number   // degrees, default 12
+  /** Face angular speed (°/s) above which the lock releases. */
+  releaseHeadSpeed?: number   // degrees/second, default 100
+  /** Seconds of calm required before re-acquiring after a release. */
+  reacquireDelay?:   number   // seconds, default 0.12
 }
 
 export function createGazeState(): GazeState {
@@ -275,6 +310,7 @@ export function createGazeState(): GazeState {
     eyePitch:     0,
     refHeadYaw:   0,
     refHeadPitch: 0,
+    calmTime:     0,
   }
 }
 
@@ -491,10 +527,18 @@ export function tickGazeEyeContact(
   driveBones = true,
 ): ARKitWeights {
   if (!headBone || !leftEye || !rightEye) return {}
+  const DEG = Math.PI / 180
   // Max eye travel from the rest (forward) direction before we stop turning.
-  const eyeLimit = Math.abs(cfg.eyeLimitYaw ?? 35) * (Math.PI / 180)
-  // How far the head can twist before the lock releases and the eyes ride along.
-  const releaseAngle = Math.abs(cfg.lockConeYaw ?? 40) * (Math.PI / 180)
+  // Pitch is tighter than yaw: vertical travel is what exposes sclera.
+  const eyeLimitYaw   = Math.abs(cfg.eyeLimitYaw   ?? 35) * DEG
+  const eyeLimitPitch = Math.abs(cfg.eyeLimitPitch ?? 12) * DEG
+  // How far off-camera the face can point before the lock releases and the eyes
+  // ride along with the head.
+  const coneYaw   = Math.abs(cfg.lockConeYaw   ?? 40) * DEG
+  const conePitch = Math.abs(cfg.lockConePitch ?? 15) * DEG
+  // Above this face angular speed the lock releases regardless of angle.
+  const releaseHeadSpeed = Math.abs(cfg.releaseHeadSpeed ?? 100)
+  const reacquireDelay   = Math.max(0, cfg.reacquireDelay ?? 0.12)
   const acquireSpeed = cfg.acquireSpeed ?? 8
   const releaseSpeed = cfg.releaseSpeed ?? 5
 
@@ -526,18 +570,47 @@ export function tickGazeEyeContact(
     state.eyeBoneRId = rightEye.uuid
   }
 
-  // ── Off-forward angle (for the lock/release cone), measured at the eyes ────
+  // ── Off-forward offset (for the lock/release cones), measured at the eyes ──
+  // faceFwd is the face's WORLD forward: the captured parent-local forward
+  // re-projected through the parent's live world rotation. It therefore includes
+  // head pitch produced by torso/spine lean, not just head-bone rotation.
   const faceFwd = (state.eyeFwdParentL ?? fwd).clone().applyQuaternion(lParentW).normalize()
   const toCam = cameraPos.clone().sub(mid).normalize()
-  const angle = Math.acos(THREE.MathUtils.clamp(faceFwd.dot(toCam), -1, 1))
-  const targetLock = angle <= releaseAngle ? 1 : 0
+
+  // Orthonormal face frame, so the camera offset can be split into independent
+  // yaw and pitch. faceUp is world up projected off faceFwd (Gram-Schmidt).
+  const faceUp = worldUp.clone().sub(faceFwd.clone().multiplyScalar(worldUp.dot(faceFwd)))
+  if (faceUp.lengthSq() < 1e-8) faceUp.set(0, 1, 0)   // face pointing straight up/down
+  faceUp.normalize()
+  const faceRight = new THREE.Vector3().crossVectors(faceUp, faceFwd).normalize()
+
+  const yawOff   = Math.atan2(toCam.dot(faceRight), toCam.dot(faceFwd))
+  const pitchOff = Math.asin(THREE.MathUtils.clamp(toCam.dot(faceUp), -1, 1))
+
+  // Face angular speed this frame (°/s). Measured on the world forward, so a
+  // head swung by the spine counts the same as one swung by the neck.
+  let headSpeed = 0
+  if (state.prevFaceFwd && delta > 1e-5) {
+    headSpeed = Math.acos(THREE.MathUtils.clamp(state.prevFaceFwd.dot(faceFwd), -1, 1)) / DEG / delta
+  }
+  if (state.prevFaceFwd) state.prevFaceFwd.copy(faceFwd)
+  else state.prevFaceFwd = faceFwd.clone()
+
+  // Release if the camera sits outside either cone, or the head is moving fast.
+  // Re-acquiring additionally requires a short settle so the eyes don't chatter
+  // on and off around the boundary.
+  const outsideCone = Math.abs(yawOff) > coneYaw || Math.abs(pitchOff) > conePitch
+  const movingFast  = headSpeed > releaseHeadSpeed
+  state.calmTime = (outsideCone || movingFast) ? 0 : state.calmTime + delta
+  const targetLock = (outsideCone || movingFast || state.calmTime < reacquireDelay) ? 0 : 1
+
   const lockSpeed = targetLock > state.lockWeight ? acquireSpeed : releaseSpeed
   state.lockWeight = THREE.MathUtils.lerp(state.lockWeight, targetLock, 1 - Math.exp(-lockSpeed * delta))
 
   if (driveBones) {
     // ── CC4 & RPM: rotate the eye bones directly ────────────────────────────
-    aimEyeAtCamera(leftEye,  state.eyeRestL!,  state.eyeFwdParentL!, lParentW, cameraPos, eyeLimit, state.lockWeight)
-    aimEyeAtCamera(rightEye, state.eyeRestR!,  state.eyeFwdParentR!, rParentW, cameraPos, eyeLimit, state.lockWeight)
+    aimEyeAtCamera(leftEye,  state.eyeRestL!,  state.eyeFwdParentL!, lParentW, cameraPos, eyeLimitYaw, eyeLimitPitch, faceUp, state.lockWeight)
+    aimEyeAtCamera(rightEye, state.eyeRestR!,  state.eyeFwdParentR!, rParentW, cameraPos, eyeLimitYaw, eyeLimitPitch, faceUp, state.lockWeight)
     return {}
   }
 
@@ -548,8 +621,8 @@ export function tickGazeEyeContact(
   state.eyeYaw = THREE.MathUtils.lerp(state.eyeYaw, yaw, eyeLerp)
   state.eyePitch = THREE.MathUtils.lerp(state.eyePitch, pitch, eyeLerp)
   if (state.lockWeight < 0.01) return {}
-  const normYaw = THREE.MathUtils.clamp(state.eyeYaw / eyeLimit, -1, 1) * state.lockWeight
-  const normPitch = THREE.MathUtils.clamp(state.eyePitch / eyeLimit, -1, 1) * state.lockWeight
+  const normYaw = THREE.MathUtils.clamp(state.eyeYaw / eyeLimitYaw, -1, 1) * state.lockWeight
+  const normPitch = THREE.MathUtils.clamp(state.eyePitch / eyeLimitPitch, -1, 1) * state.lockWeight
   const lookRight = THREE.MathUtils.clamp(normYaw, 0, 1)
   const lookLeft = THREE.MathUtils.clamp(-normYaw, 0, 1)
   const lookUp = THREE.MathUtils.clamp(normPitch, 0, 1)
@@ -578,22 +651,34 @@ function aimEyeAtCamera(
   fwdParent:   THREE.Vector3,
   parentWorld: THREE.Quaternion,
   cameraPos:   THREE.Vector3,
-  eyeLimit:    number,
+  limitYaw:    number,
+  limitPitch:  number,
+  faceUp:      THREE.Vector3,
   lockWeight:  number,
 ): void {
   const restWorld = parentWorld.clone().multiply(restLocal)
   const curLook = fwdParent.clone().applyQuaternion(parentWorld).normalize()
   const eyePos = new THREE.Vector3(); eye.getWorldPosition(eyePos)
   const toCam = cameraPos.clone().sub(eyePos).normalize()
-  const ang = Math.acos(THREE.MathUtils.clamp(curLook.dot(toCam), -1, 1))
-  let aim = toCam
-  if (ang > eyeLimit) {
-    const axis = new THREE.Vector3().crossVectors(curLook, toCam)
-    if (axis.lengthSq() > 1e-8) {
-      axis.normalize()
-      aim = curLook.clone().applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, eyeLimit))
-    }
-  }
+
+  // Orthonormal basis around this eye's live rest look direction. Built from the
+  // shared face up-vector so both eyes clamp against the same horizon.
+  const u = faceUp.clone().sub(curLook.clone().multiplyScalar(faceUp.dot(curLook)))
+  if (u.lengthSq() < 1e-8) u.set(0, 1, 0)
+  u.normalize()
+  const r = new THREE.Vector3().crossVectors(u, curLook).normalize()
+
+  // Split the camera direction into yaw/pitch, clamp each axis independently
+  // (an elliptical socket, not a circular cone — vertical travel is limited
+  // harder), then rebuild. The rebuild is the exact inverse of the split, so it
+  // needs no assumption about handedness or rotation order.
+  const yaw   = THREE.MathUtils.clamp(Math.atan2(toCam.dot(r), toCam.dot(curLook)), -limitYaw, limitYaw)
+  const pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(toCam.dot(u), -1, 1)), -limitPitch, limitPitch)
+  const aim = curLook.clone().multiplyScalar(Math.cos(pitch) * Math.cos(yaw))
+    .add(r.clone().multiplyScalar(Math.cos(pitch) * Math.sin(yaw)))
+    .add(u.clone().multiplyScalar(Math.sin(pitch)))
+    .normalize()
+
   const fullDelta = new THREE.Quaternion().setFromUnitVectors(curLook, aim)
   const worldDelta = new THREE.Quaternion().slerp(fullDelta, lockWeight)
   const targetWorld = worldDelta.clone().multiply(restWorld)

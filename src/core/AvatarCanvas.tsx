@@ -82,6 +82,7 @@ import {
   fixTPose,
   findBone,
 } from './procedural-animations'
+import type { GazeConfig } from './procedural-animations'
 import type { ARKitWeights } from './emotion-state'
 import { hasFaceRig, mergeFaceRig } from './merge-face-rig'
 
@@ -209,6 +210,14 @@ export interface AvatarCanvasProps {
    * Default: undefined (keeps the engine's existing loaded dictionary)
    */
   animationPackUrl?: string
+  /**
+   * Overrides for the eye-contact gaze system, merged over the engine defaults.
+   * Use to tune how readily the eyes hand over to the head — e.g. a tighter
+   * `lockConePitch` releases sooner when the head pitches up or down, and
+   * `eyeLimitPitch` caps how far the eyes will travel vertically (vertical
+   * travel is what exposes sclera). See GazeConfig for the full list.
+   */
+  gazeConfig?:      GazeConfig
   className?:      string
 }
 
@@ -300,6 +309,7 @@ function AvatarScene({
   applyTPoseFix,
   avatarXOffset,
   autoCalibrate,
+  gazeConfig,
 }: {
   engine:           AvatarEngine
   glbUrl:           string
@@ -310,6 +320,7 @@ function AvatarScene({
   applyTPoseFix:    boolean
   avatarXOffset:    number
   autoCalibrate:    boolean
+  gazeConfig?:      GazeConfig
 }) {
   // Decide up-front whether we need the donor face rig. When `mergeFaceRigMode`
   // is explicitly false the donor URL is omitted from the loader call so the
@@ -937,9 +948,11 @@ function AvatarScene({
           cameraPosRef.current,
           eyeRotationX,
           eyeRotationY,
-          // 25° eye-travel socket for both characters — eyeLimitYaw caps travel
-          // equally in every direction (side to side and up and down).
-          { eyeLimitYaw: 25 },
+          // 25° horizontal eye-travel socket for both characters. Vertical travel
+          // and the release cones come from the engine defaults (eyeLimitPitch,
+          // lockConePitch), which are deliberately tighter — see the gaze system
+          // docs. Caller overrides win so products can tune without an engine edit.
+          { eyeLimitYaw: 25, ...gazeConfig },
           true,
         )
       : tickGaze(
@@ -999,6 +1012,7 @@ export function AvatarCanvas({
   cameraPosition,
   cameraTarget,
   animationPackUrl,
+  gazeConfig,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -1040,6 +1054,7 @@ export function AvatarCanvas({
             avatarXOffset={avatarXOffset}
             applyTPoseFix={applyTPoseFix}
             autoCalibrate={autoCalibrate}
+            gazeConfig={gazeConfig}
           />
         </Suspense>
       </Canvas>
