@@ -292,8 +292,16 @@ function EnvironmentIBL() {
 // and lit the avatar much hotter than the backdrop plate it composites over,
 // which reads as "pasted on". Skin is pulled down hardest — it is the surface
 // whose highlights clip first and the one we most need to keep midtones in.
-const ENV_MAP_INTENSITY      = 0.65
-const ENV_MAP_INTENSITY_SKIN = 0.47
+// v0.5.44 — cut hard. Evidence from the portal: with ambient 0 and the direct
+// lights at 0.17/0.23/0.26, the render was indistinguishable from the original
+// ambient-0.95 + key-1.5 setup, and moving those direct values changed nothing
+// visible. That only holds if the ENVIRONMENT is supplying essentially all the
+// light — env went 0.69 -> 0.65 across those builds (6%), which is precisely why
+// consecutive builds looked identical. RoomEnvironment is a brightly-lit box, so
+// at that strength it drowns every other source and flattens the face.
+// It is now a subtle wrap-around fill; the softbox does the shaping.
+const ENV_MAP_INTENSITY      = 0.18
+const ENV_MAP_INTENSITY_SKIN = 0.13
 
 // ── Soft key (softbox) ────────────────────────────────────────────────────────
 //
@@ -327,7 +335,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.43'
+const ENGINE_BUILD = '0.5.44'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -348,6 +356,46 @@ function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: 
       width={SOFT_KEY_SIZE}
       height={SOFT_KEY_SIZE}
       position={[SOFT_KEY_OFFSET[0], focusY + SOFT_KEY_OFFSET[1], SOFT_KEY_OFFSET[2]]}
+    />
+  )
+}
+
+/**
+ * A directionalLight that actually points at the face.
+ *
+ * v0.5.44 — a directionalLight's direction is (position - target), and its
+ * target defaults to the world origin. v0.5.42 raised these lights by focusY to
+ * "follow the face", which instead made them steeply TOP-DOWN: at focusY 1.54 a
+ * light at [2, 5.54, 3] aimed at (0,0,0) rakes the top of the head and barely
+ * touches the face. Offsetting the target by the same focusY keeps the intended
+ * angle (the raw offset vector) while re-aiming at the head.
+ *
+ * The default target is not part of the scene graph, so its matrix has to be
+ * updated by hand or three keeps using a stale one.
+ */
+function AimedDirectionalLight({
+  color, intensity, position, focusY, castShadow = false,
+}: {
+  color: string
+  intensity: number
+  position: [number, number, number]
+  focusY: number
+  castShadow?: boolean
+}) {
+  const ref = useRef<THREE.DirectionalLight>(null)
+  useEffect(() => {
+    const light = ref.current
+    if (!light) return
+    light.target.position.set(0, focusY, 0)
+    light.target.updateMatrixWorld()
+  })
+  return (
+    <directionalLight
+      ref={ref}
+      color={color}
+      intensity={intensity}
+      position={position}
+      castShadow={castShadow}
     />
   )
 }
@@ -451,9 +499,11 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // live is never a guess again.
   if (!lightingFingerprintLogged) {
     lightingFingerprintLogged = true
+    // Stringified, not an object: the browser collapses objects to "Object" and
+    // the interesting numbers stay hidden behind a disclosure triangle in a
+    // console that is already noisy.
     console.info(
-      `[AvatarCanvas] ENGINE ${ENGINE_BUILD} — lighting '${preset}':`,
-      {
+      `[AvatarCanvas] ENGINE ${ENGINE_BUILD} — lighting '${preset}': ` + JSON.stringify({
         ambient: overrides?.ambient ?? c.ambientIntensity,
         softKey: overrides?.key     ?? c.keyIntensity,
         fill:    overrides?.fill    ?? c.fillIntensity,
@@ -463,7 +513,7 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
         // The height the lights are aimed at. If this reads ~0.1 for a CC4
         // avatar framed at eye height (~1.4-1.7), the key is missing the face.
         focusY: Number(focusY.toFixed(3)),
-      },
+      }),
     )
   }
   const ambientI = overrides?.ambient ?? c.ambientIntensity
@@ -482,10 +532,10 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
       <SoftKeyLight color={c.key} intensity={keyI} focusY={focusY} />
       {/* Low directional along the key axis, kept only so shadows still cast
           (RectAreaLight cannot cast shadows). */}
-      <directionalLight color={c.key}  intensity={keyI * 0.25} position={[2, focusY + 4, 3]} castShadow />
-      <directionalLight color={c.fill} intensity={fillI} position={[-2, focusY + 2, -1]} />
-      {/* Rim / back light — behind and above, opposite the key. */}
-      <directionalLight color={c.rim}  intensity={rimI}  position={rimPos} />
+      <AimedDirectionalLight color={c.key}  intensity={keyI * 0.25} position={[2, focusY + 4, 3]}  focusY={focusY} castShadow />
+      <AimedDirectionalLight color={c.fill} intensity={fillI}       position={[-2, focusY + 2, -1]} focusY={focusY} />
+      {/* Rim / back light — direction set by rimAzimuth / rimElevation. */}
+      <AimedDirectionalLight color={c.rim}  intensity={rimI}        position={rimPos}               focusY={focusY} />
     </>
   )
 }
