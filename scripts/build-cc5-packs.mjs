@@ -9,9 +9,11 @@
  * (`mx_m_` / `mx_f_`); this script produces the CC-rig equivalents (`cc5_m_` /
  * `cc5_f_`) so they can drive the CC4/CC5 portal avatars.
  *
- * Output:
- *   public/avatar-engine/animations-pack-cc5-male.glb    (30 clips)
- *   public/avatar-engine/animations-pack-cc5-female.glb   (15 clips)
+ * Output: a SINGLE pack, public/avatar-engine/animations-pack-cc5-default.glb.
+ * Which clips go in, and under which emotion, comes from mixamo-mapping.json —
+ * the hand-done mapping pass. Clips marked keep:false are left out entirely.
+ * One pack serves both genders: every kept clip was reviewed as suitable for
+ * either, so there is no male/female split.
  *
  * Conventions are taken from the existing CC4 portal packs so these are
  * drop-in equivalents:
@@ -21,6 +23,9 @@
  *   - translation channel on `CC_Base_Hip` only; every other bone is rotation-only
  *   - no scale channels
  *   - LINEAR interpolation
+ *
+ * Head-pitch corrections are NOT applied here — run bake-head-pitch.mjs after,
+ * which reads the same mapping file and has its own motion-preservation guards.
  *
  * Usage:
  *   node build-cc5-packs.mjs <fbx-dir> [--out <dir>]
@@ -233,13 +238,21 @@ if (!fbxDir) {
   process.exit(1)
 }
 
+const mapping = JSON.parse(
+  fs.readFileSync(path.resolve(import.meta.dirname, 'mixamo-mapping.json'), 'utf8'),
+)
+const KEEP = new Map(mapping.clips.filter(c => c.keep).map(c => [c.cc5, c]))
+const DROP = new Set(mapping.clips.filter(c => !c.keep).map(c => c.cc5))
+
 const files = fs.readdirSync(fbxDir)
   .filter(f => /_Motion\.fbx$/i.test(f))
   .sort()
 
-console.log(`Reading ${files.length} motion FBX from ${fbxDir}\n`)
+console.log(`Reading ${files.length} motion FBX from ${fbxDir}`)
+console.log(`Mapping keeps ${KEEP.size}, drops ${DROP.size}\n`)
 
-const byGender = { m: [], f: [] }
+const kept = []
+const skipped = []
 let bones = null
 const totals = { droppedRest: 0, droppedScale: 0, droppedTranslation: 0, unknownBone: 0 }
 
@@ -255,33 +268,54 @@ for (const file of files) {
   }
 
   const boneByName = new Map(bones.map(b => [b.name, b]))
-  const { id, gender } = clipIdFor(clip.name)
+  const { id } = clipIdFor(clip.name)
+
+  if (!KEEP.has(id)) {
+    if (!DROP.has(id)) {
+      throw new Error(`${file}: clip "${id}" is in neither the keep nor the drop list of mixamo-mapping.json`)
+    }
+    skipped.push(id)
+    continue
+  }
+
   const { channels, stats } = extractChannels(clip, boneByName)
   for (const k of Object.keys(totals)) totals[k] += stats[k]
 
-  byGender[gender].push({ id, channels, duration: clip.duration, source: clip.name })
+  kept.push({ id, channels, duration: clip.duration, source: clip.name, emotion: KEEP.get(id).emotion, type: KEEP.get(id).type })
   console.log(
     `  ${id.padEnd(46)} ${clip.duration.toFixed(2).padStart(6)}s  ` +
-    `${String(channels.length).padStart(3)} channels`,
+    `${String(channels.length).padStart(3)} channels  ${KEEP.get(id).type.padEnd(7)} ${KEEP.get(id).emotion}`,
   )
 }
 
-console.log(`\nSkeleton: ${bones.length} nodes (+ RootNode)`)
+if (kept.length !== KEEP.size) {
+  const missing = [...KEEP.keys()].filter(id => !kept.some(k => k.id === id))
+  throw new Error(`mapping expects ${KEEP.size} clips but only ${kept.length} were found; missing: ${missing.join(', ')}`)
+}
+
+console.log(`\nDropped ${skipped.length} clip(s) per the mapping: ${skipped.join(', ')}`)
+console.log(`Skeleton: ${bones.length} nodes (+ RootNode)`)
 console.log(
   `Pruned per-clip: ${totals.droppedScale} scale, ${totals.droppedTranslation} non-hip translation, ` +
   `${totals.droppedRest} rest-pose rotation` +
   (totals.unknownBone ? `, ${totals.unknownBone} unknown-bone` : ''),
 )
 
-const written = []
-for (const [gender, label] of [['m', 'male'], ['f', 'female']]) {
-  const entries = byGender[gender]
-  if (!entries.length) continue
-  const out = path.join(outDir, `animations-pack-cc5-${label}.glb`)
-  await buildPack(entries, bones, out)
-  const kb = (fs.statSync(out).size / 1024).toFixed(0)
-  console.log(`\n✓ ${path.basename(out)} — ${entries.length} clips, ${kb} KB`)
-  written.push(out)
+const out = path.join(outDir, mapping.packs.cc5)
+await buildPack(kept, bones, out)
+const kb = (fs.statSync(out).size / 1024).toFixed(0)
+console.log(`\n✓ ${path.basename(out)} — ${kept.length} clips, ${kb} KB`)
+
+const byEmotion = {}
+for (const k of kept) {
+  byEmotion[k.emotion] ??= { Idle: 0, Gesture: 0 }
+  byEmotion[k.emotion][k.type]++
 }
+console.log('\nper-emotion coverage:')
+for (const [e, c] of Object.entries(byEmotion)) {
+  console.log(`  ${e.padEnd(12)} idles=${c.Idle}  gestures=${c.Gesture}` + (c.Idle ? '' : '   ← NO IDLE'))
+}
+const noIdle = Object.entries(byEmotion).filter(([, c]) => !c.Idle).map(([e]) => e)
+if (noIdle.length) throw new Error(`emotion(s) with no idle to rest on: ${noIdle.join(', ')}`)
 
 console.log('\nDone.')

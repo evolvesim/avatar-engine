@@ -10,3 +10,4 @@ pnpm-lock.yaml
 scripts/inspect-*.js
 scripts/test-*.js
 scripts/package-lock.json
+scripts/node_modules

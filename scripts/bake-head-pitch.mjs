@@ -52,18 +52,68 @@ const CORRECTIONS = [
     // slight chin-down of this pack's conversational clips (-4° to -17°).
     targetMeanPitchDeg: -2.0,
   },
+  // The rest come from mixamo-mapping.json, where the target pitches were set by
+  // hand during the mapping pass. Appended below so both rigs get the same
+  // correction from one source.
+  ...mixamoCorrections(),
 ]
 
 /**
- * How the correction is spread along the neck. Dumping it all on CC_Base_Head
- * reads as a detached skull; weighting the neck more heavily reads as posture.
- * Weights must sum to 1.
+ * Expand each mapping entry carrying a targetPitch into a correction for BOTH
+ * rigs — the CC clip in the CC5 pack and its Mixamo-rig twin in the Avaturn pack.
+ * RIGS below supplies the right bone names and measurement skeleton per rig.
  */
-const NECK_DISTRIBUTION = [
-  ['CC_Base_NeckTwist01', 0.4],
-  ['CC_Base_NeckTwist02', 0.3],
-  ['CC_Base_Head',        0.3],
-]
+function mixamoCorrections() {
+  const mapping = JSON.parse(
+    fs.readFileSync(path.resolve(import.meta.dirname, 'mixamo-mapping.json'), 'utf8'),
+  )
+  const out = []
+  for (const c of mapping.clips) {
+    if (!c.keep || c.targetPitch == null) continue
+    out.push({ pack: mapping.packs.cc5,     clip: c.cc5, targetMeanPitchDeg: c.targetPitch, rig: 'cc' })
+    out.push({ pack: mapping.packs.avaturn, clip: c.mx,  targetMeanPitchDeg: c.targetPitch, rig: 'mixamo' })
+  }
+  return out
+}
+
+/**
+ * Per-rig knowledge. Two things differ between the CC and Mixamo/Avaturn packs:
+ *
+ *  - WHERE the correction goes. The CC packs are hierarchical, so the bend can be
+ *    spread down the neck (dumping it all on the head bone reads as a detached
+ *    skull). The Mixamo packs are FLAT — 52 nodes, zero parent/child links — so
+ *    rotating Spine2 or Neck there has no effect on the head at all. Only the
+ *    Head channel composes predictably onto the avatar, so it takes the whole
+ *    correction. The mixamo deltas are small (<5deg), well inside what reads as
+ *    posture on a single bone.
+ *
+ *  - WHERE pitch is measured. A hierarchical pack can be measured in place. In a
+ *    flat pack the head's stored rotation is NOT what the viewer sees (Head local
+ *    reads ~20deg on a clip whose on-avatar pitch is ~0deg), because the spine and
+ *    neck tracks only accumulate once retargeted. So mixamo clips are measured by
+ *    binding them onto a real hierarchical skeleton — the same composition the
+ *    runtime performs. All 52 clip bones bind to the RPM avatar by name.
+ *
+ * Chain weights must sum to 1 within each rig.
+ */
+const RIGS = {
+  cc: {
+    headBone: 'CC_Base_Head',
+    chain: [
+      ['CC_Base_NeckTwist01', 0.4],
+      ['CC_Base_NeckTwist02', 0.3],
+      ['CC_Base_Head',        0.3],
+    ],
+    measureOn: null,
+  },
+  mixamo: {
+    headBone: 'Head',
+    chain: [['Head', 1.0]],
+    measureOn: '../../avatar-playground/public/avatars/rpm-avatar-tpose.glb',
+  },
+}
+/** Default rig when a correction does not name one (the original CC4 entry). */
+const DEFAULT_RIG = 'cc'
 
 /** Head-local gaze axis (+Z forward, +Y up through the skull) — verified against
  *  eye-socket geometry on alex-cc4.glb. A positive local-X rotation lowers gaze. */
@@ -82,12 +132,18 @@ function loadScene(file) {
   ))
 }
 
-/** Mean/min/max gaze elevation, azimuth drift and total angular travel. */
-function measure(gltf, clipName) {
-  const scene = gltf.scene
-  const head  = scene.getObjectByName('CC_Base_Head')
+/**
+ * Mean/min/max gaze elevation, azimuth drift and total angular travel.
+ *
+ * `skeleton` is the scene the clip is evaluated against. For a flat pack that
+ * must be a hierarchical stand-in (RIGS[rig].measureOn), or the numbers describe
+ * stored rotations rather than anything the viewer would see.
+ */
+function measure(gltf, clipName, rig = DEFAULT_RIG, skeleton = null) {
+  const scene = skeleton ?? gltf.scene
+  const head  = scene.getObjectByName(RIGS[rig].headBone)
   const clip  = gltf.animations.find(c => c.name === clipName)
-  if (!head) throw new Error('CC_Base_Head not found')
+  if (!head) throw new Error(`${RIGS[rig].headBone} not found in the measurement skeleton`)
   if (!clip) throw new Error(`clip "${clipName}" not found`)
 
   const mixer = new THREE.AnimationMixer(scene)
@@ -117,11 +173,11 @@ function measure(gltf, clipName) {
 
 /**
  * Rotate the neck chain's rotation tracks by `totalDeg` about each bone's local
- * X axis, weighted by NECK_DISTRIBUTION. Positive lowers the gaze.
+ * X axis, weighted by RIGS[rig].chain. Positive lowers the gaze.
  *
  * Reads from `srcFile` every call so repeated passes never compound.
  */
-async function applyCorrection(srcFile, outFile, clipName, totalDeg) {
+async function applyCorrection(srcFile, outFile, clipName, totalDeg, rig = DEFAULT_RIG) {
   const io  = new NodeIO()
   const doc = await io.read(srcFile)
   const anim = doc.getRoot().listAnimations().find(a => a.getName() === clipName)
@@ -130,7 +186,7 @@ async function applyCorrection(srcFile, outFile, clipName, totalDeg) {
   const buffer = doc.getRoot().listBuffers()[0]
   const touched = []
 
-  for (const [boneName, weight] of NECK_DISTRIBUTION) {
+  for (const [boneName, weight] of RIGS[rig].chain) {
     const theta = totalDeg * weight * Math.PI / 180
     const delta = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), theta)
 
@@ -175,13 +231,22 @@ if (!fs.existsSync(packDir)) {
 }
 console.log(`Pack dir: ${packDir}${dryRun ? '  (dry run)' : ''}\n`)
 
-for (const { pack, clip, targetMeanPitchDeg } of CORRECTIONS) {
+for (const { pack, clip, targetMeanPitchDeg, rig = DEFAULT_RIG } of CORRECTIONS) {
   const file = path.join(packDir, pack)
   // Must keep the .glb extension — gltf-transform picks GLB vs glTF+.bin from it.
   const tmp  = file.replace(/\.glb$/, '.bake-tmp.glb')
-  console.log(`── ${clip}  in ${pack}`)
+  console.log(`── ${clip}  in ${pack}   [${rig} rig` +
+              (RIGS[rig].measureOn ? ', measured on the RPM avatar skeleton]' : ']'))
 
-  const before = measure(await loadScene(file), clip)
+  const skelPath = RIGS[rig].measureOn
+    ? path.resolve(import.meta.dirname, RIGS[rig].measureOn)
+    : null
+  if (skelPath && !fs.existsSync(skelPath)) {
+    throw new Error(`measurement skeleton not found for the ${rig} rig: ${skelPath}`)
+  }
+  const loadSkel = async () => (skelPath ? (await loadScene(skelPath)).scene : null)
+
+  const before = measure(await loadScene(file), clip, rig, await loadSkel())
   console.log(`   before: mean ${before.mean.toFixed(2)}°  range ${before.min.toFixed(1)}°..${before.max.toFixed(1)}°  travel ${before.travel.toFixed(1)}°`)
   console.log(`   target: mean ${targetMeanPitchDeg.toFixed(2)}°`)
 
@@ -189,8 +254,8 @@ for (const { pack, clip, targetMeanPitchDeg } of CORRECTIONS) {
   let after = null, touched = null
 
   for (let pass = 1; pass <= MAX_PASSES; pass++) {
-    touched = await applyCorrection(file, tmp, clip, total)
-    after = measure(await loadScene(tmp), clip)
+    touched = await applyCorrection(file, tmp, clip, total, rig)
+    after = measure(await loadScene(tmp), clip, rig, await loadSkel())
     const err = after.mean - targetMeanPitchDeg
     console.log(`   pass ${pass}: applied ${total.toFixed(3)}° → mean ${after.mean.toFixed(3)}°  (error ${err >= 0 ? '+' : ''}${err.toFixed(3)}°)`)
     if (Math.abs(err) <= TOLERANCE_DEG) break

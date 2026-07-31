@@ -66,16 +66,6 @@ const BASE_IDLE_POOLS = {
     'mcu_m_standconv_talk_07_neutral',
     'mcu_m_standconv_talk_08_neutral',
     'mcu_m_standconv_talk_09_neutral',
-    // mx_m — Pack 1 Motion Male idles (checked first so pack1 works out of the box)
-    'mx_m_standard_idle',
-    'mx_m_idle_still',
-    'mx_m_neutral_idle_foot_forward',
-    'mx_m_breathing_idle_fast_breathing',
-    // mx_f — Pack 2 Motion Female idles
-    'mx_f_idle_standard',
-    'mx_f_idle_shifting',
-    'mx_f_idle_foot_forward_slouch',
-    'mx_f_standing_idle_footfoward',
     // rpm (original — confirmed working)
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_002',
@@ -128,8 +118,6 @@ const BASE_IDLE_POOLS = {
     'mcu_f_standconv_talk_05_positive',
     'mcu_m_standconv_listen_02_positive',
     'mcu_m_standconv_talk_05_positive',
-    'mx_m_happy_idle_swaying',
-    'mx_f_standing_greeting_waving',
     'rpm_neutral_idle_var_001',
     'rpm_neutral_idle_expressive_001',
     'quaternius_joy_breathing_idle',
@@ -147,8 +135,6 @@ const BASE_IDLE_POOLS = {
     'mcu_f_standconv_talk_04_negative',
     'mcu_m_standconv_listen_03_negative',
     'mcu_m_standconv_talk_06_negative',
-    'mx_m_idle_still',
-    'mx_f_idle_foot_forward_slouch',
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_003',
     'quaternius_sadness_slumped',
@@ -159,8 +145,6 @@ const BASE_IDLE_POOLS = {
     'mc_f_listen_01_neutral',
   ],
   empathy: [
-    'mx_m_neutral_idle_foot_forward',
-    'mx_f_idle_shifting',
     'rpm_neutral_idle_var_003',
     'rpm_neutral_idle_expressive_002',
     'evolve_listening_interested_lean',
@@ -179,9 +163,6 @@ const BASE_IDLE_POOLS = {
     'mcu_neutral_stand_idle_03_lookaround',
     'mcu_m_standconv_listen_01_neutral',
     'mcu_f_standconv_listen_01_neutral',
-    'mx_m_idle_still',
-    'mx_m_neutral_idle_foot_forward',
-    'mx_f_sitting_hands_crossed',
     'rpm_neutral_idle_002',
     'rpm_neutral_idle_var_001',
     'quaternius_concentration_idle',
@@ -197,8 +178,6 @@ const BASE_IDLE_POOLS = {
   ],
   // displeasure (replaces anger + disgust)
   displeasure: [
-    'mx_m_breathing_idle_fast_breathing',
-    'mx_f_idle_foot_forward_slouch',
     'rpm_neutral_idle_001',
     'rpm_neutral_idle_var_002',
     'quaternius_anger_tense_idle',
@@ -262,31 +241,42 @@ EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL)
 EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD)
 EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE)
 
-// CC5 idle pools — the two CC5 packs (the 45 Mixamo clips retargeted to the CC
-// rig; see scripts/build-cc5-packs.md). Same contract as the CC4 pools above:
-// _pickNextIdle filters to clips actually present in the loaded pack, so listing
-// both genders' idles here is safe for every rig. Membership in a pool is also
-// what marks a clip as an idle (_isIdleClip) and gets it played LoopRepeat —
-// a CC5 idle left out of these lists would play once as a gesture and stop.
-const CC5_IDLES_NEUTRAL = [
-  'cc5_m_standard_idle',
-  'cc5_m_idle_still',
-  'cc5_m_breathing_idle_fast_breathing',
-  'cc5_m_neutral_idle_foot_forward',
-  'cc5_f_idle_standard',
-  'cc5_f_idle_shifting',
-  'cc5_f_idle_foot_forward_slouch',
-  'cc5_f_standing_idle_footfoward',
-]
-const CC5_IDLES_HAPPY = ['cc5_m_happy_idle_swaying']
-// NOTE: cc5_f_sitting_hands_crossed is deliberately absent. It's a genuine
-// looping idle (and is tagged as one in the playground manifest), but it is
-// SEATED — auto-selecting it would sit a standing character down mid-scene. It
-// stays fireable by id for seated scenarios; it must never enter a standing pool.
-EMOTION_IDLE_POOLS.neutral.push(...CC5_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.happy.push(...CC5_IDLES_HAPPY, ...CC5_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.shy.push(...CC5_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.empathy.push(...CC5_IDLES_NEUTRAL)
+// ── Mixamo idle pools (CC5 Default + Avaturn Default) ────────────────────────
+// The 45 Mixamo clips, mapped by hand (scripts/mixamo-mapping.json) and shipped
+// as one pack per rig: CC5 Default (cc5_ ids) and Avaturn Default (mx_ ids). Each
+// kept idle belongs to EXACTLY ONE emotion, listed here for both rigs together —
+// _pickNextIdle filters to whatever the loaded pack actually contains, so the
+// other rig's ids simply drop out.
+//
+// This is deliberately the ONLY place these ids appear. They used to be sprinkled
+// through BASE_IDLE_POOLS in contradictory ways: breathing_idle_fast_breathing sat
+// in both neutral and displeasure, idle_foot_forward_slouch in neutral, sadness
+// AND displeasure. That is what made a neutral stretch of conversation draw
+// off-tone idles. With one emotion per idle, the Virtual Director holds an
+// emotion and rests on that emotion's idle until the conversation moves it.
+//
+// Membership here is also what marks a clip as an idle (_isIdleClip) and gets it
+// played LoopRepeat — a kept idle left out of these lists would play once as a
+// gesture and stop. tests/unit/mixamo-idle-pools.test.ts asserts this table stays
+// in step with the mapping file.
+const MIXAMO_IDLES: Record<string, string[]> = {
+  neutral:     ['cc5_m_idle_still',                    'mx_m_idle_still',
+                'cc5_m_standard_idle',                 'mx_m_standard_idle'],
+  happy:       ['cc5_f_idle_standard',                 'mx_f_idle_standard'],
+  thoughtful:  ['cc5_m_neutral_idle_foot_forward',     'mx_m_neutral_idle_foot_forward'],
+  sadness:     ['cc5_f_idle_foot_forward_slouch',      'mx_f_idle_foot_forward_slouch'],
+  displeasure: ['cc5_m_breathing_idle_fast_breathing', 'mx_m_breathing_idle_fast_breathing'],
+  shy:         ['cc5_f_standing_idle_footfoward',      'mx_f_standing_idle_footfoward'],
+}
+EMOTION_IDLE_POOLS.neutral.push(...MIXAMO_IDLES.neutral)
+EMOTION_IDLE_POOLS.happy.push(...MIXAMO_IDLES.happy)
+EMOTION_IDLE_POOLS.thoughtful.push(...MIXAMO_IDLES.thoughtful)
+EMOTION_IDLE_POOLS.sadness.push(...MIXAMO_IDLES.sadness)
+EMOTION_IDLE_POOLS.displeasure.push(...MIXAMO_IDLES.displeasure)
+EMOTION_IDLE_POOLS.shy.push(...MIXAMO_IDLES.shy)
+// empathy is face-only — the body rests on the neutral idles while the empathy
+// expression is layered on top (same treatment as the CC4 pools above).
+EMOTION_IDLE_POOLS.empathy.push(...MIXAMO_IDLES.neutral)
 
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
