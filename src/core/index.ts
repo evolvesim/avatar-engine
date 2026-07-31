@@ -4,6 +4,7 @@
 
 // Primary component + hook
 export { AvatarCanvas, DEFAULT_FACE_RIG_URL } from './AvatarCanvas'
+export { LIGHTING_RIGS } from './AvatarCanvas'
 export type { AvatarCanvasProps, LightingOverrides } from './AvatarCanvas'
 
 // Runtime face-rig merge (consumed by product upload pipelines)

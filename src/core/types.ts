@@ -1,7 +1,7 @@
 /**
  * types.ts — shared types for the avatar engine
  *
- * Imported by all three products: Evolve B2B, EvySim, ACTS Education.
+ * Imported by all three products: Evolve Sim, ACTS Education, Evolve RPG.
  */
 
 import type React from 'react'
@@ -136,11 +136,25 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraConfig> = {
 /**
  * Lighting context per product.
  *
- * 'boardroom'  — Evolve B2B: cool-neutral, professional office/meeting room feel
- * 'consumer'   — EvySim: warm purple accent, dopamine-forward
- * 'education'  — ACTS: bright, neutral, non-threatening
+ * Each PRODUCT owns its own rig — colours, intensities AND light positions — so
+ * one product's lighting can be changed without touching another's. An engine
+ * update must never move a product's lights: geometry lives in the preset, and
+ * face-relative aiming is opt-in per preset (`followFace`), not global.
+ *
+ * 'evolve-sim'     — Evolve Sim (B2B): cool-neutral, professional office feel
+ * 'acts-education' — ACTS Education: bright, neutral, non-threatening
+ * 'evolve-rpg'     — Evolve RPG: warm purple accent, dopamine-forward
+ *
+ * The original names remain as aliases so existing callers keep working and keep
+ * rendering exactly what they render today:
+ * 'boardroom' → evolve-sim · 'education' → acts-education · 'consumer' → evolve-rpg
  */
-export type LightingPreset = 'boardroom' | 'consumer' | 'education'
+export type LightingProduct = 'evolve-sim' | 'acts-education' | 'evolve-rpg'
+
+export type LightingPreset =
+  | LightingProduct
+  // Legacy aliases — kept indefinitely; products may migrate at their own pace.
+  | 'boardroom' | 'consumer' | 'education'
 
 // ── AvatarCanvas props ────────────────────────────────────────────────────────
 
@@ -155,7 +169,7 @@ export interface AvatarCanvasProps {
   /**
    * Camera framing preset.
    * Evolve B2B → 'head-and-shoulders'
-   * EvySim     → 'close-face'
+   * Evolve RPG → 'close-face'
    * ACTS       → 'head-and-shoulders'
    */
   cameraPreset?: CameraPreset
@@ -199,7 +213,7 @@ export interface AvatarCanvasProps {
   /**
    * Horizontal offset rotation for the avatar body, in radians.
    * Use to angle the avatar slightly toward or away from the camera.
-   * Default: 0.5 (slight left-facing angle, as in original EvySim)
+   * Default: 0.5 (slight left-facing angle, as in the original Evolve RPG)
    */
   bodyRotationY?: number
 
@@ -248,7 +262,7 @@ export interface AzureTTSOptions {
    * Azure Neural TTS voice name.
    *
    * Evolve B2B suggestion: 'en-AU-WilliamNeural'  (professional AU male)
-   * EvySim suggestion:     'en-AU-NatashaNeural'   (warm AU female)
+   * Evolve RPG suggestion: 'en-AU-NatashaNeural'   (warm AU female)
    * ACTS suggestion:       'en-AU-AnnetteNeural'   (neutral, clear AU female)
    *
    * Full list: https://learn.microsoft.com/azure/ai-services/speech-service/language-support

@@ -61,6 +61,7 @@ import type { AvatarEngine }     from './avatar-engine'
 import type {
   CameraPreset,
   LightingPreset,
+  LightingProduct,
   TTSAdapter,
   DirectorConfig,
 } from './types'
@@ -94,7 +95,7 @@ import { hasFaceRig, mergeFaceRig } from './merge-face-rig'
  * ships face-rig.glb under /avatar-engine/.
  *
  * IMPORTANT: This is a path relative to the host site's public root. The hosting
- * product (Evolve RPG / ACTS / EvySim) must serve `face-rig.glb` at this URL —
+ * product (Evolve Sim / ACTS Education / Evolve RPG) must serve `face-rig.glb` at this URL —
  * either by copying it from `node_modules/@evolvesim/avatar-engine/public/avatar-engine/`
  * to its own `public/avatar-engine/` directory, or by setting up a build-time
  * symlink. See the upload-pipeline section in the 3d-avatar-lipsync skill.
@@ -335,7 +336,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.47'
+const ENGINE_BUILD = '0.5.48'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -358,6 +359,61 @@ function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: 
       position={[SOFT_KEY_OFFSET[0], focusY + SOFT_KEY_OFFSET[1], SOFT_KEY_OFFSET[2]]}
     />
   )
+}
+
+/**
+ * Per-product lighting rigs (v0.5.48).
+ *
+ * Each product owns colours, intensities AND light positions, so tuning one
+ * product can never alter another. Two rules make an engine update safe to take:
+ *
+ *   1. Geometry lives here, in the preset. Nothing else in the engine
+ *      repositions a product's lights.
+ *   2. Face-relative aiming is OPT-IN per product (`followFace`). Only
+ *      evolve-sim uses it, because its CC5 bodies stand at full height with the
+ *      camera raised to eye level. With followFace off the placement maths
+ *      collapses exactly to the original [2,4,3] / [-2,2,-1] aimed at (0,0,0).
+ *
+ * acts-education and evolve-rpg carry main's (0.5.35) values verbatim with rim 0,
+ * so they render exactly what they rendered before this branch. Only evolve-sim
+ * carries the newly dialled-in values.
+ *
+ * Exported so products can read the contract and tests can assert it.
+ */
+export const LIGHTING_RIGS: Record<LightingProduct, {
+  ambient: string; ambientIntensity: number
+  key: string; keyIntensity: number; keyPosition: [number, number, number]
+  fill: string; fillIntensity: number; fillPosition: [number, number, number]
+  rim: string; rimIntensity: number
+  followFace: boolean
+}> = {
+  // Evolve Sim (B2B) — tuned on Kenji, a real CC5 character, in the playground.
+  // Ambient well below main's 0.95 with the key carrying the frame: soft
+  // directional rather than flat ambient.
+  'evolve-sim': {
+    ambient: '#eef3f7', ambientIntensity: 0.37,
+    key:  '#fdfdff', keyIntensity:  1.50, keyPosition:  [2, 4, 3],
+    fill: '#dde4ea', fillIntensity: 0.40, fillPosition: [-2, 2, -1],
+    rim:  '#eaf2ff', rimIntensity:  0.24,
+    followFace: true,
+  },
+  // ACTS Education — main's values and geometry. ACTS has positioned its own
+  // lights; do not move them.
+  'acts-education': {
+    ambient: '#e8f5e9', ambientIntensity: 0.70,
+    key:  '#ffffff', keyIntensity:  1.50, keyPosition:  [2, 4, 3],
+    fill: '#aed6f1', fillIntensity: 0.50, fillPosition: [-2, 2, -1],
+    rim:  '#dcefff', rimIntensity:  0,
+    followFace: false,
+  },
+  // Evolve RPG — main's values and geometry.
+  'evolve-rpg': {
+    ambient: '#c7a8f5', ambientIntensity: 0.70,
+    key:  '#ffffff', keyIntensity:  1.60, keyPosition:  [2, 4, 3],
+    fill: '#8e44ad', fillIntensity: 0.40, fillPosition: [-2, 2, -1],
+    rim:  '#d9c2ff', rimIntensity:  0,
+    followFace: false,
+  },
 }
 
 /**
@@ -464,42 +520,33 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   // over-lighting the avatar relative to its background is what reads as pasted-on.
   // v0.5.39 — two corrections.
   //
-  // 1. AMBIENT DOWN, DIRECTIONAL UP. Ambient is a flat term applied equally to
-  //    every surface, so it actively destroys the shading gradients that make a
-  //    face read as a face. It is now a small tint only; shaping comes from the
-  //    soft key.
-  // 2. PRESETS MATCHED BY LUMINANCE, NOT RAW INTENSITY. The presets previously
-  //    summed to similar intensity numbers but very different actual brightness,
-  //    because boardroom's lights are near-white while consumer's fill is a dark
-  //    saturated purple. Measured with Rec.709 luma, boardroom came out ~40%
-  //    brighter than consumer — which is exactly why the portal (boardroom) read
-  //    "too bright" while the playground (consumer) read "too dark" at the same
-  //    numbers. Intensities are now scaled per preset so all three land at a
-  //    comparable luminance, and the low-luma purple fill is compensated up.
-  // v0.5.40 — boardroom is now the values dialled in on a real CC5 character
-  // against the café backdrop (ambient 0, key 0.41, fill 0.23, rim 0.63,
-  // env 0.69). Ambient lands at ZERO: the softbox and the environment carry the
-  // whole frame, which is what finally removed the flat, pasted-on look.
+  // v0.5.48 — PER-PRODUCT RIGS. Each product owns colours, intensities AND light
+  // positions, so tuning one product can never alter another. Two rules make an
+  // engine update safe to take:
   //
-  // consumer/education keep their colour identity but are derived from those
-  // numbers by matching Rec.709 LUMINANCE per channel, not by copying the raw
-  // values — e.g. consumer's fill (#8e44ad) has ~1/6th the luma of boardroom's
-  // (#dde4ea), so it needs ~6x the intensity to contribute the same light. This
-  // is the correction that stopped the two previews disagreeing.
-  // v0.5.46 — boardroom dialled in on Kenji (a real CC5 character) in the
-  // playground, against main's restored rig. Ambient comes well down from main's
-  // 0.95 and the key carries more of the frame, which is the "soft directional
-  // over flat ambient" look asked for — reachable only once the environment map
-  // was gone and the direct lights actually governed the image.
-  // consumer/education are derived by matching Rec.709 luminance per channel, so
-  // they keep their colour identity at equivalent brightness; consumer's dark
-  // purple fill needs ~6x boardroom's intensity to contribute the same light.
-  const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.37, key: '#fdfdff', keyIntensity: 1.50, fill: '#dde4ea', fillIntensity: 0.40, rim: '#eaf2ff', rimIntensity: 0.24 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.70, key: '#ffffff', keyIntensity: 1.48, fill: '#8e44ad', fillIntensity: 2.38, rim: '#d9c2ff', rimIntensity: 0.35 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.37, key: '#ffffff', keyIntensity: 1.48, fill: '#aed6f1', fillIntensity: 0.48, rim: '#dcefff', rimIntensity: 0.25 },
+  //   1. Geometry lives in the preset. Nothing in the engine repositions a
+  //      product's lights.
+  //   2. Face-relative aiming is OPT-IN per product (`followFace`). Only
+  //      evolve-sim uses it, because its CC5 bodies stand at full height with the
+  //      camera raised to eye level. ACTS and RPG keep classic origin-aimed
+  //      directionals — with followFace off the maths collapses exactly to the
+  //      original [2,4,3] / [-2,2,-1] aimed at (0,0,0), so their look is
+  //      untouched by anything done here.
+  //
+  // acts-education and evolve-rpg therefore carry main's (0.5.35) values verbatim
+  // with rim 0 — they render today exactly what they rendered before this branch.
+  // Only evolve-sim carries the newly dialled-in values.
+  const configs = LIGHTING_RIGS
+  // Legacy preset names map onto the product rigs, so existing callers keep
+  // rendering what they render today without any code change.
+  const PRESET_ALIASES: Record<string, LightingProduct> = {
+    boardroom: 'evolve-sim',
+    education: 'acts-education',
+    consumer:  'evolve-rpg',
   }
-  const c = configs[preset]
+  const product: LightingProduct =
+    (PRESET_ALIASES[preset] ?? preset) as LightingProduct
+  const c = configs[product] ?? configs['evolve-sim']
   // v0.5.41 — build/lighting fingerprint. The portal spent several releases
   // rendering a stale vendored engine while looking identical, which is
   // indistinguishable from "the lighting change did nothing" unless the running
@@ -516,11 +563,11 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
         softKey: overrides?.key     ?? c.keyIntensity,
         fill:    overrides?.fill    ?? c.fillIntensity,
         rim:     overrides?.rim     ?? c.rimIntensity,
-        env:     overrides?.env     ?? ENV_MAP_INTENSITY,
-        softKeyIsRectAreaLight: true,
-        // The height the lights are aimed at. If this reads ~0.1 for a CC4
-        // avatar framed at eye height (~1.4-1.7), the key is missing the face.
-        focusY: Number(focusY.toFixed(3)),
+        product,
+        followFace: c.followFace,
+        // Height the lights aim at. 0 means classic origin-aimed geometry
+        // (followFace off) — the product's own placement, untouched.
+        aimY: Number((c.followFace ? focusY : 0).toFixed(3)),
       }),
     )
   }
@@ -528,24 +575,32 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
   const keyI     = overrides?.key     ?? c.keyIntensity
   const fillI    = overrides?.fill    ?? c.fillIntensity
   const rimI     = overrides?.rim     ?? c.rimIntensity
+  // followFace off => aimY 0 => positions are the preset's own vectors and the
+  // lights target the world origin, i.e. byte-for-byte the original behaviour.
+  const aimY     = c.followFace ? focusY : 0
   const rimPos   = rimPosition(
     overrides?.rimAzimuth   ?? RIM_AZIMUTH_DEFAULT,
     overrides?.rimElevation ?? RIM_ELEVATION_DEFAULT,
-    focusY,
+    aimY,
   )
   return (
     <>
-      {/* v0.5.45 — back to main's rig: ambient + directionals, no softbox.
-          The RectAreaLight is gone with the environment map. On its own, without
-          IBL to fill the shadow side, a single area light left the face
-          half-dark, and it cannot cast shadows either. main's arrangement is the
-          one that actually looked right; it is the baseline again, with the
-          lights aimed at the face and a rim available on top. */}
+      {/* ambient + directionals, no softbox and no environment map — main's
+          arrangement, which is the one that read correctly. Positions come from
+          the product's own rig; aimY is 0 unless that product opted into
+          face-relative aiming. */}
       <ambientLight color={c.ambient} intensity={ambientI} />
-      <AimedDirectionalLight color={c.key}  intensity={keyI}  position={[2, focusY + 4, 3]}   focusY={focusY} castShadow />
-      <AimedDirectionalLight color={c.fill} intensity={fillI} position={[-2, focusY + 2, -1]} focusY={focusY} />
-      {/* Rim / back light — direction set by rimAzimuth / rimElevation. */}
-      <AimedDirectionalLight color={c.rim}  intensity={rimI}  position={rimPos}               focusY={focusY} />
+      <AimedDirectionalLight
+        color={c.key} intensity={keyI} focusY={aimY} castShadow
+        position={[c.keyPosition[0], aimY + c.keyPosition[1], c.keyPosition[2]]}
+      />
+      <AimedDirectionalLight
+        color={c.fill} intensity={fillI} focusY={aimY}
+        position={[c.fillPosition[0], aimY + c.fillPosition[1], c.fillPosition[2]]}
+      />
+      {/* Rim / back light — direction from rimAzimuth / rimElevation. Zero
+          intensity on ACTS and RPG, which have no rim. */}
+      <AimedDirectionalLight color={c.rim} intensity={rimI} position={rimPos} focusY={aimY} />
     </>
   )
 }

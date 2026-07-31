@@ -12,7 +12,7 @@
  * Each product configures its own Azure Neural TTS voice via ttsOptions:
  *
  *   Evolve B2B  →  en-AU-WilliamNeural   (professional AU male)
- *   EvySim      →  en-AU-NatashaNeural   (warm AU female)
+ *   Evolve RPG  →  en-AU-NatashaNeural   (warm AU female)
  *   ACTS        →  en-AU-AnnetteNeural   (neutral, clear AU female)
  *
  * Performance notes:
