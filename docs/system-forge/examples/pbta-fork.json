@@ -1,0 +1,201 @@
+{
+  "_comment": "WORKED EXAMPLE 2 of 3 — near-vanilla lineage use. This is what a novice produces: fork the 2d6 move-driven family, answer about a dozen guided questions, accept every other default. Included to show the low end of the flow, and to demonstrate that a system with no skill list, no initiative, no GM rolls and no difficulty ladder still fills the same schema without empty scaffolding.",
+
+  "schemaVersion": 1,
+  "lineage": ["scratch", "pbta-family", "pbta-2d6"],
+
+  "meta": {
+    "id": "last-shift",
+    "name": "The Last Shift",
+    "pitch": "Night-shift staff at a hospital that is not entirely a hospital. Everyone is tired, everyone is compromised, and the paperwork still has to be filed.",
+    "toneTags": ["bleak", "procedural"],
+    "playPattern": "gm-party",
+    "partySize": { "min": 3, "max": 4 },
+    "sessionShape": "episodic",
+    "dials": {
+      "crunch": 2,
+      "lethality": 4,
+      "swinginess": 4,
+      "playerAuthority": 7,
+      "prepBurden": 2,
+      "powerCeiling": 3
+    }
+  },
+
+  "resolution": {
+    "dice": { "kind": "sum", "count": { "t": "num", "v": 2 }, "sides": 6, "companionDice": [] },
+    "direction": "high",
+    "comparison": { "mode": "ladder" },
+    "bands": [
+      {
+        "id": "miss",
+        "label": "Miss",
+        "when": { "t": "bin", "op": "<=", "a": { "t": "ref", "path": "total" }, "b": { "t": "num", "v": 6 } },
+        "valence": "failure",
+        "guidance": "The GM makes a move. Mark experience.",
+        "effects": [
+          { "kind": "adjust-resource", "resourceId": "experience", "amount": { "t": "num", "v": 1 } }
+        ]
+      },
+      {
+        "id": "partial",
+        "label": "Yes, but",
+        "when": {
+          "t": "bin", "op": "&&",
+          "a": { "t": "bin", "op": ">=", "a": { "t": "ref", "path": "total" }, "b": { "t": "num", "v": 7 } },
+          "b": { "t": "bin", "op": "<=", "a": { "t": "ref", "path": "total" }, "b": { "t": "num", "v": 9 } }
+        },
+        "valence": "mixed",
+        "guidance": "It works, but there is a cost, a complication, or a hard choice. The most common result at the table — write the game around this band.",
+        "effects": []
+      },
+      {
+        "id": "hit",
+        "label": "Yes",
+        "when": { "t": "bin", "op": ">=", "a": { "t": "ref", "path": "total" }, "b": { "t": "num", "v": 10 } },
+        "valence": "success",
+        "guidance": "It works. Say how, and let the player narrate the detail.",
+        "effects": []
+      }
+    ],
+    "contributions": [
+      { "source": "attribute", "apply": "raw" },
+      { "source": "situational", "apply": "flat-bonus" }
+    ],
+    "swingModifiers": ["flat-bonus"],
+    "interventions": []
+  },
+
+  "difficulty": {
+    "anchorSuccessRate": 0.7,
+    "ladder": [
+      { "id": "standard", "label": "Any move", "value": 7, "isStandard": true }
+    ],
+    "opposition": "asymmetric",
+    "scalesWithProgression": false,
+    "_comment": "There is no difficulty ladder in this family — the bands are the difficulty. The single ladder entry exists so the validators have an anchor to measure against. anchorSuccessRate 0.7 is partial + hit combined at +1, which the probability engine reports as 27.8 / 44.4 / 27.8."
+  },
+
+  "chassis": {
+    "layers": ["attributes", "moves", "resources"],
+    "attributes": [
+      { "id": "steady", "label": "Steady", "abbrev": "STD",
+        "range": { "min": -1, "max": 3, "typical": 1 }, "encoding": "raw" },
+      { "id": "sharp", "label": "Sharp", "abbrev": "SHP",
+        "range": { "min": -1, "max": 3, "typical": 1 }, "encoding": "raw" },
+      { "id": "warm", "label": "Warm", "abbrev": "WRM",
+        "range": { "min": -1, "max": 3, "typical": 1 }, "encoding": "raw" },
+      { "id": "worn", "label": "Worn", "abbrev": "WRN",
+        "range": { "min": -1, "max": 3, "typical": 1 }, "encoding": "raw" }
+    ],
+    "skills": { "kind": "none" },
+    "archetypes": { "kind": "playbook", "carriesOwnAdvances": true },
+    "tags": { "enabled": false, "costModel": "free-pick", "categories": [] },
+    "identityAxes": [
+      { "id": "role", "label": "What you do here", "mechanical": false, "options": [] }
+    ],
+    "derived": [],
+    "resources": [
+      { "id": "experience", "label": "Experience", "startsAt": "empty", "refresh": "never",
+        "max": { "t": "num", "v": 5 } }
+    ]
+  },
+
+  "creation": {
+    "method": "playbook-pick",
+    "startingTier": 1,
+    "startingKit": [],
+    "tableTimeBudgetMin": 20,
+    "groupSteps": ["bonds"]
+  },
+
+  "progression": {
+    "currency": "advance-tokens",
+    "earnTriggers": ["fail-rolls", "act-on-beliefs"],
+    "purchase": "advance-list",
+    "curve": "capped",
+    "tiers": [],
+    "ceiling": 8,
+    "horizontalRatio": 0.9,
+    "endgame": "retirement",
+    "_comment": "horizontalRatio 0.9 — almost all advancement grants new moves rather than raising numbers. This is why scalesWithProgression can be false and bounded-accuracy-drift stays quiet."
+  },
+
+  "harm": {
+    "tracks": [
+      {
+        "id": "condition",
+        "label": "Conditions",
+        "kind": { "model": "consequences",
+          "slots": [
+            { "id": "shaken", "label": "Shaken", "severity": 1 },
+            { "id": "hurt", "label": "Hurt", "severity": 2 },
+            { "id": "compromised", "label": "Compromised", "severity": 3 }
+          ] },
+        "damage": "tiered-severity",
+        "mitigation": "none",
+        "deathSpiral": false,
+        "defeat": "narrative-cost",
+        "recovery": { "rate": "downtime", "requiresRoll": false }
+      },
+      {
+        "id": "exhaustion",
+        "label": "Exhaustion",
+        "kind": { "model": "wound-boxes", "boxes": 6, "penaltyPerBox": { "t": "num", "v": 0 } },
+        "damage": "fixed",
+        "mitigation": "none",
+        "deathSpiral": false,
+        "defeat": "out-of-action",
+        "recovery": { "rate": "never", "requiresRoll": false },
+        "_comment": "Fills over the course of a shift and does not empty. Filling it ends the character's night — the closest thing this game has to death."
+      }
+    ]
+  },
+
+  "economy": {
+    "metaCurrencies": [
+      { "id": "cover", "label": "Cover", "holder": "shared-pool",
+        "earnTriggers": ["filing correct paperwork", "protecting a colleague"],
+        "cap": 3, "refresh": "session" }
+    ],
+    "abilityResources": ["at-will"],
+    "wealth": "untracked",
+    "encumbrance": "none",
+    "downtime": { "model": "freeform" }
+  },
+
+  "conflict": {
+    "initiative": "conversational",
+    "actionEconomy": "fiction-limited",
+    "space": "theatre",
+    "roundScale": "as long as the moment takes",
+    "engagement": "single-roll-exchange",
+    "frames": [
+      { "id": "social", "label": "Confrontation", "mode": "reuses-core" },
+      { "id": "investigation", "label": "Working out what happened", "mode": "reuses-core" }
+    ],
+    "scaleConflicts": []
+  },
+
+  "subsystems": [],
+
+  "customRules": [],
+
+  "gm": {
+    "adversaryTemplate": [],
+    "encounterBudget": "none",
+    "pressureDevices": ["fronts", "clocks"],
+    "randomTables": true,
+    "gmRolls": "never",
+    "gmMoves": [
+      "Separate them",
+      "Announce the consequence of the paperwork",
+      "Take something away, but slowly",
+      "Offer an opportunity with a cost",
+      "Show them the ward that is not on the floor plan",
+      "Turn their move back on them"
+    ]
+  },
+
+  "mods": []
+}

@@ -1,0 +1,318 @@
+{
+  "_comment": "WORKED EXAMPLE 1 of 3 — a modest fork. Takes the d20 class-and-level lineage and makes two deliberate mutations: adds a partial-success band (near misses cost something rather than doing nothing), and caps the power ceiling at tier 10 with a flatter curve so the difficulty ladder does not have to chase progression. Everything else is inherited.",
+
+  "schemaVersion": 1,
+  "lineage": ["scratch", "d20-family", "d20-bounded"],
+
+  "meta": {
+    "id": "ironbound",
+    "name": "Ironbound",
+    "pitch": "Armoured survivors clear the ruins of a drowned empire. Familiar to anyone who has played an adventure game, but every near miss costs you something.",
+    "toneTags": ["gritty", "heroic"],
+    "playPattern": "gm-party",
+    "partySize": { "min": 3, "max": 5 },
+    "sessionShape": "campaign",
+    "dials": {
+      "crunch": 6,
+      "lethality": 6,
+      "swinginess": 7,
+      "playerAuthority": 4,
+      "prepBurden": 6,
+      "powerCeiling": 5
+    }
+  },
+
+  "resolution": {
+    "dice": { "kind": "single", "count": { "t": "num", "v": 1 }, "sides": 20, "companionDice": [] },
+    "direction": "high",
+    "comparison": {
+      "mode": "meet-or-beat",
+      "target": { "t": "ref", "path": "difficulty.value" }
+    },
+    "bands": [
+      {
+        "id": "fumble",
+        "label": "Fumble",
+        "when": { "t": "bin", "op": "==", "a": { "t": "ref", "path": "raw" }, "b": { "t": "num", "v": 1 } },
+        "valence": "critical-failure",
+        "guidance": "The attempt fails and the situation gets actively worse. Introduce a new problem.",
+        "effects": []
+      },
+      {
+        "id": "failure",
+        "label": "Failure",
+        "when": {
+          "t": "bin", "op": "&&",
+          "a": { "t": "bin", "op": "!=", "a": { "t": "ref", "path": "raw" }, "b": { "t": "num", "v": 1 } },
+          "b": { "t": "bin", "op": "<", "a": { "t": "ref", "path": "margin" }, "b": { "t": "num", "v": -2 } }
+        },
+        "valence": "failure",
+        "guidance": "It does not work. Say what closes off.",
+        "effects": []
+      },
+      {
+        "id": "partial",
+        "label": "Bought at a price",
+        "when": {
+          "t": "bin", "op": "&&",
+          "a": { "t": "bin", "op": ">=", "a": { "t": "ref", "path": "margin" }, "b": { "t": "num", "v": -2 } },
+          "b": { "t": "bin", "op": "<", "a": { "t": "ref", "path": "margin" }, "b": { "t": "num", "v": 0 } }
+        },
+        "valence": "mixed",
+        "guidance": "MUTATION: missing by 1 or 2 succeeds anyway, but the character takes 1 Strain or the GM introduces a complication. This is the band the base lineage does not have.",
+        "effects": [
+          { "kind": "adjust-harm", "trackId": "strain", "amount": { "t": "num", "v": 1 } }
+        ]
+      },
+      {
+        "id": "success",
+        "label": "Success",
+        "when": {
+          "t": "bin", "op": "&&",
+          "a": { "t": "bin", "op": ">=", "a": { "t": "ref", "path": "margin" }, "b": { "t": "num", "v": 0 } },
+          "b": { "t": "bin", "op": "!=", "a": { "t": "ref", "path": "raw" }, "b": { "t": "num", "v": 20 } }
+        },
+        "valence": "success",
+        "guidance": "It works as intended.",
+        "effects": []
+      },
+      {
+        "id": "critical",
+        "label": "Critical",
+        "when": { "t": "bin", "op": "==", "a": { "t": "ref", "path": "raw" }, "b": { "t": "num", "v": 20 } },
+        "valence": "critical-success",
+        "guidance": "It works, and the character gains position: advantage on the next related roll.",
+        "effects": []
+      }
+    ],
+    "contributions": [
+      { "source": "attribute", "apply": "modifier-table" },
+      { "source": "skill", "apply": "raw" },
+      { "source": "equipment", "apply": "raw" },
+      { "source": "situational", "apply": "flat-bonus" }
+    ],
+    "swingModifiers": ["flat-bonus", "take-best-n", "reroll"],
+    "interventions": [
+      {
+        "id": "grit",
+        "label": "Spend Grit to reroll",
+        "currency": "grit",
+        "cost": { "t": "num", "v": 1 },
+        "effect": "reroll"
+      }
+    ]
+  },
+
+  "difficulty": {
+    "anchorSuccessRate": 0.65,
+    "ladder": [
+      { "id": "easy", "label": "Easy", "value": 10, "isStandard": false },
+      { "id": "standard", "label": "Standard", "value": 15, "isStandard": true },
+      { "id": "hard", "label": "Hard", "value": 20, "isStandard": false },
+      { "id": "extreme", "label": "Extreme", "value": 25, "isStandard": false }
+    ],
+    "opposition": "asymmetric",
+    "scalesWithProgression": false,
+    "_comment": "MUTATION: scaling turned off. Combined with the tier-10 cap and horizontalRatio 0.7 below, this keeps the ladder meaningful at every tier instead of running a treadmill."
+  },
+
+  "chassis": {
+    "layers": ["attributes", "skills", "moves", "derived", "resources"],
+    "attributes": [
+      { "id": "might", "label": "Might", "abbrev": "MGT",
+        "range": { "min": 3, "max": 18, "typical": 12 }, "encoding": "modifier-table",
+        "modifierFormula": { "t": "call", "fn": "floor", "args": [
+          { "t": "bin", "op": "/",
+            "a": { "t": "bin", "op": "-", "a": { "t": "ref", "path": "self.value" }, "b": { "t": "num", "v": 10 } },
+            "b": { "t": "num", "v": 2 } } ] } },
+      { "id": "reflex", "label": "Reflex", "abbrev": "REF",
+        "range": { "min": 3, "max": 18, "typical": 12 }, "encoding": "modifier-table",
+        "modifierFormula": { "t": "call", "fn": "floor", "args": [
+          { "t": "bin", "op": "/",
+            "a": { "t": "bin", "op": "-", "a": { "t": "ref", "path": "self.value" }, "b": { "t": "num", "v": 10 } },
+            "b": { "t": "num", "v": 2 } } ] } },
+      { "id": "grit-attr", "label": "Endurance", "abbrev": "END",
+        "range": { "min": 3, "max": 18, "typical": 12 }, "encoding": "modifier-table",
+        "modifierFormula": { "t": "call", "fn": "floor", "args": [
+          { "t": "bin", "op": "/",
+            "a": { "t": "bin", "op": "-", "a": { "t": "ref", "path": "self.value" }, "b": { "t": "num", "v": 10 } },
+            "b": { "t": "num", "v": 2 } } ] } },
+      { "id": "wits", "label": "Wits", "abbrev": "WIT",
+        "range": { "min": 3, "max": 18, "typical": 12 }, "encoding": "modifier-table",
+        "modifierFormula": { "t": "call", "fn": "floor", "args": [
+          { "t": "bin", "op": "/",
+            "a": { "t": "bin", "op": "-", "a": { "t": "ref", "path": "self.value" }, "b": { "t": "num", "v": 10 } },
+            "b": { "t": "num", "v": 2 } } ] } },
+      { "id": "presence", "label": "Presence", "abbrev": "PRS",
+        "range": { "min": 3, "max": 18, "typical": 12 }, "encoding": "modifier-table",
+        "modifierFormula": { "t": "call", "fn": "floor", "args": [
+          { "t": "bin", "op": "/",
+            "a": { "t": "bin", "op": "-", "a": { "t": "ref", "path": "self.value" }, "b": { "t": "num", "v": 10 } },
+            "b": { "t": "num", "v": 2 } } ] } }
+    ],
+    "skills": {
+      "kind": "flat-list",
+      "proficiencyStyle": "tiered",
+      "skills": [
+        { "id": "athletics", "label": "Athletics", "attribute": "might" },
+        { "id": "stealth", "label": "Stealth", "attribute": "reflex" },
+        { "id": "survival", "label": "Survival", "attribute": "grit-attr" },
+        { "id": "lore", "label": "Lore", "attribute": "wits" },
+        { "id": "salvage", "label": "Salvage", "attribute": "wits" },
+        { "id": "command", "label": "Command", "attribute": "presence" }
+      ]
+    },
+    "archetypes": { "kind": "class", "levelsGrantFeatures": true },
+    "tags": { "enabled": false, "costModel": "free-pick", "categories": [] },
+    "identityAxes": [
+      { "id": "origin", "label": "Origin", "mechanical": true,
+        "options": [
+          { "id": "highlander", "label": "Highlander",
+            "mods": [{ "op": "set", "path": "chassis.attributes[id=grit-attr].range.typical", "value": 13 }] },
+          { "id": "drowned-city", "label": "Drowned City",
+            "mods": [{ "op": "set", "path": "chassis.attributes[id=wits].range.typical", "value": 13 }] }
+        ] },
+      { "id": "calling", "label": "Calling", "mechanical": false, "options": [] }
+    ],
+    "derived": [
+      { "id": "vitality", "label": "Vitality", "rounding": "floor",
+        "formula": { "t": "bin", "op": "+",
+          "a": { "t": "bin", "op": "*", "a": { "t": "num", "v": 6 }, "b": { "t": "ref", "path": "tier" } },
+          "b": { "t": "ref", "path": "attr.grit-attr.mod" } } },
+      { "id": "guard", "label": "Guard", "rounding": "floor",
+        "formula": { "t": "bin", "op": "+",
+          "a": { "t": "num", "v": 10 },
+          "b": { "t": "bin", "op": "+",
+            "a": { "t": "ref", "path": "attr.reflex.mod" },
+            "b": { "t": "ref", "path": "equipment.armour" } } } },
+      { "id": "initiative", "label": "Initiative", "rounding": "floor",
+        "formula": { "t": "ref", "path": "attr.reflex.mod" } }
+    ],
+    "resources": [
+      { "id": "grit", "label": "Grit", "startsAt": "full", "refresh": "session",
+        "max": { "t": "call", "fn": "max", "args": [
+          { "t": "num", "v": 1 }, { "t": "ref", "path": "attr.presence.mod" } ] } }
+    ]
+  },
+
+  "creation": {
+    "method": "point-buy",
+    "budget": { "t": "num", "v": 27 },
+    "startingTier": 1,
+    "startingKit": ["armour", "a weapon", "salvage kit", "three days of rations"],
+    "tableTimeBudgetMin": 30,
+    "groupSteps": ["bonds", "shared-origin"]
+  },
+
+  "progression": {
+    "currency": "milestone",
+    "earnTriggers": ["achieve-goals", "discover"],
+    "purchase": "level-packages",
+    "curve": "tiered",
+    "tiers": [
+      { "id": "t1", "label": "Scavenger", "threshold": 0 },
+      { "id": "t2", "label": "Delver", "threshold": 4 },
+      { "id": "t3", "label": "Ironbound", "threshold": 8 }
+    ],
+    "ceiling": 10,
+    "horizontalRatio": 0.7,
+    "endgame": "domain-play",
+    "_comment": "MUTATION: ceiling 10 not 20, horizontalRatio raised from the lineage default of 0.4 to 0.7. Advancement mostly grants options rather than bigger numbers, which is what lets difficulty.scalesWithProgression be false without the game falling apart."
+  },
+
+  "harm": {
+    "tracks": [
+      {
+        "id": "vitality",
+        "label": "Vitality",
+        "kind": { "model": "hit-points",
+          "formula": { "t": "ref", "path": "derived.vitality" },
+          "scalesWithProgression": true },
+        "damage": "dice",
+        "mitigation": "avoidance",
+        "deathSpiral": false,
+        "defeat": "death-saves",
+        "recovery": { "rate": "rest", "requiresRoll": false }
+      },
+      {
+        "id": "strain",
+        "label": "Strain",
+        "kind": { "model": "wound-boxes", "boxes": 4,
+          "penaltyPerBox": { "t": "num", "v": -1 } },
+        "damage": "fixed",
+        "mitigation": "none",
+        "deathSpiral": true,
+        "defeat": "out-of-action",
+        "recovery": { "rate": "downtime", "requiresRoll": false },
+        "_comment": "Added by the fork to give the new partial-success band something to consume. Without this track, band-consumed would warn."
+      }
+    ]
+  },
+
+  "economy": {
+    "metaCurrencies": [
+      { "id": "grit", "label": "Grit", "holder": "player",
+        "earnTriggers": ["acting against a bond", "a fumble"],
+        "cap": 5, "refresh": "session" }
+    ],
+    "abilityResources": ["slots", "cooldown"],
+    "wealth": "abstract-level",
+    "encumbrance": "slots",
+    "downtime": { "model": "n-actions", "actionsPerInterval": 2 }
+  },
+
+  "conflict": {
+    "initiative": "rolled",
+    "actionEconomy": "action-bonus-reaction",
+    "space": "zones",
+    "roundScale": "about six seconds",
+    "engagement": "attack-vs-defence",
+    "frames": [
+      { "id": "social", "label": "Negotiation", "mode": "reuses-core" },
+      { "id": "chase", "label": "Pursuit", "mode": "own-procedure" },
+      { "id": "heist", "label": "Infiltration", "mode": "off" }
+    ],
+    "scaleConflicts": []
+  },
+
+  "subsystems": [
+    { "moduleId": "exploration", "config": { "supplyDie": true, "hexCrawl": true } },
+    { "moduleId": "crafting", "config": { "recipes": "freeform", "qualityOutcomes": true } }
+  ],
+
+  "customRules": [
+    {
+      "id": "iron-resolve",
+      "label": "Iron Resolve",
+      "trigger": { "on": "on-band" },
+      "condition": {
+        "t": "bin", "op": "&&",
+        "a": { "t": "bin", "op": "==", "a": { "t": "ref", "path": "band.id" }, "b": { "t": "num", "v": 2 } },
+        "b": { "t": "bin", "op": ">=", "a": { "t": "ref", "path": "harm.strain.filled" }, "b": { "t": "num", "v": 3 } }
+      },
+      "effects": [
+        { "kind": "narrate", "text": "The character is visibly failing. Describe the cost before the result." }
+      ],
+      "priority": 0
+    }
+  ],
+
+  "gm": {
+    "adversaryTemplate": [
+      { "id": "threat", "label": "Threat", "formula": { "t": "ref", "path": "adversary.tier" } },
+      { "id": "guard", "label": "Guard",
+        "formula": { "t": "bin", "op": "+", "a": { "t": "num", "v": 11 },
+          "b": { "t": "ref", "path": "adversary.tier" } } },
+      { "id": "vitality", "label": "Vitality",
+        "formula": { "t": "bin", "op": "*", "a": { "t": "num", "v": 8 },
+          "b": { "t": "ref", "path": "adversary.tier" } } }
+    ],
+    "encounterBudget": "formal",
+    "pressureDevices": ["clocks"],
+    "randomTables": true,
+    "gmRolls": "opposition-only",
+    "gmMoves": []
+  },
+
+  "mods": []
+}
