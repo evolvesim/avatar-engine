@@ -62,6 +62,7 @@ export {
   fixTPose,
   findBone,
 }                                    from './procedural-animations'
+export type { GazeConfig }           from './procedural-animations'
 
 // Viseme map
 export {

@@ -1,0 +1,373 @@
+{
+  "_source": "Animation_Pack_Mapping__Final_2.xlsx, sheet 'Mixamo Mapping' \u2014 the mapping pass done by hand.",
+  "_note": "The 45 Mixamo clips, mapped once and applied to both rigs. Each kept clip belongs to exactly ONE emotion so the Virtual Director rests on an on-tone idle for whatever emotion the conversation is in, and never draws an off-tone one. 'targetPitch' is a desired mean gaze elevation in degrees (negative = slightly chin-down) consumed by bake-head-pitch.mjs.",
+  "packs": {
+    "cc5": "animations-pack-cc5-default.glb",
+    "avaturn": "animations-pack-avaturn-default.glb"
+  },
+  "clips": [
+    {
+      "cc5": "cc5_m_breathing_idle_fast_breathing",
+      "mx": "mx_m_breathing_idle_fast_breathing",
+      "type": "Idle",
+      "emotion": "displeasure",
+      "loop": "loop",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_happy_idle_swaying",
+      "mx": "mx_m_happy_idle_swaying",
+      "type": "Idle",
+      "emotion": null,
+      "loop": "loop",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_m_idle_still",
+      "mx": "mx_m_idle_still",
+      "type": "Idle",
+      "emotion": "neutral",
+      "loop": "loop",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_neutral_idle_foot_forward",
+      "mx": "mx_m_neutral_idle_foot_forward",
+      "type": "Idle",
+      "emotion": "thoughtful",
+      "loop": "loop",
+      "keep": true,
+      "targetPitch": -2.0
+    },
+    {
+      "cc5": "cc5_m_standard_idle",
+      "mx": "mx_m_standard_idle",
+      "type": "Idle",
+      "emotion": "neutral",
+      "loop": "loop",
+      "keep": true,
+      "targetPitch": -2.0
+    },
+    {
+      "cc5": "cc5_m_agreeing",
+      "mx": "mx_m_agreeing",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_agreeing_2",
+      "mx": "mx_m_agreeing_2",
+      "type": "Gesture",
+      "emotion": "thoughtful",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_angry_point",
+      "mx": "mx_m_angry_point",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_annoyed_head_shake",
+      "mx": "mx_m_annoyed_head_shake",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_being_cocky",
+      "mx": "mx_m_being_cocky",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_clapping",
+      "mx": "mx_m_clapping",
+      "type": "Gesture",
+      "emotion": "happy",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_cocky_head_turn",
+      "mx": "mx_m_cocky_head_turn",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_dismissing_gesture",
+      "mx": "mx_m_dismissing_gesture",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_dismissing_gesture2",
+      "mx": "mx_m_dismissing_gesture2",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_fist_pump",
+      "mx": "mx_m_fist_pump",
+      "type": "Gesture",
+      "emotion": "happy",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_hands_forward_gesture",
+      "mx": "mx_m_hands_forward_gesture",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_happy_hand_gesture",
+      "mx": "mx_m_happy_hand_gesture",
+      "type": "Gesture",
+      "emotion": "sadness",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_head_gesture",
+      "mx": "mx_m_head_gesture",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_head_gesture_deciding",
+      "mx": "mx_m_head_gesture_deciding",
+      "type": "Gesture",
+      "emotion": "thoughtful",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_look_away_gesture",
+      "mx": "mx_m_look_away_gesture",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_looking_behind",
+      "mx": "mx_m_looking_behind",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_m_looking_down",
+      "mx": "mx_m_looking_down",
+      "type": "Gesture",
+      "emotion": "shy",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_praying",
+      "mx": "mx_m_praying",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_m_relieved_sigh",
+      "mx": "mx_m_relieved_sigh",
+      "type": "Gesture",
+      "emotion": "sadness",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_sarcastic_head_nod",
+      "mx": "mx_m_sarcastic_head_nod",
+      "type": "Gesture",
+      "emotion": "neutral",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_shaking_head_no",
+      "mx": "mx_m_shaking_head_no",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_thoughtful_head_nod",
+      "mx": "mx_m_thoughtful_head_nod",
+      "type": "Gesture",
+      "emotion": "thoughtful",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_thoughtful_head_shake",
+      "mx": "mx_m_thoughtful_head_shake",
+      "type": "Gesture",
+      "emotion": "sadness",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_m_waving",
+      "mx": "mx_m_waving",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_m_yelling",
+      "mx": "mx_m_yelling",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_idle_foot_forward_slouch",
+      "mx": "mx_f_idle_foot_forward_slouch",
+      "type": "Idle",
+      "emotion": "sadness",
+      "loop": "loop",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_idle_shifting",
+      "mx": "mx_f_idle_shifting",
+      "type": "Idle",
+      "emotion": null,
+      "loop": "loop",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_idle_standard",
+      "mx": "mx_f_idle_standard",
+      "type": "Idle",
+      "emotion": "happy",
+      "loop": "loop",
+      "keep": true,
+      "targetPitch": -2.0
+    },
+    {
+      "cc5": "cc5_f_sitting_hands_crossed",
+      "mx": "mx_f_sitting_hands_crossed",
+      "type": "Idle",
+      "emotion": null,
+      "loop": "loop",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_standing_idle_footfoward",
+      "mx": "mx_f_standing_idle_footfoward",
+      "type": "Idle",
+      "emotion": "shy",
+      "loop": "loop",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_angry_pouting",
+      "mx": "mx_f_angry_pouting",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_bashful",
+      "mx": "mx_f_bashful",
+      "type": "Gesture",
+      "emotion": "shy",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_blow_a_kiss",
+      "mx": "mx_f_blow_a_kiss",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_dwarf_idle_uniterested_look_at_hands",
+      "mx": "mx_f_dwarf_idle_uniterested_look_at_hands",
+      "type": "Gesture",
+      "emotion": "displeasure",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_excited_dance",
+      "mx": "mx_f_excited_dance",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_standing_arguing",
+      "mx": "mx_f_standing_arguing",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_standing_arguing2",
+      "mx": "mx_f_standing_arguing2",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_standing_greeting_waving",
+      "mx": "mx_f_standing_greeting_waving",
+      "type": "Gesture",
+      "emotion": "happy",
+      "loop": "once",
+      "keep": true
+    },
+    {
+      "cc5": "cc5_f_talking_making_point",
+      "mx": "mx_f_talking_making_point",
+      "type": "Gesture",
+      "emotion": null,
+      "loop": "once",
+      "keep": false
+    },
+    {
+      "cc5": "cc5_f_thankful_hand_to_heart",
+      "mx": "mx_f_thankful_hand_to_heart",
+      "type": "Gesture",
+      "emotion": "thoughtful",
+      "loop": "once",
+      "keep": true
+    }
+  ]
+}

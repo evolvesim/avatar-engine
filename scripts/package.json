@@ -5,10 +5,12 @@
   "private": true,
   "scripts": {
     "compile": "node compile-animations.js",
-    "compile:watch": "nodemon compile-animations.js"
+    "compile:watch": "nodemon compile-animations.js",
+    "build:cc5": "node build-cc5-packs.mjs"
   },
   "dependencies": {
-    "@gltf-transform/core": "^4.0.0"
+    "@gltf-transform/core": "^4.0.0",
+    "three": "^0.160.0"
   },
   "engines": {
     "node": ">=18"
