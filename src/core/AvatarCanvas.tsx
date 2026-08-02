@@ -53,12 +53,15 @@ import React, {
 import { Canvas, useThree, useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneWithSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
 import * as THREE from 'three'
 
 import type { AvatarEngine }     from './avatar-engine'
 import type {
   CameraPreset,
   LightingPreset,
+  LightingProduct,
   TTSAdapter,
   DirectorConfig,
 } from './types'
@@ -82,6 +85,7 @@ import {
   fixTPose,
   findBone,
 } from './procedural-animations'
+import type { GazeConfig } from './procedural-animations'
 import type { ARKitWeights } from './emotion-state'
 import { hasFaceRig, mergeFaceRig } from './merge-face-rig'
 
@@ -92,7 +96,7 @@ import { hasFaceRig, mergeFaceRig } from './merge-face-rig'
  * ships face-rig.glb under /avatar-engine/.
  *
  * IMPORTANT: This is a path relative to the host site's public root. The hosting
- * product (Evolve RPG / ACTS / EvySim) must serve `face-rig.glb` at this URL —
+ * product (Evolve Sim / ACTS Education / Evolve RPG) must serve `face-rig.glb` at this URL —
  * either by copying it from `node_modules/@evolvesim/avatar-engine/public/avatar-engine/`
  * to its own `public/avatar-engine/` directory, or by setting up a build-time
  * symlink. See the upload-pipeline section in the 3d-avatar-lipsync skill.
@@ -135,6 +139,12 @@ export interface AvatarCanvasProps {
   mergeFaceRig?:   'auto' | boolean
   cameraPreset?:   CameraPreset
   lightingPreset?: LightingPreset
+  /**
+   * Per-light intensity overrides on top of `lightingPreset`. Intended for live
+   * tuning (the playground exposes these as sliders); omit in production to use
+   * the preset's calibrated values.
+   */
+  lightingOverrides?: LightingOverrides
   bodyRotationY?:  number
   /**
    * Y offset applied to the avatar primitive in world space.
@@ -203,10 +213,20 @@ export interface AvatarCanvasProps {
    *   '/avatar-engine/animations-pack6.glb'  — Pack 6: MoCap Central Female (mc_f_)
    *   '/avatar-engine/animations-pack7.glb'  — Pack 7: Legal test set (Judge, Lawyer x2, Witness)
    *   '/avatar-engine/animations-pack8.glb'  — Pack 8: MCU Motion Capture Unity idle (mcu_)
+   *   '/avatar-engine/animations-pack-cc5-male.glb'   — CC5 Male (cc5_m_): packs 1/2/5's Mixamo clips on the CC rig
+   *   '/avatar-engine/animations-pack-cc5-female.glb' — CC5 Female (cc5_f_)
    *
    * Default: undefined (keeps the engine's existing loaded dictionary)
    */
   animationPackUrl?: string
+  /**
+   * Overrides for the eye-contact gaze system, merged over the engine defaults.
+   * Use to tune how readily the eyes hand over to the head — e.g. a tighter
+   * `lockConePitch` releases sooner when the head pitches up or down, and
+   * `eyeLimitPitch` caps how far the eyes will travel vertically (vertical
+   * travel is what exposes sclera). See GazeConfig for the full list.
+   */
+  gazeConfig?:      GazeConfig
   className?:      string
 }
 
@@ -236,25 +256,362 @@ function CameraSetup({
   return null
 }
 
+// ── Image-based lighting ──────────────────────────────────────────────────────
+//
+// v0.5.37 — the missing half of the v0.5.36 lighting rebalance. Cutting total
+// light energy (to stop skin highlights clipping into ACES tonemapping's white
+// rolloff) left the scene simply DARK, because nothing replaced the energy the
+// flat ambient had been supplying.
+//
+// An environment map is the right replacement: it puts the light back as soft,
+// directional, all-around illumination instead of a flat ambient term, which is
+// also what gives skin its gradients and a believable fresnel falloff. three
+// ships RoomEnvironment (a small procedurally-lit box), so this needs NO HDRI
+// download, no CDN fetch, and no new dependency — important because the engine
+// must build offline and the products vendor it as a plain file: dependency.
+//
+// Note: `scene.environmentIntensity` does not exist in three 0.160, so env
+// strength is controlled per-material via `envMapIntensity` (see ENV_MAP_*).
+function EnvironmentIBL() {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const room = new RoomEnvironment()
+    const rt = pmrem.fromScene(room, 0.04)
+    scene.environment = rt.texture
+    return () => {
+      scene.environment = null
+      rt.dispose()
+      pmrem.dispose()
+      // RoomEnvironment builds real geometry/materials — release them.
+      room.traverse((o) => {
+        const mesh = o as THREE.Mesh
+        if (!mesh.isMesh) return
+        mesh.geometry?.dispose()
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach((mm) => mm?.dispose())
+      })
+    }
+  }, [gl, scene])
+  return null
+}
+
+// How strongly the environment lights each surface. Skin sits slightly lower so
+// the IBL reads as soft scatter rather than a reflective sheen — the exact
+// problem we are trying to remove.
+// v0.5.38 — halved. RoomEnvironment is a brightly-lit box and contributes far
+// more irradiance than first assumed: at 1.0 it blew skin midtones out entirely
+// and lit the avatar much hotter than the backdrop plate it composites over,
+// which reads as "pasted on". Skin is pulled down hardest — it is the surface
+// whose highlights clip first and the one we most need to keep midtones in.
+// v0.5.44 — cut hard. Evidence from the portal: with ambient 0 and the direct
+// lights at 0.17/0.23/0.26, the render was indistinguishable from the original
+// ambient-0.95 + key-1.5 setup, and moving those direct values changed nothing
+// visible. That only holds if the ENVIRONMENT is supplying essentially all the
+// light — env went 0.69 -> 0.65 across those builds (6%), which is precisely why
+// consecutive builds looked identical. RoomEnvironment is a brightly-lit box, so
+// at that strength it drowns every other source and flattens the face.
+// It is now a subtle wrap-around fill; the softbox does the shaping.
+const ENV_MAP_INTENSITY      = 0.18
+const ENV_MAP_INTENSITY_SKIN = 0.13
+
+// ── Soft key (softbox) ────────────────────────────────────────────────────────
+//
+// v0.5.39 — a directionalLight is a hard, infinitely-distant source: it gives a
+// sharp terminator and a small specular hotspot, which is exactly the "lit by a
+// bare bulb" look. A RectAreaLight is a real area source (a softbox), so the
+// terminator is broad and the specular is a soft rectangle rather than a point.
+// That is what "soft directional" means physically, and it lets ambient — the
+// flat, shape-destroying term — be cut right back while the face still reads.
+//
+// RectAreaLight only affects MeshStandardMaterial / MeshPhysicalMaterial (all CC
+// and RPM materials are), needs its LTC lookup tables initialised once, and does
+// not cast shadows — the low directional key below stays for that.
+const SOFT_KEY_SIZE     = 2.6
+// Offset RELATIVE to the lit subject's face, not absolute world space. The
+// portal leaves CC4 bodies at full height and raises the camera to eyeHeight
+// (~1.67m) instead of auto-calibrating the head down to CAMERA_TARGET_Y, so a
+// hard-coded world position put this softbox at chest height aimed at the FLOOR.
+// RectAreaLight is single-sided, so the face — above and behind its emitting
+// surface — received exactly nothing, leaving the environment map to do all the
+// lighting: bright and flat, the very symptom the softbox was added to fix.
+const SOFT_KEY_OFFSET: [number, number, number] = [1.1, 0.8, 1.7]
+// RectAreaLight intensity is not in the same units as a directionalLight, so the
+// preset's `keyIntensity` is scaled by this to keep one intuitive slider range.
+const SOFT_KEY_GAIN = 3.5
+
+let rectAreaLibReady = false
+
+/**
+ * Build fingerprint, logged once on mount. Bump with the package version — it is
+ * the only way to tell "this lighting change looks wrong" apart from "this build
+ * is not the code you think it is", which cost several release cycles once.
+ */
+const ENGINE_BUILD = '0.5.48'
+let lightingFingerprintLogged = false
+
+function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
+  const ref = useRef<THREE.RectAreaLight>(null)
+  if (!rectAreaLibReady) {
+    RectAreaLightUniformsLib.init()
+    rectAreaLibReady = true
+  }
+  useEffect(() => {
+    // Aim at the face, wherever it actually is for this rig and framing.
+    ref.current?.lookAt(0, focusY, 0)
+  })
+  return (
+    <rectAreaLight
+      ref={ref}
+      color={color}
+      intensity={intensity * SOFT_KEY_GAIN}
+      width={SOFT_KEY_SIZE}
+      height={SOFT_KEY_SIZE}
+      position={[SOFT_KEY_OFFSET[0], focusY + SOFT_KEY_OFFSET[1], SOFT_KEY_OFFSET[2]]}
+    />
+  )
+}
+
+/**
+ * Per-product lighting rigs (v0.5.48).
+ *
+ * Each product owns colours, intensities AND light positions, so tuning one
+ * product can never alter another. Two rules make an engine update safe to take:
+ *
+ *   1. Geometry lives here, in the preset. Nothing else in the engine
+ *      repositions a product's lights.
+ *   2. Face-relative aiming is OPT-IN per product (`followFace`). Only
+ *      evolve-sim uses it, because its CC5 bodies stand at full height with the
+ *      camera raised to eye level. With followFace off the placement maths
+ *      collapses exactly to the original [2,4,3] / [-2,2,-1] aimed at (0,0,0).
+ *
+ * acts-education and evolve-rpg carry main's (0.5.35) values verbatim with rim 0,
+ * so they render exactly what they rendered before this branch. Only evolve-sim
+ * carries the newly dialled-in values.
+ *
+ * Exported so products can read the contract and tests can assert it.
+ */
+export const LIGHTING_RIGS: Record<LightingProduct, {
+  ambient: string; ambientIntensity: number
+  key: string; keyIntensity: number; keyPosition: [number, number, number]
+  fill: string; fillIntensity: number; fillPosition: [number, number, number]
+  rim: string; rimIntensity: number
+  followFace: boolean
+}> = {
+  // Evolve Sim (B2B) — tuned on Kenji, a real CC5 character, in the playground.
+  // Ambient well below main's 0.95 with the key carrying the frame: soft
+  // directional rather than flat ambient.
+  'evolve-sim': {
+    ambient: '#eef3f7', ambientIntensity: 0.37,
+    key:  '#fdfdff', keyIntensity:  1.50, keyPosition:  [2, 4, 3],
+    fill: '#dde4ea', fillIntensity: 0.40, fillPosition: [-2, 2, -1],
+    rim:  '#eaf2ff', rimIntensity:  0.24,
+    followFace: true,
+  },
+  // ACTS Education — main's values and geometry. ACTS has positioned its own
+  // lights; do not move them.
+  'acts-education': {
+    ambient: '#e8f5e9', ambientIntensity: 0.70,
+    key:  '#ffffff', keyIntensity:  1.50, keyPosition:  [2, 4, 3],
+    fill: '#aed6f1', fillIntensity: 0.50, fillPosition: [-2, 2, -1],
+    rim:  '#dcefff', rimIntensity:  0,
+    followFace: false,
+  },
+  // Evolve RPG — main's values and geometry.
+  'evolve-rpg': {
+    ambient: '#c7a8f5', ambientIntensity: 0.70,
+    key:  '#ffffff', keyIntensity:  1.60, keyPosition:  [2, 4, 3],
+    fill: '#8e44ad', fillIntensity: 0.40, fillPosition: [-2, 2, -1],
+    rim:  '#d9c2ff', rimIntensity:  0,
+    followFace: false,
+  },
+}
+
+/**
+ * A directionalLight that actually points at the face.
+ *
+ * v0.5.44 — a directionalLight's direction is (position - target), and its
+ * target defaults to the world origin. v0.5.42 raised these lights by focusY to
+ * "follow the face", which instead made them steeply TOP-DOWN: at focusY 1.54 a
+ * light at [2, 5.54, 3] aimed at (0,0,0) rakes the top of the head and barely
+ * touches the face. Offsetting the target by the same focusY keeps the intended
+ * angle (the raw offset vector) while re-aiming at the head.
+ *
+ * The default target is not part of the scene graph, so its matrix has to be
+ * updated by hand or three keeps using a stale one.
+ */
+function AimedDirectionalLight({
+  color, intensity, position, focusY, castShadow = false,
+}: {
+  color: string
+  intensity: number
+  position: [number, number, number]
+  focusY: number
+  castShadow?: boolean
+}) {
+  const ref = useRef<THREE.DirectionalLight>(null)
+  useEffect(() => {
+    const light = ref.current
+    if (!light) return
+    light.target.position.set(0, focusY, 0)
+    light.target.updateMatrixWorld()
+  })
+  return (
+    <directionalLight
+      ref={ref}
+      color={color}
+      intensity={intensity}
+      position={position}
+      castShadow={castShadow}
+    />
+  )
+}
+
 // ── Lighting ──────────────────────────────────────────────────────────────────
 
-function Lighting({ preset }: { preset: LightingPreset }) {
+/** Per-light intensity overrides, for live tuning (see the playground panel). */
+export interface LightingOverrides {
+  ambient?: number
+  key?:     number
+  fill?:    number
+  rim?:     number
+  /** Environment-map strength (applied to materials, skin scaled down). */
+  env?:     number
+  /**
+   * Rim light direction, in degrees. Azimuth is measured from straight behind
+   * the camera axis (+Z) rotating toward the avatar's left (+X); elevation is
+   * height above the horizon. Rim angle matters more than rim intensity for
+   * edge separation, so these are exposed for tuning.
+   */
+  rimAzimuth?:   number
+  rimElevation?: number
+}
+
+// Rim placement. Defaults reproduce the previous hard-coded [-1.5, 2.5, -3]
+// exactly (verified by round-trip), so this is a pure refactor until overridden.
+const RIM_RADIUS            = 4.18
+// v0.5.43 — dialled in on a CC5 character. Elevation is NEGATIVE: the rim now
+// sits behind and slightly BELOW the face rather than above it, which skims the
+// jaw and neck instead of the top of the head.
+const RIM_AZIMUTH_DEFAULT   = -147
+const RIM_ELEVATION_DEFAULT = -6
+
+function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
+  const a = (azimuthDeg   * Math.PI) / 180
+  const e = (elevationDeg * Math.PI) / 180
+  return [
+    RIM_RADIUS * Math.cos(e) * Math.sin(a),
+    focusY + RIM_RADIUS * Math.sin(e),
+    RIM_RADIUS * Math.cos(e) * Math.cos(a),
+  ]
+}
+
+function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overrides?: LightingOverrides; focusY: number }) {
   // v0.5.22 — boardroom softened for lifelike skin: the key was a hard white
   // 1.4 directional that blew a specular hotspot on skin. Warmed slightly and
   // eased, fill warmed + lifted, and ambient raised so the face is lit by soft
   // room fill rather than a single spotlight. consumer/education keep their prior
   // look (ambientIntensity 0.7). Per-preset ambientIntensity.
-  const configs = {
-    boardroom: { ambient: '#eef3f7', ambientIntensity: 0.95, key: '#fdfdff', keyIntensity: 1.5, fill: '#dde4ea', fillIntensity: 0.9 },
-    consumer:  { ambient: '#c7a8f5', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.6, fill: '#8e44ad', fillIntensity: 0.4 },
-    education: { ambient: '#e8f5e9', ambientIntensity: 0.7,  key: '#ffffff', keyIntensity: 1.5, fill: '#aed6f1', fillIntensity: 0.5 },
+  // v0.5.36 — total light energy cut and a rim added. Every preset summed to
+  // ~3.3–3.4 across ambient+key+fill, which pushed skin highlights into ACES
+  // tonemapping's white rolloff — read as a waxy sheen no amount of roughness
+  // could remove. Totals now land ~2.6: the face is still clearly lit, but the
+  // highlights sit inside the tonemap's linear range instead of clipping.
+  // A back/rim light adds edge separation (the shape cue flat frontal lighting
+  // destroys) at a cost the energy reduction more than pays for.
+  // v0.5.37 — now that EnvironmentIBL supplies broad soft illumination, ambient
+  // steps back to a small tint term (it was the flat, shape-destroying part) and
+  // the key comes back up. Direct total ~2.4 PLUS the environment, which lands
+  // brighter overall than the original 3.35 flat-ambient setup while keeping
+  // highlights inside the tonemap's linear range.
+  // v0.5.38 — direct light cut alongside ENV_MAP_INTENSITY. The key takes the
+  // largest reduction because it is what produces the specular hotspot that
+  // clips first on skin. Avatars composite over a photographic backdrop, so the
+  // target is matching that plate's exposure, not "as bright as possible" —
+  // over-lighting the avatar relative to its background is what reads as pasted-on.
+  // v0.5.39 — two corrections.
+  //
+  // v0.5.48 — PER-PRODUCT RIGS. Each product owns colours, intensities AND light
+  // positions, so tuning one product can never alter another. Two rules make an
+  // engine update safe to take:
+  //
+  //   1. Geometry lives in the preset. Nothing in the engine repositions a
+  //      product's lights.
+  //   2. Face-relative aiming is OPT-IN per product (`followFace`). Only
+  //      evolve-sim uses it, because its CC5 bodies stand at full height with the
+  //      camera raised to eye level. ACTS and RPG keep classic origin-aimed
+  //      directionals — with followFace off the maths collapses exactly to the
+  //      original [2,4,3] / [-2,2,-1] aimed at (0,0,0), so their look is
+  //      untouched by anything done here.
+  //
+  // acts-education and evolve-rpg therefore carry main's (0.5.35) values verbatim
+  // with rim 0 — they render today exactly what they rendered before this branch.
+  // Only evolve-sim carries the newly dialled-in values.
+  const configs = LIGHTING_RIGS
+  // Legacy preset names map onto the product rigs, so existing callers keep
+  // rendering what they render today without any code change.
+  const PRESET_ALIASES: Record<string, LightingProduct> = {
+    boardroom: 'evolve-sim',
+    education: 'acts-education',
+    consumer:  'evolve-rpg',
   }
-  const c = configs[preset]
+  const product: LightingProduct =
+    (PRESET_ALIASES[preset] ?? preset) as LightingProduct
+  const c = configs[product] ?? configs['evolve-sim']
+  // v0.5.41 — build/lighting fingerprint. The portal spent several releases
+  // rendering a stale vendored engine while looking identical, which is
+  // indistinguishable from "the lighting change did nothing" unless the running
+  // build identifies itself. Logged once per mount so which code is actually
+  // live is never a guess again.
+  if (!lightingFingerprintLogged) {
+    lightingFingerprintLogged = true
+    // Stringified, not an object: the browser collapses objects to "Object" and
+    // the interesting numbers stay hidden behind a disclosure triangle in a
+    // console that is already noisy.
+    console.info(
+      `[AvatarCanvas] ENGINE ${ENGINE_BUILD} — lighting '${preset}': ` + JSON.stringify({
+        ambient: overrides?.ambient ?? c.ambientIntensity,
+        softKey: overrides?.key     ?? c.keyIntensity,
+        fill:    overrides?.fill    ?? c.fillIntensity,
+        rim:     overrides?.rim     ?? c.rimIntensity,
+        product,
+        followFace: c.followFace,
+        // Height the lights aim at. 0 means classic origin-aimed geometry
+        // (followFace off) — the product's own placement, untouched.
+        aimY: Number((c.followFace ? focusY : 0).toFixed(3)),
+      }),
+    )
+  }
+  const ambientI = overrides?.ambient ?? c.ambientIntensity
+  const keyI     = overrides?.key     ?? c.keyIntensity
+  const fillI    = overrides?.fill    ?? c.fillIntensity
+  const rimI     = overrides?.rim     ?? c.rimIntensity
+  // followFace off => aimY 0 => positions are the preset's own vectors and the
+  // lights target the world origin, i.e. byte-for-byte the original behaviour.
+  const aimY     = c.followFace ? focusY : 0
+  const rimPos   = rimPosition(
+    overrides?.rimAzimuth   ?? RIM_AZIMUTH_DEFAULT,
+    overrides?.rimElevation ?? RIM_ELEVATION_DEFAULT,
+    aimY,
+  )
   return (
     <>
-      <ambientLight color={c.ambient} intensity={c.ambientIntensity} />
-      <directionalLight color={c.key}  intensity={c.keyIntensity}  position={[2, 4, 3]} castShadow />
-      <directionalLight color={c.fill} intensity={c.fillIntensity} position={[-2, 2, -1]} />
+      {/* ambient + directionals, no softbox and no environment map — main's
+          arrangement, which is the one that read correctly. Positions come from
+          the product's own rig; aimY is 0 unless that product opted into
+          face-relative aiming. */}
+      <ambientLight color={c.ambient} intensity={ambientI} />
+      <AimedDirectionalLight
+        color={c.key} intensity={keyI} focusY={aimY} castShadow
+        position={[c.keyPosition[0], aimY + c.keyPosition[1], c.keyPosition[2]]}
+      />
+      <AimedDirectionalLight
+        color={c.fill} intensity={fillI} focusY={aimY}
+        position={[c.fillPosition[0], aimY + c.fillPosition[1], c.fillPosition[2]]}
+      />
+      {/* Rim / back light — direction from rimAzimuth / rimElevation. Zero
+          intensity on ACTS and RPG, which have no rim. */}
+      <AimedDirectionalLight color={c.rim} intensity={rimI} position={rimPos} focusY={aimY} />
     </>
   )
 }
@@ -277,6 +634,147 @@ const CAMERA_TARGET_Y = 0.1
 // morph, well short of a yawn.
 const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
 
+// ── Procedural skin detail (v0.5.36) ──────────────────────────────────────────
+//
+// CC exports ship NO roughness map and NO AO map — verified against real CC5
+// Headshot 3 GLBs (Std_Skin_* carry a flat roughnessFactor 0.7 plus baseColor +
+// normal, nothing else). A single flat roughness scalar means every square
+// millimetre of the face reflects light identically, which is the classic "CG
+// plastic" tell — far more than the roughness VALUE itself. And once the normal
+// map is exported at 512 (needed to keep GLBs small) the pore-scale detail that
+// breaks up skin shading is simply gone, so the surface reads glass-smooth.
+//
+// Both are fixed here at zero asset cost: one small tileable noise texture,
+// generated once and shared by every avatar, used two ways —
+//   • as a roughnessMap, so specular varies across the face (oily vs matte)
+//   • as a fine detail-normal (shader-injected), restoring pore-scale shading
+// This is why the export resolution stops mattering for pores: the micro-detail
+// comes from here, not from the GLB's normal map.
+const SKIN_DETAIL_TEX_SIZE = 256
+// Roughness range the noise is mapped into. Mean ≈ 0.80 — real skin sits around
+// 0.6–0.9 and VARIES; the old flat 0.97 floor traded "shiny plastic" for
+// "matte clay", which is equally unconvincing.
+const SKIN_ROUGH_MIN = 0.66
+const SKIN_ROUGH_MAX = 0.94
+// How many times the noise tiles across the skin UV atlas for each use.
+const SKIN_ROUGH_REPEAT  = 6   // broad oily/dry zones
+const SKIN_DETAIL_REPEAT = 26  // pore-scale micro-shading
+const SKIN_DETAIL_STRENGTH = 0.55
+
+let skinDetailTex: THREE.DataTexture | null = null
+
+/**
+ * Build (once) a small tileable greyscale value-noise texture used for both the
+ * skin roughness map and the injected detail normal. Deterministic — a fixed
+ * hash, not Math.random — so every avatar and every reload gets the same grain.
+ */
+function getSkinDetailTexture(): THREE.DataTexture {
+  if (skinDetailTex) return skinDetailTex
+
+  const N = SKIN_DETAIL_TEX_SIZE
+  const data = new Uint8Array(N * N * 4)
+
+  // Deterministic hash → [0,1)
+  const hash = (x: number, y: number): number => {
+    const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+    return h - Math.floor(h)
+  }
+  // Tileable value noise at a given cell frequency (wraps via modulo).
+  const valueNoise = (u: number, v: number, freq: number): number => {
+    const x = u * freq
+    const y = v * freq
+    const xi = Math.floor(x)
+    const yi = Math.floor(y)
+    const xf = x - xi
+    const yf = y - yi
+    // smoothstep interpolation
+    const sx = xf * xf * (3 - 2 * xf)
+    const sy = yf * yf * (3 - 2 * yf)
+    const w = (a: number, b: number) => ((a % b) + b) % b
+    const p00 = hash(w(xi, freq),     w(yi, freq))
+    const p10 = hash(w(xi + 1, freq), w(yi, freq))
+    const p01 = hash(w(xi, freq),     w(yi + 1, freq))
+    const p11 = hash(w(xi + 1, freq), w(yi + 1, freq))
+    return (p00 * (1 - sx) + p10 * sx) * (1 - sy) + (p01 * (1 - sx) + p11 * sx) * sy
+  }
+
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const u = x / N
+      const v = y / N
+      // Multi-octave so the grain clumps like pores rather than looking like TV static.
+      const n =
+        valueNoise(u, v, 8)  * 0.5 +
+        valueNoise(u, v, 16) * 0.3 +
+        valueNoise(u, v, 32) * 0.2
+      const r = SKIN_ROUGH_MIN + n * (SKIN_ROUGH_MAX - SKIN_ROUGH_MIN)
+      const b = Math.round(THREE.MathUtils.clamp(r, 0, 1) * 255)
+      const i = (y * N + x) * 4
+      data[i] = b; data[i + 1] = b; data[i + 2] = b; data[i + 3] = 255
+    }
+  }
+
+  const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat)
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
+  tex.minFilter = THREE.LinearMipmapLinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.generateMipmaps = true
+  tex.needsUpdate = true
+  skinDetailTex = tex
+  return tex
+}
+
+/**
+ * Inject a tiled detail-normal into a skin material's fragment shader.
+ *
+ * three applies bumpMap only when no normalMap is present (`#elif` in
+ * normal_fragment_maps), and CC skin always has a normalMap — so a second layer
+ * of micro-detail has to be added by hand, after the base normal is resolved.
+ * The perturbation is deliberately tiny, so approximating the tangent frame in
+ * view space is imperceptible and avoids needing tangents.
+ */
+function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uDetailMap      = { value: detail }
+    shader.uniforms.uDetailScale    = { value: SKIN_DETAIL_REPEAT }
+    shader.uniforms.uDetailStrength = { value: SKIN_DETAIL_STRENGTH }
+    // A missing chunk name would make .replace() a silent no-op — the detail
+    // would just never appear, with no error. Fail loudly instead.
+    if (!shader.fragmentShader.includes('#include <normal_fragment_maps>')) {
+      console.warn(
+        '[AvatarCanvas] skin detail-normal: <normal_fragment_maps> chunk not found — ' +
+        'three.js shader layout changed; pore detail is inactive.',
+      )
+      return
+    }
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform sampler2D uDetailMap;
+         uniform float uDetailScale;
+         uniform float uDetailStrength;`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+         #if defined( USE_MAP )
+         {
+           vec2 dUv = vMapUv * uDetailScale;
+           float e  = 1.0 / ${SKIN_DETAIL_TEX_SIZE.toFixed(1)};
+           float h  = texture2D( uDetailMap, dUv ).g;
+           float hx = texture2D( uDetailMap, dUv + vec2( e, 0.0 ) ).g;
+           float hy = texture2D( uDetailMap, dUv + vec2( 0.0, e ) ).g;
+           normal = normalize( normal + uDetailStrength * vec3( h - hx, h - hy, 0.0 ) );
+         }
+         #endif`,
+      )
+  }
+  // Distinct cache key so these programs never collide with un-patched materials.
+  mat.customProgramCacheKey = () => 'evolve-skin-detail-v1'
+}
+
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
   root.traverse((obj) => {
@@ -298,6 +796,8 @@ function AvatarScene({
   applyTPoseFix,
   avatarXOffset,
   autoCalibrate,
+  gazeConfig,
+  envIntensity,
 }: {
   engine:           AvatarEngine
   glbUrl:           string
@@ -308,6 +808,8 @@ function AvatarScene({
   applyTPoseFix:    boolean
   avatarXOffset:    number
   autoCalibrate:    boolean
+  gazeConfig?:      GazeConfig
+  envIntensity?:    number
 }) {
   // Decide up-front whether we need the donor face rig. When `mergeFaceRigMode`
   // is explicitly false the donor URL is omitted from the loader call so the
@@ -555,25 +1057,47 @@ function AvatarScene({
         // subsurface scatter, so a hard key produces a wet/plastic hotspot. CC4
         // exports ~0.55 with a KHR_materials_specular layer; CC5 Headshot 3
         // exports ~0.7 as a plain MeshStandardMaterial with NO specular ext.
-        // Fix, per material, once: roughen hard (floor 0.97); add a soft warm
-        // sheen (subsurface-like scatter — sheen needs MeshPhysicalMaterial, so
-        // upgrade plain-standard skin); tame specularIntensity + kill clearcoat.
+        // Fix, per material, once: drive roughness from a procedural noise map
+        // so it VARIES (v0.5.36 — the old flat 0.97 floor just read as clay);
+        // add a soft warm sheen (subsurface-like scatter — sheen needs
+        // MeshPhysicalMaterial, so upgrade plain-standard skin); add pore-scale
+        // detail-normal; tame specularIntensity + kill clearcoat.
         // Wrapped so any failure leaves the (roughened) standard material intact.
+        // Environment response for every lit material (hair, clothing, eyes…).
+        // three defaults envMapIntensity to 1, but set it explicitly so the
+        // scene's IBL strength is tunable from one constant. Skin overrides this
+        // below with ENV_MAP_INTENSITY_SKIN.
+        if ('envMapIntensity' in m) {
+          (m as THREE.MeshStandardMaterial).envMapIntensity = ENV_MAP_INTENSITY
+        }
         if (/^(Std_Skin|Std_Nails)/i.test(matName)) {
           const std = m as THREE.MeshStandardMaterial & { __skinLifelike?: boolean }
           if (!std.__skinLifelike) {
             const apply = (mat: THREE.MeshPhysicalMaterial & { __skinLifelike?: boolean }) => {
               mat.metalness = 0
-              if (typeof mat.roughness === 'number') mat.roughness = Math.max(mat.roughness, 0.97)
-              if ('specularIntensity' in mat) mat.specularIntensity = 0.08
+              // v0.5.36 — spatially-varying roughness replaces the old flat 0.97
+              // floor. three multiplies `roughness` by roughnessMap.g, so the
+              // scalar is 1.0 and the map alone carries the SKIN_ROUGH_MIN..MAX
+              // range. Varying specular is what reads as skin; a uniform value
+              // reads as plastic (high gloss) or clay (low gloss) either way.
+              const detail = getSkinDetailTexture()
+              mat.roughness = 1.0
+              mat.roughnessMap = detail.clone()
+              mat.roughnessMap.wrapS = THREE.RepeatWrapping
+              mat.roughnessMap.wrapT = THREE.RepeatWrapping
+              mat.roughnessMap.repeat.set(SKIN_ROUGH_REPEAT, SKIN_ROUGH_REPEAT)
+              mat.roughnessMap.needsUpdate = true
+              if ('specularIntensity' in mat) mat.specularIntensity = 0.20
               if ('sheen' in mat) {
                 mat.sheen = 0.15
                 mat.sheenRoughness = 1.0
                 mat.sheenColor = new THREE.Color(0xffd9c8)
               }
               if ('clearcoat' in mat) mat.clearcoat = 0
-              if ('envMapIntensity' in mat) mat.envMapIntensity = 0.3
+              if ('envMapIntensity' in mat) mat.envMapIntensity = ENV_MAP_INTENSITY_SKIN
               if (mat.normalMap && mat.normalScale) mat.normalScale.multiplyScalar(1.3)
+              // Pore-scale micro-detail — recovers what a 512px normal export loses.
+              attachSkinDetailNormal(mat, detail)
               mat.__skinLifelike = true
               mat.needsUpdate = true
             }
@@ -668,6 +1192,26 @@ function AvatarScene({
       jawRestQuat.current = null
     }
   }, [scene, gltf, clips, engine, applyTPoseFix])
+
+  // Live environment-map strength. The load pass sets this once from the
+  // ENV_MAP_* constants; this re-applies it whenever a caller drives the
+  // `lightingOverrides.env` slider, so the playground can tune it without a
+  // reload. No-op in production, where `envIntensity` is undefined.
+  useEffect(() => {
+    if (envIntensity == null) return
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh
+      if (!mesh.isMesh) return
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const mm of mats) {
+        if (!mm || !('envMapIntensity' in mm)) continue
+        const isSkin = /^(Std_Skin|Std_Nails)/i.test(mm.name ?? '')
+        ;(mm as THREE.MeshStandardMaterial).envMapIntensity = isSkin
+          ? envIntensity * (ENV_MAP_INTENSITY_SKIN / ENV_MAP_INTENSITY)
+          : envIntensity
+      }
+    })
+  }, [scene, envIntensity])
 
   // Hide until mixer fires (prevents bind-pose sideways-look flash on first render)
   useEffect(() => {
@@ -935,9 +1479,11 @@ function AvatarScene({
           cameraPosRef.current,
           eyeRotationX,
           eyeRotationY,
-          // 25° eye-travel socket for both characters — eyeLimitYaw caps travel
-          // equally in every direction (side to side and up and down).
-          { eyeLimitYaw: 25 },
+          // 25° horizontal eye-travel socket for both characters. Vertical travel
+          // and the release cones come from the engine defaults (eyeLimitPitch,
+          // lockConePitch), which are deliberately tighter — see the gaze system
+          // docs. Caller overrides win so products can tune without an engine edit.
+          { eyeLimitYaw: 25, ...gazeConfig },
           true,
         )
       : tickGaze(
@@ -989,6 +1535,7 @@ export function AvatarCanvas({
   mergeFaceRig: mergeFaceRigMode = 'auto',
   cameraPreset   = 'head-and-shoulders',
   lightingPreset = 'consumer',
+  lightingOverrides,
   bodyRotationY  = 0.5,
   avatarYOffset  = -1.52,
   avatarXOffset  = 0,
@@ -997,6 +1544,7 @@ export function AvatarCanvas({
   cameraPosition,
   cameraTarget,
   animationPackUrl,
+  gazeConfig,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -1026,7 +1574,22 @@ export function AvatarCanvas({
         shadows
       >
         <CameraSetup preset={cameraPreset} positionOverride={cameraPosition} targetOverride={cameraTarget} />
-        <Lighting preset={lightingPreset} />
+        {/* v0.5.45 — EnvironmentIBL REMOVED. main (0.5.35) had no environment
+            map and no softbox, only ambient + two directionals, and looked
+            better than everything built on top of it. RoomEnvironment lights
+            from every direction at once, so it flattened the face AND made the
+            direct lights irrelevant: cutting env 0.69 -> 0.18 and dropping the
+            key still produced an identical render, because the environment was
+            doing effectively all the work. */}
+        {/* Lights are placed relative to whatever the camera is looking at, so
+            they follow the face for both conventions: auto-calibrated rigs
+            (head parked near CAMERA_TARGET_Y) and full-height CC4 bodies framed
+            at their real eye height (~1.4-1.7m), which the portal uses. */}
+        <Lighting
+          preset={lightingPreset}
+          overrides={lightingOverrides}
+          focusY={(cameraTarget ?? CAMERA_PRESETS[cameraPreset].target)[1]}
+        />
         <Suspense fallback={null}>
           <AvatarScene
             engine={engine}
@@ -1034,10 +1597,12 @@ export function AvatarCanvas({
             faceRigUrl={faceRigUrl}
             mergeFaceRigMode={mergeFaceRigMode}
             bodyRotationY={bodyRotationY}
+            envIntensity={lightingOverrides?.env}
             avatarYOffset={avatarYOffset}
             avatarXOffset={avatarXOffset}
             applyTPoseFix={applyTPoseFix}
             autoCalibrate={autoCalibrate}
+            gazeConfig={gazeConfig}
           />
         </Suspense>
       </Canvas>

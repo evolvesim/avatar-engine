@@ -4,7 +4,8 @@
 
 // Primary component + hook
 export { AvatarCanvas, DEFAULT_FACE_RIG_URL } from './AvatarCanvas'
-export type { AvatarCanvasProps }    from './AvatarCanvas'
+export { LIGHTING_RIGS } from './AvatarCanvas'
+export type { AvatarCanvasProps, LightingOverrides } from './AvatarCanvas'
 
 // Runtime face-rig merge (consumed by product upload pipelines)
 export {
@@ -61,6 +62,7 @@ export {
   fixTPose,
   findBone,
 }                                    from './procedural-animations'
+export type { GazeConfig }           from './procedural-animations'
 
 // Viseme map
 export {

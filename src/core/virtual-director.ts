@@ -108,7 +108,7 @@ export interface VirtualDirectorConfig {
    * Azure OpenAI (AU region, Evolve B2B):
    *   'https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-02-01'
    *
-   * OpenAI direct (EvySim B2C fallback):
+   * OpenAI direct (Evolve RPG B2C fallback):
    *   'https://api.openai.com/v1/chat/completions'
    */
   endpoint: string
