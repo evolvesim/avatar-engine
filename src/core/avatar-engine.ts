@@ -27,6 +27,7 @@ import {
   type VirtualDirectorConfig,
   type PerformanceData,
 } from './virtual-director'
+import type { ClipGender } from './situational-clips'
 import {
   SkeletalController,
 } from './skeletal-controller'
@@ -59,6 +60,16 @@ export interface AvatarEngineConfig {
 
   /** TTS adapter instance — caller constructs and passes in. */
   adapter: TTSAdapter
+
+  /**
+   * The character's gender presentation, when the product knows it.
+   *
+   * Biases clip selection away from clips the pack author explicitly marked for the
+   * other gender — a male avatar should not drop into `cc_feminine_head_up`. Only 19
+   * of 130 clips carry such a marker, so this narrows the pool slightly rather than
+   * halving it. Omit, or pass null, for a non-binary character or when unknown.
+   */
+  characterGender?: ClipGender | null
 }
 
 // ── Engine ────────────────────────────────────────────────────────────────────
@@ -89,6 +100,7 @@ export class AvatarEngine {
     this.dictionary   = defaultDictionary
     this.emotion      = defaultEmotion
     this.skeletal     = new SkeletalController(this.dictionary)
+    this.skeletal.setGenderBias(config.characterGender ?? null)
     this.fftFallback  = new FFTFallback()
     this.adapter      = config.adapter
 
@@ -289,8 +301,17 @@ export class AvatarEngine {
   }
 
   private _applyPerformanceData(data: PerformanceData): void {
-    // Apply persistent facial expression if VD signals a change
-    // set_expression=null means "keep current expression" — do not reset
+    // ── Persistent facial expression ──────────────────────────────────────────
+    // Emotion is a FACIAL state and it persists. `set_expression = null` means
+    // "keep the current expression", so a character who turned sad stays visibly
+    // sad across exchanges until the conversation moves them — which is the whole
+    // point: the feeling carries, while the body still gestures for whatever is
+    // being said right now.
+    //
+    // `base_emotion` deliberately does NOT reach the body any more. It used to be
+    // forwarded to the skeletal controller to choose an idle pool, which pinned an
+    // emotional conversation to a single resting loop. Body clips are now chosen by
+    // dialogue function (see situational-clips.ts).
     if (data.set_expression != null) {
       this.emotion.set(data.set_expression, data.emotion_intensity)
       this.skeletal.onEmotionChange(data.set_expression)
@@ -298,8 +319,7 @@ export class AvatarEngine {
         console.info(`[VirtualDirector] Expression → ${data.set_expression} (${data.expression_reason})`)
       }
     } else {
-      // No expression change — still apply base_emotion intensity for idle pool selection
-      // but do not override the persistent expression blendshapes
+      // Expression held. Record the turn's emotion for diagnostics only.
       this.skeletal.onEmotionChange(data.base_emotion)
     }
 
