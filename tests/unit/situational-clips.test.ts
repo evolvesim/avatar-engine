@@ -10,9 +10,10 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  SITUATIONAL_CLIPS, CLIP_FUNCTIONS, CLIP_MANNERS, IDLE_CLIP_IDS,
-  clipInfo, isIdleClip, clipsForFunction,
+  SITUATIONAL_CLIPS, CLIP_FUNCTIONS, CLIP_MANNERS, CLIP_SCALES, SCALE_ORDER, IDLE_CLIP_IDS,
+  clipInfo, isIdleClip, clipsForFunction, idlesForManner, isUncharacterisedClip,
 } from '../../src/core/situational-clips'
+import type { ClipManner } from '../../src/core/situational-clips'
 
 const ROOT = path.resolve(__dirname, '../..')
 const mapping = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/situational-mapping.json'), 'utf8'))
@@ -126,5 +127,151 @@ describe('emotion no longer selects body clips', () => {
     const fn = controller.slice(controller.indexOf('onEmotionChange(emotion: EmotionId)'))
       .slice(0, 400)
     expect(fn).not.toContain('_playIdle')
+  })
+})
+
+// ── Measured motion size ─────────────────────────────────────────────────────
+
+describe('clip scale is measured, not guessed', () => {
+  it('bands every clip and keeps the raw measurement alongside', () => {
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      expect(CLIP_SCALES, c.id).toContain(c.scale)
+      expect(typeof c.armDeg, c.id).toBe('number')
+      expect(typeof c.bodyDeg, c.id).toBe('number')
+    }
+  })
+
+  it('agrees with the mapping the registry was generated from', () => {
+    for (const pack of Object.values(mapping.packs) as { clips: Record<string, unknown>[] }[]) {
+      for (const clip of pack.clips) {
+        const reg = SITUATIONAL_CLIPS[clip['id'] as string]
+        expect(reg.scale, reg.id).toBe(clip['scale'])
+        expect(reg.armDeg, reg.id).toBe(clip['armDeg'])
+      }
+    }
+  })
+
+  it('bands consistently with the recorded thresholds', () => {
+    const { subtleMax, moderateMax } = mapping.scaleThresholds
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      const expected = c.armDeg <= subtleMax ? 'subtle' : c.armDeg <= moderateMax ? 'moderate' : 'broad'
+      expect(c.scale, `${c.id} @ ${c.armDeg}°`).toBe(expected)
+    }
+  })
+
+  it('contradicts what a name-keyword classifier would have concluded', () => {
+    // The whole reason for measuring: names carry no reliable signal. Neither of
+    // these ids mentions an arm or a hand, and both are full arm throws.
+    expect(SITUATIONAL_CLIPS['cc_bashful_look_at_ground'].scale).toBe('broad')
+    expect(SITUATIONAL_CLIPS['cc_look_at_hand_and_nails'].scale).toBe('broad')
+    // And these do read as small, correctly.
+    expect(SITUATIONAL_CLIPS['cc_head_nod'].scale).toBe('subtle')
+    expect(SITUATIONAL_CLIPS['cc_neutral_idle'].scale).toBe('subtle')
+  })
+
+  it('narrows candidates by maxScale and can order smallest-first', () => {
+    const all = clipsForFunction('explaining', 'gesture')
+    const small = clipsForFunction('explaining', 'gesture', { maxScale: 'moderate' })
+    expect(small.length).toBeLessThan(all.length)
+    for (const c of small) expect(SCALE_ORDER[c.scale]).toBeLessThanOrEqual(SCALE_ORDER['moderate'])
+
+    const ordered = clipsForFunction('explaining', 'gesture', { smallestFirst: true }).map(c => c.armDeg)
+    expect(ordered).toEqual([...ordered].sort((a, b) => a - b))
+  })
+})
+
+// ── Characterised resting poses have to be earned ────────────────────────────
+//
+// The reported symptom: a car-sales avatar repeatedly dropping into the "tired"
+// idle in a conversation that never called for it. 13 of the CC pack's 20 resting
+// poses carry a manner, and the picker drew uniformly from all of them.
+describe('idlesForManner', () => {
+  it('returns only uncharacterised poses when nothing is allowed', () => {
+    const idles = idlesForManner([])
+    expect(idles.length).toBeGreaterThan(0)
+    for (const c of idles) {
+      expect(c.manner, c.id).toEqual([])
+      expect(c.kind).toBe('idle')
+    }
+  })
+
+  it('excludes the tired / wary / detached poses at neutral', () => {
+    const ids = new Set(idlesForManner([]).map(c => c.id))
+    // These are exactly the poses that were showing up unbidden.
+    expect(ids.has('cc_slouched')).toBe(false)              // "When tired"
+    expect(ids.has('cc_side_eye')).toBe(false)              // "When wary or scared"
+    expect(ids.has('cc_crossed_arms_looking_down')).toBe(false) // "When detached"
+    expect(ids.has('cc_masculine_look_around')).toBe(false) // "When uncomfortable"
+  })
+
+  it('keeps the standard attentive poses available at neutral', () => {
+    const ids = new Set(idlesForManner([]).map(c => c.id))
+    expect(ids.has('cc_idle_standard')).toBe(true)
+    expect(ids.has('cc_neutral_idle')).toBe(true)
+    expect(ids.has('cc_masculine_idle')).toBe(true)
+    expect(ids.has('cc_feminine_idle')).toBe(true)
+  })
+
+  it('admits a pose once its manner is allowed', () => {
+    const downcast = idlesForManner(['downcast']).map(c => c.id)
+    expect(downcast).toContain('cc_slouched')
+    // Allowing one manner must not admit the others.
+    expect(downcast).not.toContain('cc_side_eye')
+  })
+
+  it('leaves a workable pool for every emotion the controller maps', () => {
+    // Each list in EMOTION_IDLE_MANNERS must yield at least the uncharacterised
+    // set, so no feeling can strand the avatar without a resting pose.
+    const lists: readonly ClipManner[][] = [
+      [], ['relaxed', 'elated'], ['guarded'], ['downcast'],
+      ['guarded', 'agitated'], ['shy', 'guarded'], ['relaxed'],
+    ]
+    for (const allowed of lists) {
+      expect(idlesForManner([...allowed, 'formal']).length, allowed.join('+')).toBeGreaterThanOrEqual(4)
+    }
+  })
+
+  it('never filters gestures — manner gates rest only', () => {
+    for (const c of idlesForManner(CLIP_MANNERS)) expect(c.kind).toBe('idle')
+  })
+})
+
+describe('isUncharacterisedClip', () => {
+  it('is true only for clips with no manner', () => {
+    expect(isUncharacterisedClip('cc_idle_standard')).toBe(true)
+    expect(isUncharacterisedClip('cc_slouched')).toBe(false)
+    expect(isUncharacterisedClip('not_a_clip')).toBe(false)
+  })
+})
+
+describe('the idle picker is context-aware and anti-repeat', () => {
+  const controller = fs.readFileSync(path.join(ROOT, 'src/core/skeletal-controller.ts'), 'utf8')
+
+  it('gates resting poses on the sustained feeling', () => {
+    expect(controller).toContain('EMOTION_IDLE_MANNERS')
+    expect(controller).toContain('idlesForManner')
+  })
+
+  it('maps every emotion in the palette', () => {
+    const block = controller.slice(
+      controller.indexOf('EMOTION_IDLE_MANNERS'),
+      controller.indexOf('ALWAYS_ALLOWED_IDLE_MANNERS'),
+    )
+    for (const e of ['neutral', 'happy', 'thoughtful', 'sadness', 'displeasure', 'shy', 'empathy']) {
+      expect(block, e).toContain(`${e}:`)
+    }
+  })
+
+  it('remembers more than just the current idle', () => {
+    // Avoiding only the current clip is what let a pool cycle back around every
+    // few picks and read as "the same idle again".
+    expect(controller).toContain('IDLE_HISTORY')
+    expect(controller).toContain('recentIdleIds')
+    expect(controller).toContain('_noteIdlePlayed')
+  })
+
+  it('still does not take an emotion argument', () => {
+    // Emotion decides which MANNERS are eligible, never a specific clip.
+    expect(controller).toContain('private _pickNextIdle(): string')
   })
 })

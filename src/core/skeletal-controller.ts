@@ -41,8 +41,9 @@ import type { GestureCue } from './virtual-director'
 import {
   isIdleClip as isRegisteredIdleClip,
   clipsForFunction,
+  idlesForManner,
 } from './situational-clips'
-import type { ClipFunction } from './situational-clips'
+import type { ClipFunction, ClipManner } from './situational-clips'
 
 // ── Situational idle selection ───────────────────────────────────────────────
 //
@@ -65,6 +66,42 @@ import type { ClipFunction } from './situational-clips'
 // gets it played LoopRepeat; unregistered clips from a legacy pack fall back to a
 // name heuristic so they still loop rather than flashing a T-pose.
 const REST_FUNCTION: ClipFunction = 'rest'
+
+// ── Which resting poses the current feeling permits ──────────────────────────
+//
+// Decoupling emotion from the body was right, but the first cut went too far: it
+// drew UNIFORMLY from every `rest` clip. 13 of the CC pack's 20 resting poses carry
+// a manner (tired, wary, detached, uncomfortable), so a character spent most of its
+// time visibly characterised by accident — a salesperson dropping into a slouch, or
+// a wary side-eye, in a conversation that called for neither.
+//
+// The fix is not to re-couple emotion to the body. It is to say that a
+// CHARACTERISED pose has to be earned: a manner is only in rotation when the
+// sustained feeling actually supports it. Everything else rests on the
+// uncharacterised poses, which is what "standard and subtle" means.
+//
+// `neutral` maps to no manners at all — deliberately the strictest case, because it
+// is also the most common.
+const EMOTION_IDLE_MANNERS: Readonly<Record<EmotionId, readonly ClipManner[]>> = {
+  neutral:     [],
+  happy:       ['relaxed', 'elated'],
+  thoughtful:  ['guarded'],
+  sadness:     ['downcast'],
+  displeasure: ['guarded', 'agitated'],
+  shy:         ['shy', 'guarded'],
+  empathy:     ['relaxed'],
+}
+
+// 'formal' is absent from every list above on purpose: a formal stance is never
+// WRONG, so it is folded into the always-available set below rather than gated.
+const ALWAYS_ALLOWED_IDLE_MANNERS: readonly ClipManner[] = ['formal']
+
+// Resting poses are re-rolled every ~22s. Avoiding only the CURRENT clip lets a
+// pool of n cycle back around after n/2 picks on average, which is what "he keeps
+// doing the same idle" feels like. Remembering the last few makes a visible
+// difference at no cost. Kept below the smallest realistic pool so there is always
+// something left to choose.
+const IDLE_HISTORY = 3
 
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
@@ -259,6 +296,8 @@ export class SkeletalController {
   private wordCounter:       number       = 0
   private currentEmotion:    EmotionId    = 'neutral'
   private currentIdleClipId: string       = ''
+  /** Most-recently-played idles, newest first. See IDLE_HISTORY. */
+  private recentIdleIds:     string[]     = []
   private idlePoolTimer:     number       = 0
   private idlePoolInterval:  number       = 22
   private isInGesture:       boolean      = false
@@ -458,6 +497,7 @@ export class SkeletalController {
 
     this.pendingIdle       = false
     this.currentIdleClipId = id
+    this._noteIdlePlayed(id)
     this.isInGesture       = false
 
     const idleAction = this.mixer.clipAction(idleClip)
@@ -488,16 +528,35 @@ export class SkeletalController {
   }
 
   /**
-   * Pick the next resting pose. Emotion is deliberately not an input — it lives
-   * on the face. Candidates are the `rest` clips the loaded pack actually
-   * contains, so the other rig's ids (and any pack that lacks a given clip)
-   * simply drop out.
+   * Pick the next resting pose.
+   *
+   * Emotion still does not choose a SPECIFIC clip — it only decides which
+   * emotional colourings are eligible at all (EMOTION_IDLE_MANNERS). At neutral,
+   * which is most of any conversation, that means only the uncharacterised poses,
+   * so the character stands and listens rather than slouching or throwing a wary
+   * side-eye for no reason.
+   *
+   * Widening is stepwise so a thin pack still rests:
+   *   1. Poses whose manner the current feeling permits.
+   *   2. Uncharacterised poses only (the "standard" set).
+   *   3. Every `rest` clip in the pack.
+   *   4. Anything the pack itself presents as an idle (unmapped legacy packs).
    */
   private _pickNextIdle(): string {
-    let available = clipsForFunction(REST_FUNCTION, 'idle')
-      .map(c => c.id)
-      .filter(id => !!this.dictionary.get(id))
+    const inPack = (ids: string[]) => ids.filter(id => !!this.dictionary.get(id))
 
+    const allowed = [
+      ...(EMOTION_IDLE_MANNERS[this.currentEmotion] ?? []),
+      ...ALWAYS_ALLOWED_IDLE_MANNERS,
+    ]
+    let available = inPack(idlesForManner(allowed).map(c => c.id))
+
+    if (available.length === 0) {
+      available = inPack(idlesForManner(ALWAYS_ALLOWED_IDLE_MANNERS).map(c => c.id))
+    }
+    if (available.length === 0) {
+      available = inPack(clipsForFunction(REST_FUNCTION, 'idle').map(c => c.id))
+    }
     // A legacy or unmapped pack contributes no registry `rest` clips. Fall back to
     // anything the pack itself presents as an idle, so such packs still rest
     // instead of freezing.
@@ -505,11 +564,21 @@ export class SkeletalController {
       available = this.dictionary.animationIds.filter(id => this._isIdleClip(id))
     }
     if (available.length === 0) return ''
-
     if (available.length === 1) return available[0]
-    const candidates = available.filter(id => id !== this.currentIdleClipId)
+
+    // Avoid the last few, not just the current one — see IDLE_HISTORY.
+    let candidates = available.filter(id => !this.recentIdleIds.includes(id))
+    if (candidates.length === 0) {
+      candidates = available.filter(id => id !== this.currentIdleClipId)
+    }
     const pick = candidates.length > 0 ? candidates : available
     return pick[Math.floor(Math.random() * pick.length)]
+  }
+
+  /** Record a played idle in the anti-repeat history. */
+  private _noteIdlePlayed(id: string): void {
+    if (!id) return
+    this.recentIdleIds = [id, ...this.recentIdleIds.filter(x => x !== id)].slice(0, IDLE_HISTORY)
   }
 
   private _playIdle(idleId?: string): void {
@@ -539,6 +608,7 @@ export class SkeletalController {
     this.wordCounter = 0
 
     this.currentIdleClipId = id
+    this._noteIdlePlayed(id)
     this.isInGesture       = false
     this.idlePoolTimer     = 0
 
@@ -722,6 +792,7 @@ export class SkeletalController {
     }
 
     this.currentIdleClipId = id
+    this._noteIdlePlayed(id)
     this.idlePoolTimer     = 0
 
     const idleAction = this.mixer.clipAction(idleClip)

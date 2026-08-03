@@ -1,1757 +1,2156 @@
 {
- "_comment": [
-  "Situational animation mapping \u2014 the single source of truth for both packs.",
-  "Generated from the renamed/described inventory spreadsheet, then committed here.",
-  "",
-  "Each clip carries WHAT IT DOES IN DIALOGUE ('functions') and HOW IT IS COLOURED",
-  "('manner'), not an emotion tag. Emotion no longer gates which body clip may play:",
-  "it persists on the FACE via the emotion state machine. 'manner' only breaks ties",
-  "and lets the director ask for an on-tone variant; it never restricts the pool.",
-  "",
-  "functions: listening | explaining | making_point | agreeing | disagreeing |",
-  "           thinking | emoting | self_reference | greeting | rest",
-  "kind:      idle (looping rest pose) | gesture (one-shot)",
-  "'when' is the author's own description and is what the director is shown."
- ],
- "functions": [
-  "listening",
-  "explaining",
-  "making_point",
-  "agreeing",
-  "disagreeing",
-  "thinking",
-  "emoting",
-  "self_reference",
-  "greeting",
-  "rest"
- ],
- "manners": [
-  "shy",
-  "agitated",
-  "elated",
-  "downcast",
-  "guarded",
-  "formal",
-  "relaxed"
- ],
- "packs": {
-  "avaturn-default": {
-   "rig": "rpm",
-   "label": "Avaturn Default",
-   "clips": [
-    {
-     "id": "av_foot_foward_slouch",
-     "source": "mx_f_idle_foot_forward_slouch",
-     "label": "Foot Foward Slouch",
-     "when": "When relaxed or waiting",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 8.37
+  "_comment": [
+    "Situational animation mapping — the single source of truth for both packs.",
+    "Generated from the renamed/described inventory spreadsheet, then committed here.",
+    "",
+    "Each clip carries WHAT IT DOES IN DIALOGUE ('functions') and HOW IT IS COLOURED",
+    "('manner'), not an emotion tag. Emotion no longer gates which body clip may play:",
+    "it persists on the FACE via the emotion state machine. 'manner' only breaks ties",
+    "and lets the director ask for an on-tone variant; it never restricts the pool.",
+    "",
+    "functions: listening | explaining | making_point | agreeing | disagreeing |",
+    "           thinking | emoting | self_reference | greeting | rest",
+    "kind:      idle (looping rest pose) | gesture (one-shot)",
+    "'when' is the author's own description and is what the director is shown."
+  ],
+  "functions": [
+    "listening",
+    "explaining",
+    "making_point",
+    "agreeing",
+    "disagreeing",
+    "thinking",
+    "emoting",
+    "self_reference",
+    "greeting",
+    "rest"
+  ],
+  "manners": [
+    "shy",
+    "agitated",
+    "elated",
+    "downcast",
+    "guarded",
+    "formal",
+    "relaxed"
+  ],
+  "packs": {
+    "avaturn-default": {
+      "rig": "rpm",
+      "label": "Avaturn Default",
+      "clips": [
+        {
+          "id": "av_foot_foward_slouch",
+          "source": "mx_f_idle_foot_forward_slouch",
+          "label": "Foot Foward Slouch",
+          "when": "When relaxed or waiting",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 8.37,
+          "armDeg": 11,
+          "bodyDeg": 1,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_idle_standard",
+          "source": "mx_f_idle_standard",
+          "label": "Idle Standard",
+          "when": "When listening and attentive",
+          "kind": "idle",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [],
+          "len": 10.03,
+          "armDeg": 7,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_feminine_footfoward",
+          "source": "mx_f_standing_idle_footfoward",
+          "label": "Feminine footfoward",
+          "when": "When female and attentive",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 6.03,
+          "armDeg": 11,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_angry_breathing_fast",
+          "source": "mx_m_breathing_idle_fast_breathing",
+          "label": "Angry breathing fast",
+          "when": "When agitated or annoyed",
+          "kind": "idle",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 5.7,
+          "armDeg": 4,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_idle_still",
+          "source": "mx_m_idle_still",
+          "label": "Idle Still",
+          "when": "When listening",
+          "kind": "idle",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 16.7,
+          "armDeg": 3,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_neutral_idle",
+          "source": "mx_m_neutral_idle_foot_forward",
+          "label": "Neutral Idle",
+          "when": "When listening and attentive",
+          "kind": "idle",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [],
+          "len": 3.7,
+          "armDeg": 3,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_standard_idle",
+          "source": "mx_m_standard_idle",
+          "label": "Standard Idle",
+          "when": "When listening",
+          "kind": "idle",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 3.03,
+          "armDeg": 7,
+          "bodyDeg": 3,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_bashful_look_at_ground",
+          "source": "mx_f_bashful",
+          "label": "Bashful look at ground",
+          "when": "When shy or flattered",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 14.6,
+          "armDeg": 117,
+          "bodyDeg": 43,
+          "scale": "broad"
+        },
+        {
+          "id": "av_look_at_hand_and_nails",
+          "source": "mx_f_dwarf_idle_uniterested_look_at_hands",
+          "label": "Look at hand and nails",
+          "when": "When rejecting a statement",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "making_point"
+          ],
+          "manner": [],
+          "len": 5.8,
+          "armDeg": 123,
+          "bodyDeg": 25,
+          "scale": "broad"
+        },
+        {
+          "id": "av_waving",
+          "source": "mx_f_standing_greeting_waving",
+          "label": "Waving",
+          "when": "When saying hello enthusiastically",
+          "kind": "gesture",
+          "functions": [
+            "greeting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 5.43,
+          "armDeg": 121,
+          "bodyDeg": 20,
+          "scale": "broad"
+        },
+        {
+          "id": "av_hand_to_chest",
+          "source": "mx_f_thankful_hand_to_heart",
+          "label": "Hand to Chest",
+          "when": "When talking about themselves",
+          "kind": "gesture",
+          "functions": [
+            "explaining",
+            "self_reference"
+          ],
+          "manner": [],
+          "len": 4.4,
+          "armDeg": 118,
+          "bodyDeg": 32,
+          "scale": "broad"
+        },
+        {
+          "id": "av_step_back_hands_up",
+          "source": "mx_m_agreeing",
+          "label": "Step back hands up",
+          "when": "When letting other person have their way",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 4.73,
+          "armDeg": 89,
+          "bodyDeg": 46,
+          "scale": "broad"
+        },
+        {
+          "id": "av_eyes_up_for_a_moment",
+          "source": "mx_m_agreeing_2",
+          "label": "Eyes up for a moment",
+          "when": "When thinking",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.7,
+          "armDeg": 21,
+          "bodyDeg": 7,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_angry_point",
+          "source": "mx_m_angry_point",
+          "label": "Angry point",
+          "when": "When making a point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.27,
+          "armDeg": 84,
+          "bodyDeg": 19,
+          "scale": "broad"
+        },
+        {
+          "id": "av_head_shake",
+          "source": "mx_m_annoyed_head_shake",
+          "label": "Head shake",
+          "when": "When quickly disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 2.6,
+          "armDeg": 16,
+          "bodyDeg": 35,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_lean_back_hands_up",
+          "source": "mx_m_being_cocky",
+          "label": "Lean back hands up",
+          "when": "When accepting an idea",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.03,
+          "armDeg": 57,
+          "bodyDeg": 24,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_head_turn",
+          "source": "mx_m_cocky_head_turn",
+          "label": "Head Turn",
+          "when": "When disagreeing or making a point",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "making_point"
+          ],
+          "manner": [],
+          "len": 2.57,
+          "armDeg": 43,
+          "bodyDeg": 26,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_hand_waved_in_front",
+          "source": "mx_m_dismissing_gesture",
+          "label": "Hand waved in front",
+          "when": "When dismissing idea",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.43,
+          "armDeg": 116,
+          "bodyDeg": 24,
+          "scale": "broad"
+        },
+        {
+          "id": "av_hand_swiped_in_front",
+          "source": "mx_m_dismissing_gesture2",
+          "label": "Hand swiped in front",
+          "when": "When making a point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.43,
+          "armDeg": 77,
+          "bodyDeg": 17,
+          "scale": "broad"
+        },
+        {
+          "id": "av_fist_pump",
+          "source": "mx_m_fist_pump",
+          "label": "Fist pump",
+          "when": "When excited and feeling like they've won",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3.83,
+          "armDeg": 114,
+          "bodyDeg": 34,
+          "scale": "broad"
+        },
+        {
+          "id": "av_both_hands_foward",
+          "source": "mx_m_hands_forward_gesture",
+          "label": "Both hands foward",
+          "when": "When exaplining big idea",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.43,
+          "armDeg": 85,
+          "bodyDeg": 13,
+          "scale": "broad"
+        },
+        {
+          "id": "av_hand_snapped_in_front",
+          "source": "mx_m_happy_hand_gesture",
+          "label": "Hand snapped in front",
+          "when": "When making a sharp point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 2.97,
+          "armDeg": 42,
+          "bodyDeg": 15,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_head_side_to_side",
+          "source": "mx_m_head_gesture",
+          "label": "Head side to side",
+          "when": "When faced with two options",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.83,
+          "armDeg": 41,
+          "bodyDeg": 17,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_head_side_to_side_slower",
+          "source": "mx_m_head_gesture_deciding",
+          "label": "Head side to side slower",
+          "when": "When making two points",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.73,
+          "armDeg": 41,
+          "bodyDeg": 17,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_looking_away",
+          "source": "mx_m_look_away_gesture",
+          "label": "Looking away",
+          "when": "When they heard something they don't want",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 3.3,
+          "armDeg": 26,
+          "bodyDeg": 33,
+          "scale": "moderate"
+        },
+        {
+          "id": "av_looking_down",
+          "source": "mx_m_looking_down",
+          "label": "Looking down",
+          "when": "When they are shy or displeased",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "shy",
+            "downcast"
+          ],
+          "len": 7.2,
+          "armDeg": 19,
+          "bodyDeg": 36,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_relieved_sigh",
+          "source": "mx_m_relieved_sigh",
+          "label": "Relieved sigh",
+          "when": "When they are relieved",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3.03,
+          "armDeg": 9,
+          "bodyDeg": 15,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_head_nod",
+          "source": "mx_m_sarcastic_head_nod",
+          "label": "Head nod",
+          "when": "When they agree",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.4,
+          "armDeg": 9,
+          "bodyDeg": 17,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_head_shake_slow",
+          "source": "mx_m_shaking_head_no",
+          "label": "Head Shake slow",
+          "when": "When slowly disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 2.67,
+          "armDeg": 6,
+          "bodyDeg": 30,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_head_up_then_nod",
+          "source": "mx_m_thoughtful_head_nod",
+          "label": "Head up then nod",
+          "when": "When thinking then agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.97,
+          "armDeg": 20,
+          "bodyDeg": 21,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_head_up_then_shake",
+          "source": "mx_m_thoughtful_head_shake",
+          "label": "Head up then shake",
+          "when": "When thinking then disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "thinking"
+          ],
+          "manner": [],
+          "len": 3.1,
+          "armDeg": 6,
+          "bodyDeg": 22,
+          "scale": "subtle"
+        },
+        {
+          "id": "av_lean_forward_hands_out_yelling",
+          "source": "mx_m_yelling",
+          "label": "Lean forward hands out yelling",
+          "when": "When yelling",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 7.87,
+          "armDeg": 107,
+          "bodyDeg": 31,
+          "scale": "broad"
+        }
+      ]
     },
-    {
-     "id": "av_idle_standard",
-     "source": "mx_f_idle_standard",
-     "label": "Idle Standard",
-     "when": "When listening and attentive",
-     "kind": "idle",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [],
-     "len": 10.03
-    },
-    {
-     "id": "av_feminine_footfoward",
-     "source": "mx_f_standing_idle_footfoward",
-     "label": "Feminine footfoward",
-     "when": "When female and attentive",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [],
-     "len": 6.03
-    },
-    {
-     "id": "av_angry_breathing_fast",
-     "source": "mx_m_breathing_idle_fast_breathing",
-     "label": "Angry breathing fast",
-     "when": "When agitated or annoyed",
-     "kind": "idle",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 5.7
-    },
-    {
-     "id": "av_idle_still",
-     "source": "mx_m_idle_still",
-     "label": "Idle Still",
-     "when": "When listening",
-     "kind": "idle",
-     "functions": [
-      "listening"
-     ],
-     "manner": [],
-     "len": 16.7
-    },
-    {
-     "id": "av_neutral_idle",
-     "source": "mx_m_neutral_idle_foot_forward",
-     "label": "Neutral Idle",
-     "when": "When listening and attentive",
-     "kind": "idle",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [],
-     "len": 3.7
-    },
-    {
-     "id": "av_standard_idle",
-     "source": "mx_m_standard_idle",
-     "label": "Standard Idle",
-     "when": "When listening",
-     "kind": "idle",
-     "functions": [
-      "listening"
-     ],
-     "manner": [],
-     "len": 3.03
-    },
-    {
-     "id": "av_bashful_look_at_ground",
-     "source": "mx_f_bashful",
-     "label": "Bashful look at ground",
-     "when": "When shy or flattered",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 14.6
-    },
-    {
-     "id": "av_look_at_hand_and_nails",
-     "source": "mx_f_dwarf_idle_uniterested_look_at_hands",
-     "label": "Look at hand and nails",
-     "when": "When rejecting a statement",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "making_point"
-     ],
-     "manner": [],
-     "len": 5.8
-    },
-    {
-     "id": "av_waving",
-     "source": "mx_f_standing_greeting_waving",
-     "label": "Waving",
-     "when": "When saying hello enthusiastically",
-     "kind": "gesture",
-     "functions": [
-      "greeting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 5.43
-    },
-    {
-     "id": "av_hand_to_chest",
-     "source": "mx_f_thankful_hand_to_heart",
-     "label": "Hand to Chest",
-     "when": "When talking about themselves",
-     "kind": "gesture",
-     "functions": [
-      "explaining",
-      "self_reference"
-     ],
-     "manner": [],
-     "len": 4.4
-    },
-    {
-     "id": "av_step_back_hands_up",
-     "source": "mx_m_agreeing",
-     "label": "Step back hands up",
-     "when": "When letting other person have their way",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 4.73
-    },
-    {
-     "id": "av_eyes_up_for_a_moment",
-     "source": "mx_m_agreeing_2",
-     "label": "Eyes up for a moment",
-     "when": "When thinking",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.7
-    },
-    {
-     "id": "av_angry_point",
-     "source": "mx_m_angry_point",
-     "label": "Angry point",
-     "when": "When making a point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.27
-    },
-    {
-     "id": "av_head_shake",
-     "source": "mx_m_annoyed_head_shake",
-     "label": "Head shake",
-     "when": "When quickly disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 2.6
-    },
-    {
-     "id": "av_lean_back_hands_up",
-     "source": "mx_m_being_cocky",
-     "label": "Lean back hands up",
-     "when": "When accepting an idea",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.03
-    },
-    {
-     "id": "av_head_turn",
-     "source": "mx_m_cocky_head_turn",
-     "label": "Head Turn",
-     "when": "When disagreeing or making a point",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "making_point"
-     ],
-     "manner": [],
-     "len": 2.57
-    },
-    {
-     "id": "av_hand_waved_in_front",
-     "source": "mx_m_dismissing_gesture",
-     "label": "Hand waved in front",
-     "when": "When dismissing idea",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.43
-    },
-    {
-     "id": "av_hand_swiped_in_front",
-     "source": "mx_m_dismissing_gesture2",
-     "label": "Hand swiped in front",
-     "when": "When making a point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.43
-    },
-    {
-     "id": "av_fist_pump",
-     "source": "mx_m_fist_pump",
-     "label": "Fist pump",
-     "when": "When excited and feeling like they've won",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.83
-    },
-    {
-     "id": "av_both_hands_foward",
-     "source": "mx_m_hands_forward_gesture",
-     "label": "Both hands foward",
-     "when": "When exaplining big idea",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.43
-    },
-    {
-     "id": "av_hand_snapped_in_front",
-     "source": "mx_m_happy_hand_gesture",
-     "label": "Hand snapped in front",
-     "when": "When making a sharp point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 2.97
-    },
-    {
-     "id": "av_head_side_to_side",
-     "source": "mx_m_head_gesture",
-     "label": "Head side to side",
-     "when": "When faced with two options",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.83
-    },
-    {
-     "id": "av_head_side_to_side_slower",
-     "source": "mx_m_head_gesture_deciding",
-     "label": "Head side to side slower",
-     "when": "When making two points",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.73
-    },
-    {
-     "id": "av_looking_away",
-     "source": "mx_m_look_away_gesture",
-     "label": "Looking away",
-     "when": "When they heard something they don't want",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 3.3
-    },
-    {
-     "id": "av_looking_down",
-     "source": "mx_m_looking_down",
-     "label": "Looking down",
-     "when": "When they are shy or displeased",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "shy",
-      "downcast"
-     ],
-     "len": 7.2
-    },
-    {
-     "id": "av_relieved_sigh",
-     "source": "mx_m_relieved_sigh",
-     "label": "Relieved sigh",
-     "when": "When they are relieved",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.03
-    },
-    {
-     "id": "av_head_nod",
-     "source": "mx_m_sarcastic_head_nod",
-     "label": "Head nod",
-     "when": "When they agree",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 3.4
-    },
-    {
-     "id": "av_head_shake_slow",
-     "source": "mx_m_shaking_head_no",
-     "label": "Head Shake slow",
-     "when": "When slowly disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 2.67
-    },
-    {
-     "id": "av_head_up_then_nod",
-     "source": "mx_m_thoughtful_head_nod",
-     "label": "Head up then nod",
-     "when": "When thinking then agreeing",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.97
-    },
-    {
-     "id": "av_head_up_then_shake",
-     "source": "mx_m_thoughtful_head_shake",
-     "label": "Head up then shake",
-     "when": "When thinking then disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "thinking"
-     ],
-     "manner": [],
-     "len": 3.1
-    },
-    {
-     "id": "av_lean_forward_hands_out_yelling",
-     "source": "mx_m_yelling",
-     "label": "Lean forward hands out yelling",
-     "when": "When yelling",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 7.87
+    "cc5-default": {
+      "rig": "cc",
+      "label": "CC5 Default",
+      "clips": [
+        {
+          "id": "cc_hands_held_in_front",
+          "source": "cc4_c_bartender_cleaning_idle",
+          "label": "Hands held in front",
+          "when": "When stoic or gaurded",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 9.67,
+          "armDeg": 10,
+          "bodyDeg": 19,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_slouched",
+          "source": "cc4_c_elderly_idle",
+          "label": "Slouched",
+          "when": "When tired",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "downcast"
+          ],
+          "len": 11.5,
+          "armDeg": 2,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_look_to_both_sides",
+          "source": "cc4_c_idle_251087",
+          "label": "Look to both sides",
+          "when": "When wary or uninterested",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 17.67,
+          "armDeg": 25,
+          "bodyDeg": 27,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_feminine_step_side_to_side",
+          "source": "cc4_c_idle_251105",
+          "label": "Feminine step side to side",
+          "when": "When listening and restless",
+          "kind": "idle",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [],
+          "len": 15.33,
+          "armDeg": 13,
+          "bodyDeg": 14,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_masculine_look_around",
+          "source": "cc4_c_idle_random_02",
+          "label": "Masculine look around",
+          "when": "When uncomfortable",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "downcast"
+          ],
+          "len": 6.04,
+          "armDeg": 9,
+          "bodyDeg": 16,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_feminine_idle",
+          "source": "cc4_c_stand_idle_166534",
+          "label": "Feminine Idle",
+          "when": "When ready and attentive",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 2.96,
+          "armDeg": 3,
+          "bodyDeg": 3,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_side_eye",
+          "source": "cc4_c_stand_idle_279386",
+          "label": "Side eye",
+          "when": "When wary or scared",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 5.67,
+          "armDeg": 4,
+          "bodyDeg": 3,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_feminine_head_up",
+          "source": "cc4_f_basic_move_idle",
+          "label": "Feminine head up",
+          "when": "When ready and attentive",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 6.04,
+          "armDeg": 2,
+          "bodyDeg": 4,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_masculine_idle",
+          "source": "cc4_m_basic_move_idle",
+          "label": "Masculine Idle",
+          "when": "When ready and attentive",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 2.17,
+          "armDeg": 2,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_crossed_arms_looking_down",
+          "source": "cc4_m_carriage_leaning",
+          "label": "Crossed arms looking down",
+          "when": "When detached",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "downcast"
+          ],
+          "len": 10.17,
+          "armDeg": 2,
+          "bodyDeg": 6,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_side_eye_still",
+          "source": "cc4_m_idle_279398",
+          "label": "Side eye still",
+          "when": "When disbelieving or gaurded",
+          "kind": "idle",
+          "functions": [
+            "disagreeing",
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 5.67,
+          "armDeg": 5,
+          "bodyDeg": 4,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_foot_foward_slouch",
+          "source": "cc5_f_idle_foot_forward_slouch",
+          "label": "Foot Foward Slouch",
+          "when": "When relaxed or waiting",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 8.33,
+          "armDeg": 8,
+          "bodyDeg": 1,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_idle_standard",
+          "source": "cc5_f_idle_standard",
+          "label": "Idle Standard",
+          "when": "When listening and attentive",
+          "kind": "idle",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [],
+          "len": 10,
+          "armDeg": 7,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_feminine_footfoward",
+          "source": "cc5_f_standing_idle_footfoward",
+          "label": "Feminine footfoward",
+          "when": "When female and attentive",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 6,
+          "armDeg": 11,
+          "bodyDeg": 1,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_angry_breathing_fast",
+          "source": "cc5_m_breathing_idle_fast_breathing",
+          "label": "Angry breathing fast",
+          "when": "When agitated or annoyed",
+          "kind": "idle",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 5.67,
+          "armDeg": 4,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_idle_still",
+          "source": "cc5_m_idle_still",
+          "label": "Idle Still",
+          "when": "When listening",
+          "kind": "idle",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 16.67,
+          "armDeg": 3,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_neutral_idle",
+          "source": "cc5_m_neutral_idle_foot_forward",
+          "label": "Neutral Idle",
+          "when": "When listening and attentive",
+          "kind": "idle",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [],
+          "len": 3.67,
+          "armDeg": 3,
+          "bodyDeg": 2,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_standard_idle",
+          "source": "cc5_m_standard_idle",
+          "label": "Standard Idle",
+          "when": "When listening",
+          "kind": "idle",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 3,
+          "armDeg": 7,
+          "bodyDeg": 3,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_hand_out_then_big_hands_up",
+          "source": "cc4_c_both_hands_illustrative_explanation_p1",
+          "label": "Hand out then big hands up",
+          "when": "When explaining a big idea",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 5.2,
+          "armDeg": 98,
+          "bodyDeg": 21,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hands_arcing_out_front",
+          "source": "cc4_c_both_hands_illustrative_explanation_p2",
+          "label": "Hands arcing out front",
+          "when": "When giving or finishing explanation",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.8,
+          "armDeg": 82,
+          "bodyDeg": 22,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_nodding_hand_out",
+          "source": "cc4_c_both_hands_together_speech_p1",
+          "label": "Feminine nodding hand out",
+          "when": "When giving positive statement",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 4.7,
+          "armDeg": 90,
+          "bodyDeg": 23,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hand_out_lean_back",
+          "source": "cc4_c_both_hands_together_speech_p2",
+          "label": "Feminine hand out lean back",
+          "when": "When finishing a big statement",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.8,
+          "armDeg": 101,
+          "bodyDeg": 15,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hands_out_then_together",
+          "source": "cc4_c_both_hands_together_speech_p3",
+          "label": "Feminine hands out then together",
+          "when": "When agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 4.17,
+          "armDeg": 100,
+          "bodyDeg": 28,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_one_arm_crossed",
+          "source": "cc4_c_chat_child_g1_p1",
+          "label": "One arm crossed",
+          "when": "When guarded or shy",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "rest"
+          ],
+          "manner": [
+            "shy",
+            "guarded"
+          ],
+          "len": 3.33,
+          "armDeg": 9,
+          "bodyDeg": 21,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_one_arm_crossed_shifting",
+          "source": "cc4_c_chat_child_g1_p2",
+          "label": "One arm crossed shifting",
+          "when": "When uncomfortable",
+          "kind": "gesture",
+          "functions": [
+            "rest"
+          ],
+          "manner": [
+            "downcast"
+          ],
+          "len": 3.33,
+          "armDeg": 21,
+          "bodyDeg": 22,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_one_arm_crossed_nodding",
+          "source": "cc4_c_chat_child_g1_p3",
+          "label": "One arm crossed nodding",
+          "when": "When shy and agreeing",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "agreeing"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 3.76,
+          "armDeg": 23,
+          "bodyDeg": 26,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_one_arm_crossed_head_move",
+          "source": "cc4_c_chat_child_g1_p4",
+          "label": "One arm crossed head move",
+          "when": "When shy and listening",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "listening"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 4.46,
+          "armDeg": 30,
+          "bodyDeg": 22,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_one_arm_crossed_nodding_2",
+          "source": "cc4_c_chat_child_g1_p5",
+          "label": "One arm crossed nodding 2",
+          "when": "When shy and agreeing more",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "agreeing"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 3.2,
+          "armDeg": 22,
+          "bodyDeg": 21,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_holding_in_front",
+          "source": "cc4_c_chat_child_g3_p1",
+          "label": "Hands holding in front",
+          "when": "When seeming sweet",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 3.33,
+          "armDeg": 21,
+          "bodyDeg": 7,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_holding_in_front_lean_forward",
+          "source": "cc4_c_chat_child_g3_p2",
+          "label": "Hands holding in front lean forward",
+          "when": "When seeming sweet and listening",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "listening"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 3.86,
+          "armDeg": 21,
+          "bodyDeg": 29,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_holding_in_front_with_wave",
+          "source": "cc4_c_chat_child_g3_p3",
+          "label": "Hands holding in front with wave",
+          "when": "When seeming sweet and acknowledging",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "agreeing"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 4.03,
+          "armDeg": 82,
+          "bodyDeg": 28,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hands_holding_in_front_then_out",
+          "source": "cc4_c_chat_child_g3_p4",
+          "label": "Hands holding in front then out",
+          "when": "When seeming sweet and making point",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "making_point"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 3.53,
+          "armDeg": 80,
+          "bodyDeg": 26,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hands_holding_in_front_talking",
+          "source": "cc4_c_chat_child_g3_p5",
+          "label": "Hands holding in front talking",
+          "when": "When seeming sweet and talking",
+          "kind": "gesture",
+          "functions": [
+            "emoting",
+            "explaining"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 4.33,
+          "armDeg": 26,
+          "bodyDeg": 29,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_crossing_in_front",
+          "source": "cc4_c_hands_outward_denial",
+          "label": "Hands crossing in front",
+          "when": "When explaining a no",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 7,
+          "armDeg": 86,
+          "bodyDeg": 18,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_nod_then_hand_to_chest",
+          "source": "cc4_c_nod_start_speech_p1",
+          "label": "Feminine nod then hand to chest",
+          "when": "When agreeing about themselves",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "self_reference"
+          ],
+          "manner": [],
+          "len": 4.47,
+          "armDeg": 125,
+          "bodyDeg": 33,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hands_out_and_together",
+          "source": "cc4_c_nod_start_speech_p2",
+          "label": "Feminine hands out and together",
+          "when": "When making big point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 4.64,
+          "armDeg": 89,
+          "bodyDeg": 33,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hands_in_front_then_relax",
+          "source": "cc4_c_nod_start_speech_p3",
+          "label": "Feminine hands in front then relax",
+          "when": "When accepting",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.6,
+          "armDeg": 89,
+          "bodyDeg": 22,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hand_to_chest",
+          "source": "cc4_c_right_hand_on_chest_speech_p1",
+          "label": "Feminine hand to chest",
+          "when": "When talking about themselves",
+          "kind": "gesture",
+          "functions": [
+            "explaining",
+            "self_reference"
+          ],
+          "manner": [],
+          "len": 5.3,
+          "armDeg": 120,
+          "bodyDeg": 28,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_hand_to_chest_knee_bob",
+          "source": "cc4_c_right_hand_on_chest_speech_p2",
+          "label": "Feminine hand to chest knee bob",
+          "when": "When making positive point about themselves",
+          "kind": "gesture",
+          "functions": [
+            "making_point",
+            "self_reference"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3.97,
+          "armDeg": 114,
+          "bodyDeg": 23,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_masculine_lean_with_hand_out",
+          "source": "cc4_c_right_hand_waving_explanation_p1",
+          "label": "Masculine lean with hand out",
+          "when": "When accepting",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 4.96,
+          "armDeg": 97,
+          "bodyDeg": 13,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_masculine_lean_side_hand_out",
+          "source": "cc4_c_single_swing_left_explanation_p1",
+          "label": "Masculine lean side hand out",
+          "when": "When making relaxed point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 4.89,
+          "armDeg": 69,
+          "bodyDeg": 14,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_masculine_hand_to_hip_straighten",
+          "source": "cc4_c_single_swing_left_explanation_p2",
+          "label": "Masculine hand to hip straighten",
+          "when": "When having made point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 2.19,
+          "armDeg": 7,
+          "bodyDeg": 10,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_high_hands_together_step_forward",
+          "source": "cc4_c_stand_talk_378997_p1",
+          "label": "High hands together step forward",
+          "when": "When expressing idea formally",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [
+            "formal"
+          ],
+          "len": 3.77,
+          "armDeg": 100,
+          "bodyDeg": 16,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_high_hands_together_nod",
+          "source": "cc4_c_stand_talk_378997_p2",
+          "label": "High hands together nod",
+          "when": "When agreeing foramlly",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [
+            "formal"
+          ],
+          "len": 2.2,
+          "armDeg": 41,
+          "bodyDeg": 9,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_high_hands_many_hand_gestures",
+          "source": "cc4_c_stand_talk_378997_p3",
+          "label": "High hands many hand gestures",
+          "when": "When explaining formally",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [
+            "formal"
+          ],
+          "len": 5.96,
+          "armDeg": 101,
+          "bodyDeg": 21,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_high_hand_together_step_back",
+          "source": "cc4_c_stand_talk_378997_p4",
+          "label": "High hand together step back",
+          "when": "When listening having made point",
+          "kind": "gesture",
+          "functions": [
+            "making_point",
+            "listening"
+          ],
+          "manner": [],
+          "len": 4.47,
+          "armDeg": 35,
+          "bodyDeg": 18,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_high_hands_many_hand_gestures_2",
+          "source": "cc4_c_stand_talk_378997_p5",
+          "label": "High hands many hand gestures 2",
+          "when": "When explaining with many points",
+          "kind": "gesture",
+          "functions": [
+            "making_point",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.9,
+          "armDeg": 87,
+          "bodyDeg": 19,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_high_hands_gesturing_out",
+          "source": "cc4_c_stand_talk_378997_p6",
+          "label": "High hands gesturing out",
+          "when": "When talking about the other person",
+          "kind": "gesture",
+          "functions": [
+            "explaining",
+            "self_reference"
+          ],
+          "manner": [],
+          "len": 5.07,
+          "armDeg": 92,
+          "bodyDeg": 16,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_slight_look_up",
+          "source": "cc4_f_chat_response_p1",
+          "label": "Slight look up",
+          "when": "When providing no response",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 2.03,
+          "armDeg": 3,
+          "bodyDeg": 4,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_side_eye_pointed_finger_nod",
+          "source": "cc4_f_chat_response_p2",
+          "label": "Side eye pointed finger nod",
+          "when": "When deciding to agree",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "thinking"
+          ],
+          "manner": [],
+          "len": 5.73,
+          "armDeg": 115,
+          "bodyDeg": 26,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_head_to_side_slight_lean_forward",
+          "source": "cc4_f_chat_response_p3",
+          "label": "Head to side slight lean forward",
+          "when": "When thinking",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.2,
+          "armDeg": 34,
+          "bodyDeg": 32,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_look_up_to_side_and_pointed_finger",
+          "source": "cc4_f_chat_response_p4",
+          "label": "Look up to side and pointed finger",
+          "when": "When coming up with big thought",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 4.7,
+          "armDeg": 91,
+          "bodyDeg": 29,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_feminine_nod_and_hip_shake",
+          "source": "cc4_f_chat_response_p5",
+          "label": "Feminine nod and hip shake",
+          "when": "When agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.63,
+          "armDeg": 108,
+          "bodyDeg": 15,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_nodding_pumping_hands_clap",
+          "source": "cc4_m_agreed_goodjob_p1",
+          "label": "Nodding pumping hands clap",
+          "when": "When excited about a win",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3.8,
+          "armDeg": 117,
+          "bodyDeg": 26,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_pump_pointing_clapping",
+          "source": "cc4_m_agreed_goodjob_p2",
+          "label": "Hand pump pointing clapping",
+          "when": "When fired up",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 6.33,
+          "armDeg": 101,
+          "bodyDeg": 28,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_side_eye_agree",
+          "source": "cc4_m_chat_stand_p1",
+          "label": "Side eye agree",
+          "when": "When wary but agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 3.24,
+          "armDeg": 39,
+          "bodyDeg": 5,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_side_eye_hands_together",
+          "source": "cc4_m_chat_stand_p2",
+          "label": "Side eye hands together",
+          "when": "When wary but choosing to accept",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "rest"
+          ],
+          "manner": [
+            "guarded"
+          ],
+          "len": 5.94,
+          "armDeg": 93,
+          "bodyDeg": 14,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_side_eye_still_2",
+          "source": "cc4_m_chat_stand_p3",
+          "label": "Side eye still",
+          "when": "When thinking about discussion",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 3,
+          "armDeg": 12,
+          "bodyDeg": 5,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_hand_on_hip_lean_sideways",
+          "source": "cc4_m_confused_scratching_p1",
+          "label": "Hand on hip lean sideways",
+          "when": "When confused",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.13,
+          "armDeg": 82,
+          "bodyDeg": 14,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_lean_sideways_scatch_chest",
+          "source": "cc4_m_confused_scratching_p2",
+          "label": "Lean sideways scatch chest",
+          "when": "When confused but listening",
+          "kind": "gesture",
+          "functions": [
+            "thinking",
+            "listening"
+          ],
+          "manner": [],
+          "len": 4.4,
+          "armDeg": 119,
+          "bodyDeg": 30,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_on_hip_then_outwards",
+          "source": "cc4_m_confused_scratching_p3",
+          "label": "Hand on hip then outwards",
+          "when": "When thinking and providing alternative",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.9,
+          "armDeg": 150,
+          "bodyDeg": 31,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_gesture_then_scratching_head",
+          "source": "cc4_m_confused_scratching_p4",
+          "label": "Hand gesture then scratching head",
+          "when": "When describing confusing idea",
+          "kind": "gesture",
+          "functions": [
+            "thinking",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 6.6,
+          "armDeg": 123,
+          "bodyDeg": 32,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_on_hip_lean_back_and_point",
+          "source": "cc4_m_stand_talk_1_p1",
+          "label": "Hand on hip lean back and point",
+          "when": "When relaxed directing to someone else",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 5.1,
+          "armDeg": 64,
+          "bodyDeg": 11,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hand_on_hip_head_movement",
+          "source": "cc4_m_stand_talk_1_p2",
+          "label": "Hand on hip head movement",
+          "when": "When relaxed talking",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 2.53,
+          "armDeg": 9,
+          "bodyDeg": 16,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_hand_on_hip_hands_out",
+          "source": "cc4_m_stand_talk_1_p3",
+          "label": "Hand on hip hands out",
+          "when": "When relaxed making point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 3.96,
+          "armDeg": 79,
+          "bodyDeg": 13,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_up_and_head_bob",
+          "source": "cc4_m_stand_talk_1_p4",
+          "label": "Hand up and head bob",
+          "when": "When being curt",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 4.53,
+          "armDeg": 75,
+          "bodyDeg": 10,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_slow_hand_up",
+          "source": "cc4_m_stand_talk_2_p1",
+          "label": "Slow hand up",
+          "when": "When making appealing",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.53,
+          "armDeg": 44,
+          "bodyDeg": 7,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_both_hands_up_and_head_shake",
+          "source": "cc4_m_stand_talk_2_p2",
+          "label": "Both hands up and head shake",
+          "when": "When making a point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 5.23,
+          "armDeg": 68,
+          "bodyDeg": 23,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_and_then_back_on_hips",
+          "source": "cc4_m_stand_talk_2_p3",
+          "label": "Hands and then back on hips",
+          "when": "When finished making point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 4.27,
+          "armDeg": 55,
+          "bodyDeg": 8,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hand_on_hip_and_shaking_head",
+          "source": "cc4_m_stand_talk_2_p4",
+          "label": "Hand on hip and shaking head",
+          "when": "When relaxed disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [
+            "relaxed"
+          ],
+          "len": 3.67,
+          "armDeg": 65,
+          "bodyDeg": 20,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hand_comes_off_hip",
+          "source": "cc4_m_stand_talk_2_p5",
+          "label": "Hand comes off hip",
+          "when": "When tired of listening",
+          "kind": "gesture",
+          "functions": [
+            "listening",
+            "rest"
+          ],
+          "manner": [
+            "downcast"
+          ],
+          "len": 2.2,
+          "armDeg": 64,
+          "bodyDeg": 20,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hands_up_in_front",
+          "source": "cc4_m_stand_talk_2_p6",
+          "label": "Hands up in front",
+          "when": "When trying to appeal",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 5.3,
+          "armDeg": 81,
+          "bodyDeg": 16,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_up_then_the_other",
+          "source": "cc4_m_stand_talk_2_p7",
+          "label": "Hand up then the other",
+          "when": "When asking for agreement",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.93,
+          "armDeg": 49,
+          "bodyDeg": 12,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_bashful_look_at_ground",
+          "source": "cc5_f_bashful",
+          "label": "Bashful look at ground",
+          "when": "When shy or flattered",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "shy"
+          ],
+          "len": 14.57,
+          "armDeg": 117,
+          "bodyDeg": 43,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_look_at_hand_and_nails",
+          "source": "cc5_f_dwarf_idle_uniterested_look_at_hands",
+          "label": "Look at hand and nails",
+          "when": "When rejecting a statement",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "making_point"
+          ],
+          "manner": [],
+          "len": 5.77,
+          "armDeg": 123,
+          "bodyDeg": 26,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_waving",
+          "source": "cc5_f_standing_greeting_waving",
+          "label": "Waving",
+          "when": "When saying hello enthusiastically",
+          "kind": "gesture",
+          "functions": [
+            "greeting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 5.4,
+          "armDeg": 121,
+          "bodyDeg": 25,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_to_chest",
+          "source": "cc5_f_thankful_hand_to_heart",
+          "label": "Hand to Chest",
+          "when": "When talking about themselves",
+          "kind": "gesture",
+          "functions": [
+            "explaining",
+            "self_reference"
+          ],
+          "manner": [],
+          "len": 4.37,
+          "armDeg": 118,
+          "bodyDeg": 33,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_step_back_hands_up",
+          "source": "cc5_m_agreeing",
+          "label": "Step back hands up",
+          "when": "When letting other person have their way",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 4.7,
+          "armDeg": 89,
+          "bodyDeg": 50,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_eyes_up_for_a_moment",
+          "source": "cc5_m_agreeing_2",
+          "label": "Eyes up for a moment",
+          "when": "When thinking",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.67,
+          "armDeg": 21,
+          "bodyDeg": 9,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_angry_point",
+          "source": "cc5_m_angry_point",
+          "label": "Angry point",
+          "when": "When making a point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.23,
+          "armDeg": 84,
+          "bodyDeg": 21,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_head_shake",
+          "source": "cc5_m_annoyed_head_shake",
+          "label": "Head shake",
+          "when": "When quickly disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 2.57,
+          "armDeg": 16,
+          "bodyDeg": 37,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_lean_back_hands_up",
+          "source": "cc5_m_being_cocky",
+          "label": "Lean back hands up",
+          "when": "When accepting an idea",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4,
+          "armDeg": 57,
+          "bodyDeg": 27,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_head_turn",
+          "source": "cc5_m_cocky_head_turn",
+          "label": "Head Turn",
+          "when": "When disagreeing or making a point",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "making_point"
+          ],
+          "manner": [],
+          "len": 2.53,
+          "armDeg": 43,
+          "bodyDeg": 28,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_hand_waved_in_front",
+          "source": "cc5_m_dismissing_gesture",
+          "label": "Hand waved in front",
+          "when": "When dismissing idea",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.4,
+          "armDeg": 116,
+          "bodyDeg": 20,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_swiped_in_front",
+          "source": "cc5_m_dismissing_gesture2",
+          "label": "Hand swiped in front",
+          "when": "When making a point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.4,
+          "armDeg": 77,
+          "bodyDeg": 18,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_fist_pump",
+          "source": "cc5_m_fist_pump",
+          "label": "Fist pump",
+          "when": "When excited and feeling like they've won",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3.8,
+          "armDeg": 114,
+          "bodyDeg": 38,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_both_hands_foward",
+          "source": "cc5_m_hands_forward_gesture",
+          "label": "Both hands foward",
+          "when": "When exaplining big idea",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.4,
+          "armDeg": 85,
+          "bodyDeg": 14,
+          "scale": "broad"
+        },
+        {
+          "id": "cc_hand_snapped_in_front",
+          "source": "cc5_m_happy_hand_gesture",
+          "label": "Hand snapped in front",
+          "when": "When making a sharp point",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 2.93,
+          "armDeg": 42,
+          "bodyDeg": 10,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_head_side_to_side",
+          "source": "cc5_m_head_gesture",
+          "label": "Head side to side",
+          "when": "When faced with two options",
+          "kind": "gesture",
+          "functions": [
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.8,
+          "armDeg": 41,
+          "bodyDeg": 20,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_head_side_to_side_slower",
+          "source": "cc5_m_head_gesture_deciding",
+          "label": "Head side to side slower",
+          "when": "When making two points",
+          "kind": "gesture",
+          "functions": [
+            "making_point"
+          ],
+          "manner": [],
+          "len": 3.7,
+          "armDeg": 41,
+          "bodyDeg": 20,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_looking_away",
+          "source": "cc5_m_look_away_gesture",
+          "label": "Looking away",
+          "when": "When they heard something they don't want",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 3.27,
+          "armDeg": 26,
+          "bodyDeg": 36,
+          "scale": "moderate"
+        },
+        {
+          "id": "cc_looking_down",
+          "source": "cc5_m_looking_down",
+          "label": "Looking down",
+          "when": "When they are shy or displeased",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "shy",
+            "downcast"
+          ],
+          "len": 7.17,
+          "armDeg": 19,
+          "bodyDeg": 40,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_relieved_sigh",
+          "source": "cc5_m_relieved_sigh",
+          "label": "Relieved sigh",
+          "when": "When they are relieved",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "elated"
+          ],
+          "len": 3,
+          "armDeg": 9,
+          "bodyDeg": 16,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_head_nod",
+          "source": "cc5_m_sarcastic_head_nod",
+          "label": "Head nod",
+          "when": "When they agree",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.37,
+          "armDeg": 9,
+          "bodyDeg": 20,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_head_shake_slow",
+          "source": "cc5_m_shaking_head_no",
+          "label": "Head Shake slow",
+          "when": "When slowly disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing"
+          ],
+          "manner": [],
+          "len": 2.63,
+          "armDeg": 6,
+          "bodyDeg": 32,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_head_up_then_nod",
+          "source": "cc5_m_thoughtful_head_nod",
+          "label": "Head up then nod",
+          "when": "When thinking then agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing",
+            "thinking"
+          ],
+          "manner": [],
+          "len": 2.93,
+          "armDeg": 20,
+          "bodyDeg": 23,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_head_up_then_shake",
+          "source": "cc5_m_thoughtful_head_shake",
+          "label": "Head up then shake",
+          "when": "When thinking then disagreeing",
+          "kind": "gesture",
+          "functions": [
+            "disagreeing",
+            "thinking"
+          ],
+          "manner": [],
+          "len": 3.07,
+          "armDeg": 6,
+          "bodyDeg": 23,
+          "scale": "subtle"
+        },
+        {
+          "id": "cc_lean_forward_hands_out_yelling",
+          "source": "cc5_m_yelling",
+          "label": "Lean forward hands out yelling",
+          "when": "When yelling",
+          "kind": "gesture",
+          "functions": [
+            "emoting"
+          ],
+          "manner": [
+            "agitated"
+          ],
+          "len": 7.83,
+          "armDeg": 107,
+          "bodyDeg": 31,
+          "scale": "broad"
+        }
+      ]
     }
-   ]
   },
-  "cc5-default": {
-   "rig": "cc",
-   "label": "CC5 Default",
-   "clips": [
-    {
-     "id": "cc_hands_held_in_front",
-     "source": "cc4_c_bartender_cleaning_idle",
-     "label": "Hands held in front",
-     "when": "When stoic or gaurded",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 9.67
-    },
-    {
-     "id": "cc_slouched",
-     "source": "cc4_c_elderly_idle",
-     "label": "Slouched",
-     "when": "When tired",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "downcast"
-     ],
-     "len": 11.5
-    },
-    {
-     "id": "cc_look_to_both_sides",
-     "source": "cc4_c_idle_251087",
-     "label": "Look to both sides",
-     "when": "When wary or uninterested",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 17.67
-    },
-    {
-     "id": "cc_feminine_step_side_to_side",
-     "source": "cc4_c_idle_251105",
-     "label": "Feminine step side to side",
-     "when": "When listening and restless",
-     "kind": "idle",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [],
-     "len": 15.33
-    },
-    {
-     "id": "cc_masculine_look_around",
-     "source": "cc4_c_idle_random_02",
-     "label": "Masculine look around",
-     "when": "When uncomfortable",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "downcast"
-     ],
-     "len": 6.04
-    },
-    {
-     "id": "cc_feminine_idle",
-     "source": "cc4_c_stand_idle_166534",
-     "label": "Feminine Idle",
-     "when": "When ready and attentive",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [],
-     "len": 2.96
-    },
-    {
-     "id": "cc_side_eye",
-     "source": "cc4_c_stand_idle_279386",
-     "label": "Side eye",
-     "when": "When wary or scared",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 5.67
-    },
-    {
-     "id": "cc_feminine_head_up",
-     "source": "cc4_f_basic_move_idle",
-     "label": "Feminine head up",
-     "when": "When ready and attentive",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [],
-     "len": 6.04
-    },
-    {
-     "id": "cc_masculine_idle",
-     "source": "cc4_m_basic_move_idle",
-     "label": "Masculine Idle",
-     "when": "When ready and attentive",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [],
-     "len": 2.17
-    },
-    {
-     "id": "cc_crossed_arms_looking_down",
-     "source": "cc4_m_carriage_leaning",
-     "label": "Crossed arms looking down",
-     "when": "When detached",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "downcast"
-     ],
-     "len": 10.17
-    },
-    {
-     "id": "cc_side_eye_still",
-     "source": "cc4_m_idle_279398",
-     "label": "Side eye still",
-     "when": "When disbelieving or gaurded",
-     "kind": "idle",
-     "functions": [
-      "disagreeing",
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 5.67
-    },
-    {
-     "id": "cc_foot_foward_slouch",
-     "source": "cc5_f_idle_foot_forward_slouch",
-     "label": "Foot Foward Slouch",
-     "when": "When relaxed or waiting",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 8.33
-    },
-    {
-     "id": "cc_idle_standard",
-     "source": "cc5_f_idle_standard",
-     "label": "Idle Standard",
-     "when": "When listening and attentive",
-     "kind": "idle",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [],
-     "len": 10.0
-    },
-    {
-     "id": "cc_feminine_footfoward",
-     "source": "cc5_f_standing_idle_footfoward",
-     "label": "Feminine footfoward",
-     "when": "When female and attentive",
-     "kind": "idle",
-     "functions": [
-      "rest"
-     ],
-     "manner": [],
-     "len": 6.0
-    },
-    {
-     "id": "cc_angry_breathing_fast",
-     "source": "cc5_m_breathing_idle_fast_breathing",
-     "label": "Angry breathing fast",
-     "when": "When agitated or annoyed",
-     "kind": "idle",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 5.67
-    },
-    {
-     "id": "cc_idle_still",
-     "source": "cc5_m_idle_still",
-     "label": "Idle Still",
-     "when": "When listening",
-     "kind": "idle",
-     "functions": [
-      "listening"
-     ],
-     "manner": [],
-     "len": 16.67
-    },
-    {
-     "id": "cc_neutral_idle",
-     "source": "cc5_m_neutral_idle_foot_forward",
-     "label": "Neutral Idle",
-     "when": "When listening and attentive",
-     "kind": "idle",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [],
-     "len": 3.67
-    },
-    {
-     "id": "cc_standard_idle",
-     "source": "cc5_m_standard_idle",
-     "label": "Standard Idle",
-     "when": "When listening",
-     "kind": "idle",
-     "functions": [
-      "listening"
-     ],
-     "manner": [],
-     "len": 3.0
-    },
-    {
-     "id": "cc_hand_out_then_big_hands_up",
-     "source": "cc4_c_both_hands_illustrative_explanation_p1",
-     "label": "Hand out then big hands up",
-     "when": "When explaining a big idea",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [],
-     "len": 5.2
-    },
-    {
-     "id": "cc_hands_arcing_out_front",
-     "source": "cc4_c_both_hands_illustrative_explanation_p2",
-     "label": "Hands arcing out front",
-     "when": "When giving or finishing explanation",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [],
-     "len": 3.8
-    },
-    {
-     "id": "cc_feminine_nodding_hand_out",
-     "source": "cc4_c_both_hands_together_speech_p1",
-     "label": "Feminine nodding hand out",
-     "when": "When giving positive statement",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 4.7
-    },
-    {
-     "id": "cc_feminine_hand_out_lean_back",
-     "source": "cc4_c_both_hands_together_speech_p2",
-     "label": "Feminine hand out lean back",
-     "when": "When finishing a big statement",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.8
-    },
-    {
-     "id": "cc_feminine_hands_out_then_together",
-     "source": "cc4_c_both_hands_together_speech_p3",
-     "label": "Feminine hands out then together",
-     "when": "When agreeing",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 4.17
-    },
-    {
-     "id": "cc_one_arm_crossed",
-     "source": "cc4_c_chat_child_g1_p1",
-     "label": "One arm crossed",
-     "when": "When guarded or shy",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "rest"
-     ],
-     "manner": [
-      "shy",
-      "guarded"
-     ],
-     "len": 3.33
-    },
-    {
-     "id": "cc_one_arm_crossed_shifting",
-     "source": "cc4_c_chat_child_g1_p2",
-     "label": "One arm crossed shifting",
-     "when": "When uncomfortable",
-     "kind": "gesture",
-     "functions": [
-      "rest"
-     ],
-     "manner": [
-      "downcast"
-     ],
-     "len": 3.33
-    },
-    {
-     "id": "cc_one_arm_crossed_nodding",
-     "source": "cc4_c_chat_child_g1_p3",
-     "label": "One arm crossed nodding",
-     "when": "When shy and agreeing",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "agreeing"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 3.76
-    },
-    {
-     "id": "cc_one_arm_crossed_head_move",
-     "source": "cc4_c_chat_child_g1_p4",
-     "label": "One arm crossed head move",
-     "when": "When shy and listening",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "listening"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 4.46
-    },
-    {
-     "id": "cc_one_arm_crossed_nodding_2",
-     "source": "cc4_c_chat_child_g1_p5",
-     "label": "One arm crossed nodding 2",
-     "when": "When shy and agreeing more",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "agreeing"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 3.2
-    },
-    {
-     "id": "cc_hands_holding_in_front",
-     "source": "cc4_c_chat_child_g3_p1",
-     "label": "Hands holding in front",
-     "when": "When seeming sweet",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 3.33
-    },
-    {
-     "id": "cc_hands_holding_in_front_lean_forward",
-     "source": "cc4_c_chat_child_g3_p2",
-     "label": "Hands holding in front lean forward",
-     "when": "When seeming sweet and listening",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "listening"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 3.86
-    },
-    {
-     "id": "cc_hands_holding_in_front_with_wave",
-     "source": "cc4_c_chat_child_g3_p3",
-     "label": "Hands holding in front with wave",
-     "when": "When seeming sweet and acknowledging",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "agreeing"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 4.03
-    },
-    {
-     "id": "cc_hands_holding_in_front_then_out",
-     "source": "cc4_c_chat_child_g3_p4",
-     "label": "Hands holding in front then out",
-     "when": "When seeming sweet and making point",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "making_point"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 3.53
-    },
-    {
-     "id": "cc_hands_holding_in_front_talking",
-     "source": "cc4_c_chat_child_g3_p5",
-     "label": "Hands holding in front talking",
-     "when": "When seeming sweet and talking",
-     "kind": "gesture",
-     "functions": [
-      "emoting",
-      "explaining"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 4.33
-    },
-    {
-     "id": "cc_hands_crossing_in_front",
-     "source": "cc4_c_hands_outward_denial",
-     "label": "Hands crossing in front",
-     "when": "When explaining a no",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 7.0
-    },
-    {
-     "id": "cc_feminine_nod_then_hand_to_chest",
-     "source": "cc4_c_nod_start_speech_p1",
-     "label": "Feminine nod then hand to chest",
-     "when": "When agreeing about themselves",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "self_reference"
-     ],
-     "manner": [],
-     "len": 4.47
-    },
-    {
-     "id": "cc_feminine_hands_out_and_together",
-     "source": "cc4_c_nod_start_speech_p2",
-     "label": "Feminine hands out and together",
-     "when": "When making big point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 4.64
-    },
-    {
-     "id": "cc_feminine_hands_in_front_then_relax",
-     "source": "cc4_c_nod_start_speech_p3",
-     "label": "Feminine hands in front then relax",
-     "when": "When accepting",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 3.6
-    },
-    {
-     "id": "cc_feminine_hand_to_chest",
-     "source": "cc4_c_right_hand_on_chest_speech_p1",
-     "label": "Feminine hand to chest",
-     "when": "When talking about themselves",
-     "kind": "gesture",
-     "functions": [
-      "explaining",
-      "self_reference"
-     ],
-     "manner": [],
-     "len": 5.3
-    },
-    {
-     "id": "cc_feminine_hand_to_chest_knee_bob",
-     "source": "cc4_c_right_hand_on_chest_speech_p2",
-     "label": "Feminine hand to chest knee bob",
-     "when": "When making positive point about themselves",
-     "kind": "gesture",
-     "functions": [
-      "making_point",
-      "self_reference"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.97
-    },
-    {
-     "id": "cc_masculine_lean_with_hand_out",
-     "source": "cc4_c_right_hand_waving_explanation_p1",
-     "label": "Masculine lean with hand out",
-     "when": "When accepting",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 4.96
-    },
-    {
-     "id": "cc_masculine_lean_side_hand_out",
-     "source": "cc4_c_single_swing_left_explanation_p1",
-     "label": "Masculine lean side hand out",
-     "when": "When making relaxed point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 4.89
-    },
-    {
-     "id": "cc_masculine_hand_to_hip_straighten",
-     "source": "cc4_c_single_swing_left_explanation_p2",
-     "label": "Masculine hand to hip straighten",
-     "when": "When having made point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 2.19
-    },
-    {
-     "id": "cc_high_hands_together_step_forward",
-     "source": "cc4_c_stand_talk_378997_p1",
-     "label": "High hands together step forward",
-     "when": "When expressing idea formally",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [
-      "formal"
-     ],
-     "len": 3.77
-    },
-    {
-     "id": "cc_high_hands_together_nod",
-     "source": "cc4_c_stand_talk_378997_p2",
-     "label": "High hands together nod",
-     "when": "When agreeing foramlly",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [
-      "formal"
-     ],
-     "len": 2.2
-    },
-    {
-     "id": "cc_high_hands_many_hand_gestures",
-     "source": "cc4_c_stand_talk_378997_p3",
-     "label": "High hands many hand gestures",
-     "when": "When explaining formally",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [
-      "formal"
-     ],
-     "len": 5.96
-    },
-    {
-     "id": "cc_high_hand_together_step_back",
-     "source": "cc4_c_stand_talk_378997_p4",
-     "label": "High hand together step back",
-     "when": "When listening having made point",
-     "kind": "gesture",
-     "functions": [
-      "making_point",
-      "listening"
-     ],
-     "manner": [],
-     "len": 4.47
-    },
-    {
-     "id": "cc_high_hands_many_hand_gestures_2",
-     "source": "cc4_c_stand_talk_378997_p5",
-     "label": "High hands many hand gestures 2",
-     "when": "When explaining with many points",
-     "kind": "gesture",
-     "functions": [
-      "making_point",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 3.9
-    },
-    {
-     "id": "cc_high_hands_gesturing_out",
-     "source": "cc4_c_stand_talk_378997_p6",
-     "label": "High hands gesturing out",
-     "when": "When talking about the other person",
-     "kind": "gesture",
-     "functions": [
-      "explaining",
-      "self_reference"
-     ],
-     "manner": [],
-     "len": 5.07
-    },
-    {
-     "id": "cc_slight_look_up",
-     "source": "cc4_f_chat_response_p1",
-     "label": "Slight look up",
-     "when": "When providing no response",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 2.03
-    },
-    {
-     "id": "cc_side_eye_pointed_finger_nod",
-     "source": "cc4_f_chat_response_p2",
-     "label": "Side eye pointed finger nod",
-     "when": "When deciding to agree",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "thinking"
-     ],
-     "manner": [],
-     "len": 5.73
-    },
-    {
-     "id": "cc_head_to_side_slight_lean_forward",
-     "source": "cc4_f_chat_response_p3",
-     "label": "Head to side slight lean forward",
-     "when": "When thinking",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.2
-    },
-    {
-     "id": "cc_look_up_to_side_and_pointed_finger",
-     "source": "cc4_f_chat_response_p4",
-     "label": "Look up to side and pointed finger",
-     "when": "When coming up with big thought",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 4.7
-    },
-    {
-     "id": "cc_feminine_nod_and_hip_shake",
-     "source": "cc4_f_chat_response_p5",
-     "label": "Feminine nod and hip shake",
-     "when": "When agreeing",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 3.63
-    },
-    {
-     "id": "cc_nodding_pumping_hands_clap",
-     "source": "cc4_m_agreed_goodjob_p1",
-     "label": "Nodding pumping hands clap",
-     "when": "When excited about a win",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.8
-    },
-    {
-     "id": "cc_hand_pump_pointing_clapping",
-     "source": "cc4_m_agreed_goodjob_p2",
-     "label": "Hand pump pointing clapping",
-     "when": "When fired up",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 6.33
-    },
-    {
-     "id": "cc_side_eye_agree",
-     "source": "cc4_m_chat_stand_p1",
-     "label": "Side eye agree",
-     "when": "When wary but agreeing",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 3.24
-    },
-    {
-     "id": "cc_side_eye_hands_together",
-     "source": "cc4_m_chat_stand_p2",
-     "label": "Side eye hands together",
-     "when": "When wary but choosing to accept",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "rest"
-     ],
-     "manner": [
-      "guarded"
-     ],
-     "len": 5.94
-    },
-    {
-     "id": "cc_side_eye_still_2",
-     "source": "cc4_m_chat_stand_p3",
-     "label": "Side eye still",
-     "when": "When thinking about discussion",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 3.0
-    },
-    {
-     "id": "cc_hand_on_hip_lean_sideways",
-     "source": "cc4_m_confused_scratching_p1",
-     "label": "Hand on hip lean sideways",
-     "when": "When confused",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.13
-    },
-    {
-     "id": "cc_lean_sideways_scatch_chest",
-     "source": "cc4_m_confused_scratching_p2",
-     "label": "Lean sideways scatch chest",
-     "when": "When confused but listening",
-     "kind": "gesture",
-     "functions": [
-      "thinking",
-      "listening"
-     ],
-     "manner": [],
-     "len": 4.4
-    },
-    {
-     "id": "cc_hand_on_hip_then_outwards",
-     "source": "cc4_m_confused_scratching_p3",
-     "label": "Hand on hip then outwards",
-     "when": "When thinking and providing alternative",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.9
-    },
-    {
-     "id": "cc_hand_gesture_then_scratching_head",
-     "source": "cc4_m_confused_scratching_p4",
-     "label": "Hand gesture then scratching head",
-     "when": "When describing confusing idea",
-     "kind": "gesture",
-     "functions": [
-      "thinking",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 6.6
-    },
-    {
-     "id": "cc_hand_on_hip_lean_back_and_point",
-     "source": "cc4_m_stand_talk_1_p1",
-     "label": "Hand on hip lean back and point",
-     "when": "When relaxed directing to someone else",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 5.1
-    },
-    {
-     "id": "cc_hand_on_hip_head_movement",
-     "source": "cc4_m_stand_talk_1_p2",
-     "label": "Hand on hip head movement",
-     "when": "When relaxed talking",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 2.53
-    },
-    {
-     "id": "cc_hand_on_hip_hands_out",
-     "source": "cc4_m_stand_talk_1_p3",
-     "label": "Hand on hip hands out",
-     "when": "When relaxed making point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 3.96
-    },
-    {
-     "id": "cc_hand_up_and_head_bob",
-     "source": "cc4_m_stand_talk_1_p4",
-     "label": "Hand up and head bob",
-     "when": "When being curt",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 4.53
-    },
-    {
-     "id": "cc_slow_hand_up",
-     "source": "cc4_m_stand_talk_2_p1",
-     "label": "Slow hand up",
-     "when": "When making appealing",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.53
-    },
-    {
-     "id": "cc_both_hands_up_and_head_shake",
-     "source": "cc4_m_stand_talk_2_p2",
-     "label": "Both hands up and head shake",
-     "when": "When making a point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 5.23
-    },
-    {
-     "id": "cc_hands_and_then_back_on_hips",
-     "source": "cc4_m_stand_talk_2_p3",
-     "label": "Hands and then back on hips",
-     "when": "When finished making point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 4.27
-    },
-    {
-     "id": "cc_hand_on_hip_and_shaking_head",
-     "source": "cc4_m_stand_talk_2_p4",
-     "label": "Hand on hip and shaking head",
-     "when": "When relaxed disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [
-      "relaxed"
-     ],
-     "len": 3.67
-    },
-    {
-     "id": "cc_hand_comes_off_hip",
-     "source": "cc4_m_stand_talk_2_p5",
-     "label": "Hand comes off hip",
-     "when": "When tired of listening",
-     "kind": "gesture",
-     "functions": [
-      "listening",
-      "rest"
-     ],
-     "manner": [
-      "downcast"
-     ],
-     "len": 2.2
-    },
-    {
-     "id": "cc_hands_up_in_front",
-     "source": "cc4_m_stand_talk_2_p6",
-     "label": "Hands up in front",
-     "when": "When trying to appeal",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 5.3
-    },
-    {
-     "id": "cc_hand_up_then_the_other",
-     "source": "cc4_m_stand_talk_2_p7",
-     "label": "Hand up then the other",
-     "when": "When asking for agreement",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 3.93
-    },
-    {
-     "id": "cc_bashful_look_at_ground",
-     "source": "cc5_f_bashful",
-     "label": "Bashful look at ground",
-     "when": "When shy or flattered",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "shy"
-     ],
-     "len": 14.57
-    },
-    {
-     "id": "cc_look_at_hand_and_nails",
-     "source": "cc5_f_dwarf_idle_uniterested_look_at_hands",
-     "label": "Look at hand and nails",
-     "when": "When rejecting a statement",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "making_point"
-     ],
-     "manner": [],
-     "len": 5.77
-    },
-    {
-     "id": "cc_waving",
-     "source": "cc5_f_standing_greeting_waving",
-     "label": "Waving",
-     "when": "When saying hello enthusiastically",
-     "kind": "gesture",
-     "functions": [
-      "greeting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 5.4
-    },
-    {
-     "id": "cc_hand_to_chest",
-     "source": "cc5_f_thankful_hand_to_heart",
-     "label": "Hand to Chest",
-     "when": "When talking about themselves",
-     "kind": "gesture",
-     "functions": [
-      "explaining",
-      "self_reference"
-     ],
-     "manner": [],
-     "len": 4.37
-    },
-    {
-     "id": "cc_step_back_hands_up",
-     "source": "cc5_m_agreeing",
-     "label": "Step back hands up",
-     "when": "When letting other person have their way",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 4.7
-    },
-    {
-     "id": "cc_eyes_up_for_a_moment",
-     "source": "cc5_m_agreeing_2",
-     "label": "Eyes up for a moment",
-     "when": "When thinking",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.67
-    },
-    {
-     "id": "cc_angry_point",
-     "source": "cc5_m_angry_point",
-     "label": "Angry point",
-     "when": "When making a point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.23
-    },
-    {
-     "id": "cc_head_shake",
-     "source": "cc5_m_annoyed_head_shake",
-     "label": "Head shake",
-     "when": "When quickly disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 2.57
-    },
-    {
-     "id": "cc_lean_back_hands_up",
-     "source": "cc5_m_being_cocky",
-     "label": "Lean back hands up",
-     "when": "When accepting an idea",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.0
-    },
-    {
-     "id": "cc_head_turn",
-     "source": "cc5_m_cocky_head_turn",
-     "label": "Head Turn",
-     "when": "When disagreeing or making a point",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "making_point"
-     ],
-     "manner": [],
-     "len": 2.53
-    },
-    {
-     "id": "cc_hand_waved_in_front",
-     "source": "cc5_m_dismissing_gesture",
-     "label": "Hand waved in front",
-     "when": "When dismissing idea",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.4
-    },
-    {
-     "id": "cc_hand_swiped_in_front",
-     "source": "cc5_m_dismissing_gesture2",
-     "label": "Hand swiped in front",
-     "when": "When making a point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.4
-    },
-    {
-     "id": "cc_fist_pump",
-     "source": "cc5_m_fist_pump",
-     "label": "Fist pump",
-     "when": "When excited and feeling like they've won",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.8
-    },
-    {
-     "id": "cc_both_hands_foward",
-     "source": "cc5_m_hands_forward_gesture",
-     "label": "Both hands foward",
-     "when": "When exaplining big idea",
-     "kind": "gesture",
-     "functions": [
-      "explaining"
-     ],
-     "manner": [],
-     "len": 4.4
-    },
-    {
-     "id": "cc_hand_snapped_in_front",
-     "source": "cc5_m_happy_hand_gesture",
-     "label": "Hand snapped in front",
-     "when": "When making a sharp point",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 2.93
-    },
-    {
-     "id": "cc_head_side_to_side",
-     "source": "cc5_m_head_gesture",
-     "label": "Head side to side",
-     "when": "When faced with two options",
-     "kind": "gesture",
-     "functions": [
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.8
-    },
-    {
-     "id": "cc_head_side_to_side_slower",
-     "source": "cc5_m_head_gesture_deciding",
-     "label": "Head side to side slower",
-     "when": "When making two points",
-     "kind": "gesture",
-     "functions": [
-      "making_point"
-     ],
-     "manner": [],
-     "len": 3.7
-    },
-    {
-     "id": "cc_looking_away",
-     "source": "cc5_m_look_away_gesture",
-     "label": "Looking away",
-     "when": "When they heard something they don't want",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 3.27
-    },
-    {
-     "id": "cc_looking_down",
-     "source": "cc5_m_looking_down",
-     "label": "Looking down",
-     "when": "When they are shy or displeased",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "shy",
-      "downcast"
-     ],
-     "len": 7.17
-    },
-    {
-     "id": "cc_relieved_sigh",
-     "source": "cc5_m_relieved_sigh",
-     "label": "Relieved sigh",
-     "when": "When they are relieved",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "elated"
-     ],
-     "len": 3.0
-    },
-    {
-     "id": "cc_head_nod",
-     "source": "cc5_m_sarcastic_head_nod",
-     "label": "Head nod",
-     "when": "When they agree",
-     "kind": "gesture",
-     "functions": [
-      "agreeing"
-     ],
-     "manner": [],
-     "len": 3.37
-    },
-    {
-     "id": "cc_head_shake_slow",
-     "source": "cc5_m_shaking_head_no",
-     "label": "Head Shake slow",
-     "when": "When slowly disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing"
-     ],
-     "manner": [],
-     "len": 2.63
-    },
-    {
-     "id": "cc_head_up_then_nod",
-     "source": "cc5_m_thoughtful_head_nod",
-     "label": "Head up then nod",
-     "when": "When thinking then agreeing",
-     "kind": "gesture",
-     "functions": [
-      "agreeing",
-      "thinking"
-     ],
-     "manner": [],
-     "len": 2.93
-    },
-    {
-     "id": "cc_head_up_then_shake",
-     "source": "cc5_m_thoughtful_head_shake",
-     "label": "Head up then shake",
-     "when": "When thinking then disagreeing",
-     "kind": "gesture",
-     "functions": [
-      "disagreeing",
-      "thinking"
-     ],
-     "manner": [],
-     "len": 3.07
-    },
-    {
-     "id": "cc_lean_forward_hands_out_yelling",
-     "source": "cc5_m_yelling",
-     "label": "Lean forward hands out yelling",
-     "when": "When yelling",
-     "kind": "gesture",
-     "functions": [
-      "emoting"
-     ],
-     "manner": [
-      "agitated"
-     ],
-     "len": 7.83
-    }
-   ]
+  "scales": [
+    "subtle",
+    "moderate",
+    "broad"
+  ],
+  "scaleThresholds": {
+    "subtleMax": 20,
+    "moderateMax": 70
   }
- }
 }

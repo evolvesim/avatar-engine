@@ -71,12 +71,21 @@ export {
   SITUATIONAL_CLIPS,
   CLIP_FUNCTIONS,
   CLIP_MANNERS,
+  CLIP_SCALES,
+  SCALE_ORDER,
   IDLE_CLIP_IDS,
   clipInfo,
   isIdleClip,
   clipsForFunction,
+  idlesForManner,
+  isUncharacterisedClip,
 }                                    from './situational-clips'
-export type { SituationalClip, ClipFunction, ClipManner } from './situational-clips'
+export type {
+  SituationalClip,
+  ClipFunction,
+  ClipManner,
+  ClipScale,
+}                                    from './situational-clips'
 
 // Viseme map
 export {
