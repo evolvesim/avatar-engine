@@ -38,245 +38,33 @@ import * as THREE from 'three'
 import type { AnimationDictionary } from './animation-dictionary'
 import type { EmotionId } from './emotion-state'
 import type { GestureCue } from './virtual-director'
+import {
+  isIdleClip as isRegisteredIdleClip,
+  clipsForFunction,
+} from './situational-clips'
+import type { ClipFunction } from './situational-clips'
 
-// ── Emotion → idle animation pools ───────────────────────────────────────────
-// All RPM clips are full-body with real arm motion, so any clip works as idle.
-// Prefer quieter (low ForeArm °) clips as idles, expressive ones as gestures.
-// ── Emotion → idle pool ──────────────────────────────────────────────────────
-// RPM mocap idles drive all 52 bones (including arms) — great as base loops.
-// ACTS head/spine loops (quaternius_, mesh2motion_, evolve_listening_*,
-// evolve_idle_*) also work as idles in single-layer mode: they drive
-// head/spine only, leaving arms at their last-keyframed position.
-// Mixing both gives natural variation while keeping arms alive.
-const BASE_IDLE_POOLS = {
-  neutral: [
-    // mcu — Pack 8 MCU Motion Capture Unity idles / listen (v9.1 foot-lock IK)
-    'mcu_neutral_stand_idle_01',
-    'mcu_neutral_stand_idle_02',
-    'mcu_f_standconv_idle_01',
-    'mcu_f_standconv_listen_01_neutral',
-    'mcu_f_standconv_listen_02_neutral',
-    'mcu_f_standconv_talk_01_neutral',
-    'mcu_f_standconv_talk_06_neutral',
-    'mcu_m_standconv_idle_01',
-    'mcu_m_standconv_listen_01_neutral',
-    'mcu_m_standconv_listen_04_neutral',
-    'mcu_m_standconv_talk_01_neutral',
-    'mcu_m_standconv_talk_02_neutral',
-    'mcu_m_standconv_talk_07_neutral',
-    'mcu_m_standconv_talk_08_neutral',
-    'mcu_m_standconv_talk_09_neutral',
-    // rpm (original — confirmed working)
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_002',
-    'rpm_neutral_idle_var_001',
-    'rpm_neutral_idle_var_002',
-    'rpm_neutral_idle_var_003',
-    'quaternius_neutral_idle',
-    'mesh2motion_neutral_weight_shift',
-    'evolve_listening_active_sway',
-    'evolve_listening_interested_lean',
-    'evolve_idle_seated_upright',
-    // rpm2 (new RPM library — same skeleton, real mocap)
-    'rpm2_idle_001',
-    'rpm2_idle_002',
-    'rpm2_idle_var_001',
-    'rpm2_idle_var_002',
-    'rpm2_idle_var_003',
-    'rpm2_idle_var_004',
-    'rpm2_idle_var_005',
-    'rpm2_idle_var_006',
-    'rpm2_idle_var_007',
-    'rpm2_idle_var_008',
-    'rpm2_idle_var_009',
-    'rpm2_idle_var_010',
-    // rpm2f (feminine mocap — more subtle, corporate-appropriate)
-    'rpm2f_idle_001',
-    'rpm2f_idle_var_001',
-    'rpm2f_idle_var_002',
-    'rpm2f_idle_var_003',
-    'rpm2f_idle_var_004',
-    'rpm2f_idle_var_005',
-    'rpm2f_idle_var_006',
-    'rpm2f_idle_var_007',
-    'rpm2f_idle_var_008',
-    'rpm2f_idle_var_009',
-    // mc_m — Pack 5 MoCap Central Male idles
-    'mc_m_idle_01',
-    'mc_m_idle_02',
-    'mc_m_listen_01_neutral',
-    'mc_m_listen_04_neutral',
-    // mc_f — Pack 6 MoCap Central Female idles
-    'mc_f_idle_01',
-    'mc_f_listen_01_neutral',
-    'mc_f_listen_02_neutral',
-  ],
-  // happy (formerly joy)
-  happy: [
-    // mcu — Pack 8 positive talk/listen
-    'mcu_f_standconv_talk_03_positive',
-    'mcu_f_standconv_talk_05_positive',
-    'mcu_m_standconv_listen_02_positive',
-    'mcu_m_standconv_talk_05_positive',
-    'rpm_neutral_idle_var_001',
-    'rpm_neutral_idle_expressive_001',
-    'quaternius_joy_breathing_idle',
-    'evolve_rapport_mirroring_lean',
-    'rpm2_idle_001',
-    'rpm2_idle_var_003',
-    'rpm2f_idle_001',
-    'rpm2f_idle_var_002',
-    'mc_m_listen_02_positive',
-    'mc_f_idle_01',
-  ],
-  sadness: [
-    // mcu — Pack 8 negative talk/listen
-    'mcu_f_standconv_talk_02_negative',
-    'mcu_f_standconv_talk_04_negative',
-    'mcu_m_standconv_listen_03_negative',
-    'mcu_m_standconv_talk_06_negative',
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_003',
-    'quaternius_sadness_slumped',
-    'mesh2motion_sadness_shoulder_slump',
-    'rpm2_idle_001',
-    'rpm2_idle_var_005',
-    'mc_m_listen_03_negative',
-    'mc_f_listen_01_neutral',
-  ],
-  empathy: [
-    'rpm_neutral_idle_var_003',
-    'rpm_neutral_idle_expressive_002',
-    'evolve_listening_interested_lean',
-    'mixamo_empathy_leaning_forward',
-    'evolve_rapport_mirroring_lean',
-    'rpm2_idle_001',
-    'rpm2_idle_var_002',
-    'rpm2f_idle_var_004',
-    'rpm2f_idle_var_005',
-    'mc_m_listen_01_neutral',
-    'mc_f_listen_02_neutral',
-  ],
-  // thoughtful (replaces concentration + confusion)
-  thoughtful: [
-    // mcu — Pack 8 look-around and neutral listens
-    'mcu_neutral_stand_idle_03_lookaround',
-    'mcu_m_standconv_listen_01_neutral',
-    'mcu_f_standconv_listen_01_neutral',
-    'rpm_neutral_idle_002',
-    'rpm_neutral_idle_var_001',
-    'quaternius_concentration_idle',
-    'evolve_concentration_arms_folded_think',
-    'evolve_professional_steeple_fingers',
-    'evolve_listening_interested_lean',
-    'rpm2_idle_var_010',
-    'rpm2_idle_var_006',
-    'rpm2f_idle_var_006',
-    'rpm2f_idle_var_007',
-    'mc_m_idle_02',
-    'mc_f_listen_01_neutral',
-  ],
-  // displeasure (replaces anger + disgust)
-  displeasure: [
-    'rpm_neutral_idle_001',
-    'rpm_neutral_idle_var_002',
-    'quaternius_anger_tense_idle',
-    'mixamo_anger_arms_crossed',
-    'quaternius_disgust_recoil_idle',
-    'rpm2_idle_002',
-    'rpm2_idle_var_007',
-    'rpm2_idle_var_008',
-    'mc_m_listen_03_negative',
-    'mc_f_idle_01',
-  ],
-}
-
-// Canonical palette needs an idle pool for `shy` (new). It inherits the neutral
-// pool's RPM/mcu idles so EVERY rig (Avaturn/RPM included) always has a valid
-// rest loop; CC4 idles are appended below. `sadness` stays canonical; `empathy`
-// keeps its own pool (face-only for CC4, but RPM empathy idles still apply).
-const EMOTION_IDLE_POOLS: Record<EmotionId, string[]> = {
-  ...BASE_IDLE_POOLS,
-  shy: [...BASE_IDLE_POOLS.neutral],
-  // empathy is a FACE-ONLY emotion — the body rests on the neutral pool while the
-  // empathy facial expression is layered on top (no dedicated empathy body loop).
-  empathy: [...BASE_IDLE_POOLS.neutral],
-}
-
-// v0.5.34 — CC4 idle pools for the 4-pack / 7-emotion remap. Only clips present
-// in the loaded pack GLB are ever used (see _pickNextIdle's dict filter), so
-// listing every surviving CC4 idle here is safe across all four packs. Idles are
-// grouped by their mapped emotion; CC4_IDLES_NEUTRAL is appended everywhere as
-// the universal fallback (guarantees the gesture-heavy Expressive packs always
-// have a rest loop). RPM/Avaturn pools already carry their own idles, so these
-// CC4 ids simply filter out for non-CC4 rigs.
-const CC4_IDLES_NEUTRAL = [
-  'cc4_c_stand_idle_166534', // preferred default — short subtle stand
-  'cc4_c_idle_251105',
-  'cc4_m_basic_move_idle',
-  'cc4_f_basic_move_idle',
-  'cc4_m_chat_relax',
-  'cc4_f_chat_listen',
-]
-const CC4_IDLES_DISPLEASURE = [
-  'cc4_c_idle_251087',
-  'cc4_c_stand_idle_279386',
-  'cc4_m_idle_279398',
-  'cc4_c_idle_random_02',
-  'cc4_m_carriage_leaning',
-]
-const CC4_IDLES_THOUGHTFUL = ['cc4_c_bartender_cleaning_idle']
-const CC4_IDLES_SAD = ['cc4_c_elderly_idle']
-// Each emotion pool gets ONLY its own on-tone CC4 idles — a neutral character
-// must never draw a displeasure/sad idle, and vice versa. Emotions with no
-// dedicated CC4 idle (happy/shy/empathy) rest on the neutral body while their
-// FACE carries the emotion. When a given pack doesn't contain an emotion's idle
-// (e.g. the gesture-heavy Expressive packs), _pickNextIdle falls back to the
-// neutral idle rather than mixing off-tone idles in here.
-EMOTION_IDLE_POOLS.neutral.push(...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.happy.push(...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.shy.push(...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.empathy.push(...CC4_IDLES_NEUTRAL)
-EMOTION_IDLE_POOLS.thoughtful.push(...CC4_IDLES_THOUGHTFUL)
-EMOTION_IDLE_POOLS.sadness.push(...CC4_IDLES_SAD)
-EMOTION_IDLE_POOLS.displeasure.push(...CC4_IDLES_DISPLEASURE)
-
-// ── Mixamo idle pools (CC5 Default + Avaturn Default) ────────────────────────
-// The 45 Mixamo clips, mapped by hand (scripts/mixamo-mapping.json) and shipped
-// as one pack per rig: CC5 Default (cc5_ ids) and Avaturn Default (mx_ ids). Each
-// kept idle belongs to EXACTLY ONE emotion, listed here for both rigs together —
-// _pickNextIdle filters to whatever the loaded pack actually contains, so the
-// other rig's ids simply drop out.
+// ── Situational idle selection ───────────────────────────────────────────────
 //
-// This is deliberately the ONLY place these ids appear. They used to be sprinkled
-// through BASE_IDLE_POOLS in contradictory ways: breathing_idle_fast_breathing sat
-// in both neutral and displeasure, idle_foot_forward_slouch in neutral, sadness
-// AND displeasure. That is what made a neutral stretch of conversation draw
-// off-tone idles. With one emotion per idle, the Virtual Director holds an
-// emotion and rests on that emotion's idle until the conversation moves it.
+// Emotion no longer chooses the body's resting pose. It persists on the FACE (see
+// EmotionStateMachine / _applyPerformanceData), so a character who turns sad stays
+// visibly sad across exchanges while still resting and gesturing appropriately for
+// what is being said.
 //
-// Membership here is also what marks a clip as an idle (_isIdleClip) and gets it
-// played LoopRepeat — a kept idle left out of these lists would play once as a
-// gesture and stop. tests/unit/mixamo-idle-pools.test.ts asserts this table stays
-// in step with the mapping file.
-const MIXAMO_IDLES: Record<string, string[]> = {
-  neutral:     ['cc5_m_idle_still',                    'mx_m_idle_still',
-                'cc5_m_standard_idle',                 'mx_m_standard_idle'],
-  happy:       ['cc5_f_idle_standard',                 'mx_f_idle_standard'],
-  thoughtful:  ['cc5_m_neutral_idle_foot_forward',     'mx_m_neutral_idle_foot_forward'],
-  sadness:     ['cc5_f_idle_foot_forward_slouch',      'mx_f_idle_foot_forward_slouch'],
-  displeasure: ['cc5_m_breathing_idle_fast_breathing', 'mx_m_breathing_idle_fast_breathing'],
-  shy:         ['cc5_f_standing_idle_footfoward',      'mx_f_standing_idle_footfoward'],
-}
-EMOTION_IDLE_POOLS.neutral.push(...MIXAMO_IDLES.neutral)
-EMOTION_IDLE_POOLS.happy.push(...MIXAMO_IDLES.happy)
-EMOTION_IDLE_POOLS.thoughtful.push(...MIXAMO_IDLES.thoughtful)
-EMOTION_IDLE_POOLS.sadness.push(...MIXAMO_IDLES.sadness)
-EMOTION_IDLE_POOLS.displeasure.push(...MIXAMO_IDLES.displeasure)
-EMOTION_IDLE_POOLS.shy.push(...MIXAMO_IDLES.shy)
-// empathy is face-only — the body rests on the neutral idles while the empathy
-// expression is layered on top (same treatment as the CC4 pools above).
-EMOTION_IDLE_POOLS.empathy.push(...MIXAMO_IDLES.neutral)
+// The previous design keyed idle pools off the emotion — EMOTION_IDLE_POOLS, one
+// list per emotion. Two problems killed it:
+//
+//   1. With one idle per emotion, a conversation that settled on an emotion sat on
+//      a single loop, and the whole scene read as that one mood.
+//   2. Whenever an emotion had no idle in the loaded pack it fell back to neutral,
+//      so the "emotional" body language was mostly absent anyway.
+//
+// Now resting poses are just clips whose function is `rest`, and the director asks
+// for a specific clip when it wants something particular. Membership in the
+// generated registry (situational-clips.ts) is what marks a clip as an idle and
+// gets it played LoopRepeat; unregistered clips from a legacy pack fall back to a
+// name heuristic so they still loop rather than flashing a T-pose.
+const REST_FUNCTION: ClipFunction = 'rest'
 
 // ── Diagnostic helpers ────────────────────────────────────────────────────────
 
@@ -480,13 +268,6 @@ export class SkeletalController {
   /** Incremented on every new gesture. onFinished handlers compare against
    *  this token — stale handlers (from interrupted gestures) are no-ops. */
   private gestureToken       = 0
-  /**
-   * All clips present in EMOTION_IDLE_POOLS — used by _isIdleClip() to
-   * detect when a VD selects an idle as a gesture and re-route it.
-   */
-  private static readonly ALL_IDLE_CLIP_IDS: ReadonlySet<string> = new Set(
-    Object.values(EMOTION_IDLE_POOLS).flat()
-  )
 
   constructor(dictionary: AnimationDictionary) {
     this.dictionary = dictionary
@@ -526,8 +307,7 @@ export class SkeletalController {
     if (this.pendingIdle) {
       this._tryStartIdle()
       if (++this.pendingIdleFrames === 120) {
-        const pool = EMOTION_IDLE_POOLS[this.currentEmotion] ?? EMOTION_IDLE_POOLS.neutral
-        console.warn('[SkeletalController] pendingIdle after 120 frames — dict missing:', pool[0])
+        console.warn('[SkeletalController] pendingIdle after 120 frames — no rest clip in the loaded pack')
       }
     } else {
       this.pendingIdleFrames = 0
@@ -542,8 +322,8 @@ export class SkeletalController {
         // "jumping"). A resting avatar holds a pose ~18–34s before drifting to
         // another in the SAME emotion pool.
         this.idlePoolInterval = 18 + Math.random() * 16
-        const next = this._pickNextIdle(this.currentEmotion)
-        if (next !== this.currentIdleClipId) this._playIdle(this.currentEmotion, next)
+        const next = this._pickNextIdle()
+        if (next !== this.currentIdleClipId) this._playIdle(next)
       }
     }
 
@@ -601,7 +381,7 @@ export class SkeletalController {
    * Used to detect when VD accidentally selects an idle as a gesture.
    */
   private _isIdleClip(animId: string): boolean {
-    return SkeletalController.ALL_IDLE_CLIP_IDS.has(animId)
+    return isRegisteredIdleClip(animId)
   }
 
   /**
@@ -656,7 +436,7 @@ export class SkeletalController {
 
   private _tryStartIdle(): void {
     if (!this.pendingIdle || !this.mixer) return
-    let id    = this._pickNextIdle(this.currentEmotion)
+    let id    = this._pickNextIdle()
     let entry = this.dictionary.get(id)
     if (!entry) return  // dict not ready yet — retry next frame
 
@@ -707,30 +487,34 @@ export class SkeletalController {
     this.currentAction = idleAction
   }
 
-  private _pickNextIdle(emotion: EmotionId): string {
-    const pool = EMOTION_IDLE_POOLS[emotion] ?? EMOTION_IDLE_POOLS.neutral
-    // Filter to only clips actually present in the current dictionary.
-    // Prevents cross-pack arm-pose jumps when e.g. pack5 is loaded but the
-    // pool still contains pack1 clip names (which may exist in the dict due
-    // to a race between the initial load and a subsequent loadPack call).
-    let available = pool.filter(id => !!this.dictionary.get(id))
-    // If this pack carries no idle for the emotion (e.g. an Expressive pack in a
-    // non-neutral state), rest on the neutral pool — the emotion FACE still
-    // shows; only the body idle falls back. Prevents both a freeze and an
-    // off-tone idle from another emotion's pool.
-    if (available.length === 0 && emotion !== 'neutral') {
-      available = EMOTION_IDLE_POOLS.neutral.filter(id => !!this.dictionary.get(id))
+  /**
+   * Pick the next resting pose. Emotion is deliberately not an input — it lives
+   * on the face. Candidates are the `rest` clips the loaded pack actually
+   * contains, so the other rig's ids (and any pack that lacks a given clip)
+   * simply drop out.
+   */
+  private _pickNextIdle(): string {
+    let available = clipsForFunction(REST_FUNCTION, 'idle')
+      .map(c => c.id)
+      .filter(id => !!this.dictionary.get(id))
+
+    // A legacy or unmapped pack contributes no registry `rest` clips. Fall back to
+    // anything the pack itself presents as an idle, so such packs still rest
+    // instead of freezing.
+    if (available.length === 0) {
+      available = this.dictionary.animationIds.filter(id => this._isIdleClip(id))
     }
-    const source    = available.length > 0 ? available : pool  // last resort: unfiltered (let _tryStartIdle handle miss)
-    if (source.length === 1) return source[0]
-    const candidates = source.filter(id => id !== this.currentIdleClipId)
-    const pick = candidates.length > 0 ? candidates : source
+    if (available.length === 0) return ''
+
+    if (available.length === 1) return available[0]
+    const candidates = available.filter(id => id !== this.currentIdleClipId)
+    const pick = candidates.length > 0 ? candidates : available
     return pick[Math.floor(Math.random() * pick.length)]
   }
 
-  private _playIdle(emotion: EmotionId, idleId?: string): void {
+  private _playIdle(idleId?: string): void {
     if (!this.mixer) return
-    let id    = idleId ?? this._pickNextIdle(emotion)
+    let id    = idleId ?? this._pickNextIdle()
     let entry = this.dictionary.get(id)
     if (!entry) return
 
@@ -794,7 +578,7 @@ export class SkeletalController {
       console.warn(
         `[SkeletalController] "${animId}" is an idle clip — re-routing to _playIdle (not playing as gesture)`
       )
-      this._playIdle(this.currentEmotion, animId)
+      this._playIdle(animId)
       return
     }
 
@@ -906,7 +690,7 @@ export class SkeletalController {
    */
   private _returnToIdleWithFade(fromAction: THREE.AnimationAction, fadeDuration = 0.6): void {
     if (!this.mixer) return
-    let id    = this._pickNextIdle(this.currentEmotion)
+    let id    = this._pickNextIdle()
     let entry = this.dictionary.get(id)
     if (!entry) {
       // Dict not ready — crossfade via pendingIdle retry.
@@ -977,10 +761,17 @@ export class SkeletalController {
     }
   }
 
+  /**
+   * Record the current emotion for diagnostics only.
+   *
+   * This used to re-pick the body idle whenever the emotion changed, which is the
+   * coupling that made an emotional conversation sit on one loop. Emotion is now
+   * expressed on the FACE and persists there across exchanges; the body rests and
+   * gestures according to what is being said. Kept as a no-op for the body so the
+   * public API and its callers are unchanged.
+   */
   onEmotionChange(emotion: EmotionId): void {
-    if (emotion === this.currentEmotion) return
     this.currentEmotion = emotion
-    if (!this.isInGesture) this._playIdle(emotion)
   }
 
   reset(): void {
