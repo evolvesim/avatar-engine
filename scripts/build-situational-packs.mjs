@@ -23,6 +23,27 @@
  * verbatim — no resampling, no re-retargeting. Only the clip NAME changes, so
  * anything that bound before still binds.
  *
+ * ── Re-running this after the fact ──────────────────────────────────────────
+ *
+ * This is a ONE-SHOT build, not a repeatable step, and two things stop a bare
+ * re-run from working:
+ *
+ *  1. Its CC sources include the four animations-pack-cc4-*.glb files, which were
+ *     deleted from the playground once their clips landed in CC5 Default. They are
+ *     still in the playground's git history, so restore them into a scratch dir
+ *     first and point --src at it:
+ *
+ *       git -C ../avatar-playground show <pre-deletion-sha>:public/avatar-engine/animations-pack-cc4-male-natural.glb > /tmp/src/animations-pack-cc4-male-natural.glb
+ *
+ *     (341ca96 "Playground: two situational packs" is the commit that removed
+ *     them, so its parent has all four.)
+ *
+ *  2. animations-pack-cc5-default.glb is BOTH a CC source and the CC output. With
+ *     --src and --out defaulting to the same directory, a second run reads the
+ *     pack it wrote on the first — clips already renamed to cc_* ids, so the
+ *     mapping's source names no longer match. Always pass a --src that holds the
+ *     ORIGINAL packs and an --out that differs from it.
+ *
  * Usage:
  *   node build-situational-packs.mjs [--src <dir>] [--out <dir>]
  */
