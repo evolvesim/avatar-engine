@@ -64,6 +64,32 @@ export {
 }                                    from './procedural-animations'
 export type { GazeConfig }           from './procedural-animations'
 
+// Situational clip registry (generated from scripts/situational-mapping.json).
+// Products use this to advertise clips to a director by what they DO in dialogue
+// rather than by emotion.
+export {
+  SITUATIONAL_CLIPS,
+  CLIP_FUNCTIONS,
+  CLIP_MANNERS,
+  CLIP_SCALES,
+  CLIP_GENDERS,
+  SCALE_ORDER,
+  IDLE_CLIP_IDS,
+  clipInfo,
+  isIdleClip,
+  clipsForFunction,
+  idlesForManner,
+  isUncharacterisedClip,
+  isOffGenderClip,
+}                                    from './situational-clips'
+export type {
+  SituationalClip,
+  ClipFunction,
+  ClipManner,
+  ClipScale,
+  ClipGender,
+}                                    from './situational-clips'
+
 // Viseme map
 export {
   VISEME_TO_ARKIT,
