@@ -183,8 +183,9 @@ describe('clip scale is measured, not guessed', () => {
 // ── Characterised resting poses have to be earned ────────────────────────────
 //
 // The reported symptom: a car-sales avatar repeatedly dropping into the "tired"
-// idle in a conversation that never called for it. 13 of the CC pack's 20 resting
-// poses carry a manner, and the picker drew uniformly from all of them.
+// idle in a conversation that never called for it. The CC pack has 18 resting poses
+// and 9 carry a manner, and the picker drew uniformly from all of them — so every
+// re-roll was a coin flip on standing there characterised for no reason.
 describe('idlesForManner', () => {
   it('returns only uncharacterised poses when nothing is allowed', () => {
     const idles = idlesForManner([])

@@ -70,10 +70,13 @@ const REST_FUNCTION: ClipFunction = 'rest'
 // ── Which resting poses the current feeling permits ──────────────────────────
 //
 // Decoupling emotion from the body was right, but the first cut went too far: it
-// drew UNIFORMLY from every `rest` clip. 13 of the CC pack's 20 resting poses carry
-// a manner (tired, wary, detached, uncomfortable), so a character spent most of its
-// time visibly characterised by accident — a salesperson dropping into a slouch, or
-// a wary side-eye, in a conversation that called for neither.
+// drew UNIFORMLY from every `rest` clip. The CC pack has 18 of them and 9 carry a
+// manner — cc_slouched "when tired", cc_side_eye "when wary or scared",
+// cc_crossed_arms_looking_down "when detached", cc_masculine_look_around "when
+// uncomfortable", cc_angry_breathing_fast "when agitated", and four more. So every
+// re-roll was a coin flip on whether the character stood there characterised by
+// accident: a salesperson dropping into a slouch, or a wary side-eye, in a
+// conversation that called for neither.
 //
 // The fix is not to re-couple emotion to the body. It is to say that a
 // CHARACTERISED pose has to be earned: a manner is only in rotation when the
