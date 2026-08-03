@@ -12,6 +12,7 @@ import path from 'node:path'
 import {
   SITUATIONAL_CLIPS, CLIP_FUNCTIONS, CLIP_MANNERS, CLIP_SCALES, SCALE_ORDER, IDLE_CLIP_IDS,
   clipInfo, isIdleClip, clipsForFunction, idlesForManner, isUncharacterisedClip,
+  isOffGenderClip, CLIP_GENDERS,
 } from '../../src/core/situational-clips'
 import type { ClipManner } from '../../src/core/situational-clips'
 
@@ -274,5 +275,101 @@ describe('the idle picker is context-aware and anti-repeat', () => {
   it('still does not take an emotion argument', () => {
     // Emotion decides which MANNERS are eligible, never a specific clip.
     expect(controller).toContain('private _pickNextIdle(): string')
+  })
+})
+
+// ── Gender bias ──────────────────────────────────────────────────────────────
+//
+// A male CC character was seen playing cc_feminine_head_up and then
+// cc_masculine_idle in the same sequence. The packs are ungendered by design, but a
+// minority of clips carry an explicit authorial marker and those should follow the
+// character.
+describe('clip gender', () => {
+  it('marks exactly the clips the author named, and nothing else', () => {
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      if (/(^|_)feminine(_|$)/.test(c.id)) expect(c.gender, c.id).toBe('feminine')
+      else if (/(^|_)masculine(_|$)/.test(c.id)) expect(c.gender, c.id).toBe('masculine')
+      else expect(c.gender, c.id).toBeNull()
+    }
+  })
+
+  it('leaves the large majority unmarked, so this biases rather than partitions', () => {
+    const total = Object.keys(SITUATIONAL_CLIPS).length
+    const marked = Object.values(SITUATIONAL_CLIPS).filter(c => c.gender != null).length
+    expect(marked).toBe(19)
+    // Well under a fifth. If this ever crossed half, "bias" would be the wrong word
+    // and the never-strand guards below would start doing real work every turn.
+    expect(marked / total).toBeLessThan(0.2)
+  })
+
+  it('agrees with the mapping it was generated from', () => {
+    for (const pack of Object.values(mapping.packs) as { clips: Record<string, unknown>[] }[]) {
+      for (const clip of pack.clips) {
+        const reg = SITUATIONAL_CLIPS[clip['id'] as string]
+        expect(reg.gender, reg.id).toBe(clip['gender'] ?? null)
+      }
+    }
+  })
+
+  it('uses only the declared gender vocabulary', () => {
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      if (c.gender != null) expect(CLIP_GENDERS).toContain(c.gender)
+    }
+  })
+})
+
+describe('isOffGenderClip', () => {
+  it('rejects only an explicitly opposite-marked clip', () => {
+    expect(isOffGenderClip('cc_feminine_head_up', 'masculine')).toBe(true)
+    expect(isOffGenderClip('cc_masculine_idle', 'feminine')).toBe(true)
+    expect(isOffGenderClip('cc_feminine_head_up', 'feminine')).toBe(false)
+    expect(isOffGenderClip('cc_masculine_idle', 'masculine')).toBe(false)
+  })
+
+  it('never rejects an unmarked clip', () => {
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      if (c.gender != null) continue
+      expect(isOffGenderClip(c.id, 'masculine'), c.id).toBe(false)
+      expect(isOffGenderClip(c.id, 'feminine'), c.id).toBe(false)
+    }
+  })
+
+  it('applies no bias at all without a gender — the non-binary case', () => {
+    for (const c of Object.values(SITUATIONAL_CLIPS)) {
+      expect(isOffGenderClip(c.id, null), c.id).toBe(false)
+      expect(isOffGenderClip(c.id), c.id).toBe(false)
+    }
+  })
+
+  it('is false for an unknown id rather than throwing', () => {
+    expect(isOffGenderClip('not_a_clip', 'feminine')).toBe(false)
+  })
+
+  it('leaves a workable idle pool for either gender at neutral', () => {
+    // The bias must not strand the avatar. Neutral is the strictest manner case, so
+    // if it survives there it survives everywhere.
+    for (const gender of CLIP_GENDERS) {
+      for (const prefix of ['cc_', 'av_']) {
+        const pool = idlesForManner(['formal'])
+          .filter(c => c.id.startsWith(prefix) && !isOffGenderClip(c.id, gender))
+        expect(pool.length, `${prefix}${gender}`).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+})
+
+describe('the controller applies the gender bias', () => {
+  const controller = fs.readFileSync(path.join(ROOT, 'src/core/skeletal-controller.ts'), 'utf8')
+
+  it('filters idle candidates by gender', () => {
+    expect(controller).toContain('isOffGenderClip')
+    expect(controller).toContain('setGenderBias')
+  })
+
+  it('drops the bias before the last-resort fallback', () => {
+    // Resting in an off-gender pose beats standing frozen.
+    const fn = controller.slice(controller.indexOf('private _pickNextIdle()'))
+      .slice(0, 2000)
+    expect(fn).toMatch(/Drop the gender bias/)
   })
 })

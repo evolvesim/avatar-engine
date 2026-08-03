@@ -54,7 +54,8 @@
           "len": 8.37,
           "armDeg": 11,
           "bodyDeg": 1,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_idle_standard",
@@ -70,7 +71,8 @@
           "len": 10.03,
           "armDeg": 7,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_feminine_footfoward",
@@ -85,7 +87,8 @@
           "len": 6.03,
           "armDeg": 11,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "feminine"
         },
         {
           "id": "av_angry_breathing_fast",
@@ -102,7 +105,8 @@
           "len": 5.7,
           "armDeg": 4,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_idle_still",
@@ -117,7 +121,8 @@
           "len": 16.7,
           "armDeg": 3,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_neutral_idle",
@@ -133,7 +138,8 @@
           "len": 3.7,
           "armDeg": 3,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_standard_idle",
@@ -148,7 +154,8 @@
           "len": 3.03,
           "armDeg": 7,
           "bodyDeg": 3,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_bashful_look_at_ground",
@@ -165,7 +172,8 @@
           "len": 14.6,
           "armDeg": 117,
           "bodyDeg": 43,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_look_at_hand_and_nails",
@@ -181,7 +189,8 @@
           "len": 5.8,
           "armDeg": 123,
           "bodyDeg": 25,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_waving",
@@ -198,7 +207,8 @@
           "len": 5.43,
           "armDeg": 121,
           "bodyDeg": 20,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_hand_to_chest",
@@ -214,7 +224,8 @@
           "len": 4.4,
           "armDeg": 118,
           "bodyDeg": 32,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_step_back_hands_up",
@@ -229,7 +240,8 @@
           "len": 4.73,
           "armDeg": 89,
           "bodyDeg": 46,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_eyes_up_for_a_moment",
@@ -244,7 +256,8 @@
           "len": 2.7,
           "armDeg": 21,
           "bodyDeg": 7,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_angry_point",
@@ -259,7 +272,8 @@
           "len": 3.27,
           "armDeg": 84,
           "bodyDeg": 19,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_head_shake",
@@ -274,7 +288,8 @@
           "len": 2.6,
           "armDeg": 16,
           "bodyDeg": 35,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_lean_back_hands_up",
@@ -290,7 +305,8 @@
           "len": 4.03,
           "armDeg": 57,
           "bodyDeg": 24,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_head_turn",
@@ -306,7 +322,8 @@
           "len": 2.57,
           "armDeg": 43,
           "bodyDeg": 26,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_hand_waved_in_front",
@@ -322,7 +339,8 @@
           "len": 4.43,
           "armDeg": 116,
           "bodyDeg": 24,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_hand_swiped_in_front",
@@ -337,7 +355,8 @@
           "len": 3.43,
           "armDeg": 77,
           "bodyDeg": 17,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_fist_pump",
@@ -354,7 +373,8 @@
           "len": 3.83,
           "armDeg": 114,
           "bodyDeg": 34,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_both_hands_foward",
@@ -369,7 +389,8 @@
           "len": 4.43,
           "armDeg": 85,
           "bodyDeg": 13,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "av_hand_snapped_in_front",
@@ -386,7 +407,8 @@
           "len": 2.97,
           "armDeg": 42,
           "bodyDeg": 15,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_head_side_to_side",
@@ -401,7 +423,8 @@
           "len": 2.83,
           "armDeg": 41,
           "bodyDeg": 17,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_head_side_to_side_slower",
@@ -416,7 +439,8 @@
           "len": 3.73,
           "armDeg": 41,
           "bodyDeg": 17,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_looking_away",
@@ -431,7 +455,8 @@
           "len": 3.3,
           "armDeg": 26,
           "bodyDeg": 33,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "av_looking_down",
@@ -449,7 +474,8 @@
           "len": 7.2,
           "armDeg": 19,
           "bodyDeg": 36,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_relieved_sigh",
@@ -466,7 +492,8 @@
           "len": 3.03,
           "armDeg": 9,
           "bodyDeg": 15,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_head_nod",
@@ -481,7 +508,8 @@
           "len": 3.4,
           "armDeg": 9,
           "bodyDeg": 17,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_head_shake_slow",
@@ -496,7 +524,8 @@
           "len": 2.67,
           "armDeg": 6,
           "bodyDeg": 30,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_head_up_then_nod",
@@ -512,7 +541,8 @@
           "len": 2.97,
           "armDeg": 20,
           "bodyDeg": 21,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_head_up_then_shake",
@@ -528,7 +558,8 @@
           "len": 3.1,
           "armDeg": 6,
           "bodyDeg": 22,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "av_lean_forward_hands_out_yelling",
@@ -545,7 +576,8 @@
           "len": 7.87,
           "armDeg": 107,
           "bodyDeg": 31,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         }
       ]
     },
@@ -568,7 +600,8 @@
           "len": 9.67,
           "armDeg": 10,
           "bodyDeg": 19,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_slouched",
@@ -585,7 +618,8 @@
           "len": 11.5,
           "armDeg": 2,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_look_to_both_sides",
@@ -602,7 +636,8 @@
           "len": 17.67,
           "armDeg": 25,
           "bodyDeg": 27,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_feminine_step_side_to_side",
@@ -618,7 +653,8 @@
           "len": 15.33,
           "armDeg": 13,
           "bodyDeg": 14,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "feminine"
         },
         {
           "id": "cc_masculine_look_around",
@@ -635,7 +671,8 @@
           "len": 6.04,
           "armDeg": 9,
           "bodyDeg": 16,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "masculine"
         },
         {
           "id": "cc_feminine_idle",
@@ -650,7 +687,8 @@
           "len": 2.96,
           "armDeg": 3,
           "bodyDeg": 3,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "feminine"
         },
         {
           "id": "cc_side_eye",
@@ -667,7 +705,8 @@
           "len": 5.67,
           "armDeg": 4,
           "bodyDeg": 3,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_feminine_head_up",
@@ -682,7 +721,8 @@
           "len": 6.04,
           "armDeg": 2,
           "bodyDeg": 4,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "feminine"
         },
         {
           "id": "cc_masculine_idle",
@@ -697,7 +737,8 @@
           "len": 2.17,
           "armDeg": 2,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "masculine"
         },
         {
           "id": "cc_crossed_arms_looking_down",
@@ -714,7 +755,8 @@
           "len": 10.17,
           "armDeg": 2,
           "bodyDeg": 6,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_side_eye_still",
@@ -732,7 +774,8 @@
           "len": 5.67,
           "armDeg": 5,
           "bodyDeg": 4,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_foot_foward_slouch",
@@ -749,7 +792,8 @@
           "len": 8.33,
           "armDeg": 8,
           "bodyDeg": 1,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_idle_standard",
@@ -765,7 +809,8 @@
           "len": 10,
           "armDeg": 7,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_feminine_footfoward",
@@ -780,7 +825,8 @@
           "len": 6,
           "armDeg": 11,
           "bodyDeg": 1,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "feminine"
         },
         {
           "id": "cc_angry_breathing_fast",
@@ -797,7 +843,8 @@
           "len": 5.67,
           "armDeg": 4,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_idle_still",
@@ -812,7 +859,8 @@
           "len": 16.67,
           "armDeg": 3,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_neutral_idle",
@@ -828,7 +876,8 @@
           "len": 3.67,
           "armDeg": 3,
           "bodyDeg": 2,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_standard_idle",
@@ -843,7 +892,8 @@
           "len": 3,
           "armDeg": 7,
           "bodyDeg": 3,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_hand_out_then_big_hands_up",
@@ -858,7 +908,8 @@
           "len": 5.2,
           "armDeg": 98,
           "bodyDeg": 21,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hands_arcing_out_front",
@@ -873,7 +924,8 @@
           "len": 3.8,
           "armDeg": 82,
           "bodyDeg": 22,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_feminine_nodding_hand_out",
@@ -890,7 +942,8 @@
           "len": 4.7,
           "armDeg": 90,
           "bodyDeg": 23,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hand_out_lean_back",
@@ -905,7 +958,8 @@
           "len": 3.8,
           "armDeg": 101,
           "bodyDeg": 15,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hands_out_then_together",
@@ -920,7 +974,8 @@
           "len": 4.17,
           "armDeg": 100,
           "bodyDeg": 28,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_one_arm_crossed",
@@ -939,7 +994,8 @@
           "len": 3.33,
           "armDeg": 9,
           "bodyDeg": 21,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_one_arm_crossed_shifting",
@@ -956,7 +1012,8 @@
           "len": 3.33,
           "armDeg": 21,
           "bodyDeg": 22,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_one_arm_crossed_nodding",
@@ -974,7 +1031,8 @@
           "len": 3.76,
           "armDeg": 23,
           "bodyDeg": 26,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_one_arm_crossed_head_move",
@@ -992,7 +1050,8 @@
           "len": 4.46,
           "armDeg": 30,
           "bodyDeg": 22,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_one_arm_crossed_nodding_2",
@@ -1010,7 +1069,8 @@
           "len": 3.2,
           "armDeg": 22,
           "bodyDeg": 21,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_holding_in_front",
@@ -1027,7 +1087,8 @@
           "len": 3.33,
           "armDeg": 21,
           "bodyDeg": 7,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_holding_in_front_lean_forward",
@@ -1045,7 +1106,8 @@
           "len": 3.86,
           "armDeg": 21,
           "bodyDeg": 29,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_holding_in_front_with_wave",
@@ -1063,7 +1125,8 @@
           "len": 4.03,
           "armDeg": 82,
           "bodyDeg": 28,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hands_holding_in_front_then_out",
@@ -1081,7 +1144,8 @@
           "len": 3.53,
           "armDeg": 80,
           "bodyDeg": 26,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hands_holding_in_front_talking",
@@ -1099,7 +1163,8 @@
           "len": 4.33,
           "armDeg": 26,
           "bodyDeg": 29,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_crossing_in_front",
@@ -1115,7 +1180,8 @@
           "len": 7,
           "armDeg": 86,
           "bodyDeg": 18,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_feminine_nod_then_hand_to_chest",
@@ -1131,7 +1197,8 @@
           "len": 4.47,
           "armDeg": 125,
           "bodyDeg": 33,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hands_out_and_together",
@@ -1146,7 +1213,8 @@
           "len": 4.64,
           "armDeg": 89,
           "bodyDeg": 33,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hands_in_front_then_relax",
@@ -1161,7 +1229,8 @@
           "len": 3.6,
           "armDeg": 89,
           "bodyDeg": 22,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hand_to_chest",
@@ -1177,7 +1246,8 @@
           "len": 5.3,
           "armDeg": 120,
           "bodyDeg": 28,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_feminine_hand_to_chest_knee_bob",
@@ -1195,7 +1265,8 @@
           "len": 3.97,
           "armDeg": 114,
           "bodyDeg": 23,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_masculine_lean_with_hand_out",
@@ -1210,7 +1281,8 @@
           "len": 4.96,
           "armDeg": 97,
           "bodyDeg": 13,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "masculine"
         },
         {
           "id": "cc_masculine_lean_side_hand_out",
@@ -1227,7 +1299,8 @@
           "len": 4.89,
           "armDeg": 69,
           "bodyDeg": 14,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": "masculine"
         },
         {
           "id": "cc_masculine_hand_to_hip_straighten",
@@ -1242,7 +1315,8 @@
           "len": 2.19,
           "armDeg": 7,
           "bodyDeg": 10,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": "masculine"
         },
         {
           "id": "cc_high_hands_together_step_forward",
@@ -1259,7 +1333,8 @@
           "len": 3.77,
           "armDeg": 100,
           "bodyDeg": 16,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_high_hands_together_nod",
@@ -1276,7 +1351,8 @@
           "len": 2.2,
           "armDeg": 41,
           "bodyDeg": 9,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_high_hands_many_hand_gestures",
@@ -1293,7 +1369,8 @@
           "len": 5.96,
           "armDeg": 101,
           "bodyDeg": 21,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_high_hand_together_step_back",
@@ -1309,7 +1386,8 @@
           "len": 4.47,
           "armDeg": 35,
           "bodyDeg": 18,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_high_hands_many_hand_gestures_2",
@@ -1325,7 +1403,8 @@
           "len": 3.9,
           "armDeg": 87,
           "bodyDeg": 19,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_high_hands_gesturing_out",
@@ -1341,7 +1420,8 @@
           "len": 5.07,
           "armDeg": 92,
           "bodyDeg": 16,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_slight_look_up",
@@ -1356,7 +1436,8 @@
           "len": 2.03,
           "armDeg": 3,
           "bodyDeg": 4,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_side_eye_pointed_finger_nod",
@@ -1372,7 +1453,8 @@
           "len": 5.73,
           "armDeg": 115,
           "bodyDeg": 26,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_head_to_side_slight_lean_forward",
@@ -1387,7 +1469,8 @@
           "len": 2.2,
           "armDeg": 34,
           "bodyDeg": 32,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_look_up_to_side_and_pointed_finger",
@@ -1402,7 +1485,8 @@
           "len": 4.7,
           "armDeg": 91,
           "bodyDeg": 29,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_feminine_nod_and_hip_shake",
@@ -1417,7 +1501,8 @@
           "len": 3.63,
           "armDeg": 108,
           "bodyDeg": 15,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": "feminine"
         },
         {
           "id": "cc_nodding_pumping_hands_clap",
@@ -1434,7 +1519,8 @@
           "len": 3.8,
           "armDeg": 117,
           "bodyDeg": 26,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_pump_pointing_clapping",
@@ -1451,7 +1537,8 @@
           "len": 6.33,
           "armDeg": 101,
           "bodyDeg": 28,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_side_eye_agree",
@@ -1469,7 +1556,8 @@
           "len": 3.24,
           "armDeg": 39,
           "bodyDeg": 5,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_side_eye_hands_together",
@@ -1487,7 +1575,8 @@
           "len": 5.94,
           "armDeg": 93,
           "bodyDeg": 14,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_side_eye_still_2",
@@ -1502,7 +1591,8 @@
           "len": 3,
           "armDeg": 12,
           "bodyDeg": 5,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_lean_sideways",
@@ -1517,7 +1607,8 @@
           "len": 2.13,
           "armDeg": 82,
           "bodyDeg": 14,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_lean_sideways_scatch_chest",
@@ -1533,7 +1624,8 @@
           "len": 4.4,
           "armDeg": 119,
           "bodyDeg": 30,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_then_outwards",
@@ -1548,7 +1640,8 @@
           "len": 2.9,
           "armDeg": 150,
           "bodyDeg": 31,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_gesture_then_scratching_head",
@@ -1564,7 +1657,8 @@
           "len": 6.6,
           "armDeg": 123,
           "bodyDeg": 32,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_lean_back_and_point",
@@ -1581,7 +1675,8 @@
           "len": 5.1,
           "armDeg": 64,
           "bodyDeg": 11,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_head_movement",
@@ -1598,7 +1693,8 @@
           "len": 2.53,
           "armDeg": 9,
           "bodyDeg": 16,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_hands_out",
@@ -1615,7 +1711,8 @@
           "len": 3.96,
           "armDeg": 79,
           "bodyDeg": 13,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_up_and_head_bob",
@@ -1632,7 +1729,8 @@
           "len": 4.53,
           "armDeg": 75,
           "bodyDeg": 10,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_slow_hand_up",
@@ -1647,7 +1745,8 @@
           "len": 3.53,
           "armDeg": 44,
           "bodyDeg": 7,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_both_hands_up_and_head_shake",
@@ -1662,7 +1761,8 @@
           "len": 5.23,
           "armDeg": 68,
           "bodyDeg": 23,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_and_then_back_on_hips",
@@ -1677,7 +1777,8 @@
           "len": 4.27,
           "armDeg": 55,
           "bodyDeg": 8,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hand_on_hip_and_shaking_head",
@@ -1694,7 +1795,8 @@
           "len": 3.67,
           "armDeg": 65,
           "bodyDeg": 20,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hand_comes_off_hip",
@@ -1712,7 +1814,8 @@
           "len": 2.2,
           "armDeg": 64,
           "bodyDeg": 20,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hands_up_in_front",
@@ -1727,7 +1830,8 @@
           "len": 5.3,
           "armDeg": 81,
           "bodyDeg": 16,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_up_then_the_other",
@@ -1742,7 +1846,8 @@
           "len": 3.93,
           "armDeg": 49,
           "bodyDeg": 12,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_bashful_look_at_ground",
@@ -1759,7 +1864,8 @@
           "len": 14.57,
           "armDeg": 117,
           "bodyDeg": 43,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_look_at_hand_and_nails",
@@ -1775,7 +1881,8 @@
           "len": 5.77,
           "armDeg": 123,
           "bodyDeg": 26,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_waving",
@@ -1792,7 +1899,8 @@
           "len": 5.4,
           "armDeg": 121,
           "bodyDeg": 25,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_to_chest",
@@ -1808,7 +1916,8 @@
           "len": 4.37,
           "armDeg": 118,
           "bodyDeg": 33,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_step_back_hands_up",
@@ -1823,7 +1932,8 @@
           "len": 4.7,
           "armDeg": 89,
           "bodyDeg": 50,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_eyes_up_for_a_moment",
@@ -1838,7 +1948,8 @@
           "len": 2.67,
           "armDeg": 21,
           "bodyDeg": 9,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_angry_point",
@@ -1853,7 +1964,8 @@
           "len": 3.23,
           "armDeg": 84,
           "bodyDeg": 21,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_head_shake",
@@ -1868,7 +1980,8 @@
           "len": 2.57,
           "armDeg": 16,
           "bodyDeg": 37,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_lean_back_hands_up",
@@ -1884,7 +1997,8 @@
           "len": 4,
           "armDeg": 57,
           "bodyDeg": 27,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_head_turn",
@@ -1900,7 +2014,8 @@
           "len": 2.53,
           "armDeg": 43,
           "bodyDeg": 28,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_hand_waved_in_front",
@@ -1916,7 +2031,8 @@
           "len": 4.4,
           "armDeg": 116,
           "bodyDeg": 20,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_swiped_in_front",
@@ -1931,7 +2047,8 @@
           "len": 3.4,
           "armDeg": 77,
           "bodyDeg": 18,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_fist_pump",
@@ -1948,7 +2065,8 @@
           "len": 3.8,
           "armDeg": 114,
           "bodyDeg": 38,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_both_hands_foward",
@@ -1963,7 +2081,8 @@
           "len": 4.4,
           "armDeg": 85,
           "bodyDeg": 14,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         },
         {
           "id": "cc_hand_snapped_in_front",
@@ -1980,7 +2099,8 @@
           "len": 2.93,
           "armDeg": 42,
           "bodyDeg": 10,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_head_side_to_side",
@@ -1995,7 +2115,8 @@
           "len": 2.8,
           "armDeg": 41,
           "bodyDeg": 20,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_head_side_to_side_slower",
@@ -2010,7 +2131,8 @@
           "len": 3.7,
           "armDeg": 41,
           "bodyDeg": 20,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_looking_away",
@@ -2025,7 +2147,8 @@
           "len": 3.27,
           "armDeg": 26,
           "bodyDeg": 36,
-          "scale": "moderate"
+          "scale": "moderate",
+          "gender": null
         },
         {
           "id": "cc_looking_down",
@@ -2043,7 +2166,8 @@
           "len": 7.17,
           "armDeg": 19,
           "bodyDeg": 40,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_relieved_sigh",
@@ -2060,7 +2184,8 @@
           "len": 3,
           "armDeg": 9,
           "bodyDeg": 16,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_head_nod",
@@ -2075,7 +2200,8 @@
           "len": 3.37,
           "armDeg": 9,
           "bodyDeg": 20,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_head_shake_slow",
@@ -2090,7 +2216,8 @@
           "len": 2.63,
           "armDeg": 6,
           "bodyDeg": 32,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_head_up_then_nod",
@@ -2106,7 +2233,8 @@
           "len": 2.93,
           "armDeg": 20,
           "bodyDeg": 23,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_head_up_then_shake",
@@ -2122,7 +2250,8 @@
           "len": 3.07,
           "armDeg": 6,
           "bodyDeg": 23,
-          "scale": "subtle"
+          "scale": "subtle",
+          "gender": null
         },
         {
           "id": "cc_lean_forward_hands_out_yelling",
@@ -2139,7 +2268,8 @@
           "len": 7.83,
           "armDeg": 107,
           "bodyDeg": 31,
-          "scale": "broad"
+          "scale": "broad",
+          "gender": null
         }
       ]
     }
@@ -2152,5 +2282,9 @@
   "scaleThresholds": {
     "subtleMax": 20,
     "moderateMax": 70
-  }
+  },
+  "genders": [
+    "feminine",
+    "masculine"
+  ]
 }

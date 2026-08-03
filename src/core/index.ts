@@ -72,6 +72,7 @@ export {
   CLIP_FUNCTIONS,
   CLIP_MANNERS,
   CLIP_SCALES,
+  CLIP_GENDERS,
   SCALE_ORDER,
   IDLE_CLIP_IDS,
   clipInfo,
@@ -79,12 +80,14 @@ export {
   clipsForFunction,
   idlesForManner,
   isUncharacterisedClip,
+  isOffGenderClip,
 }                                    from './situational-clips'
 export type {
   SituationalClip,
   ClipFunction,
   ClipManner,
   ClipScale,
+  ClipGender,
 }                                    from './situational-clips'
 
 // Viseme map

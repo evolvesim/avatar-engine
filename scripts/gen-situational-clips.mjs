@@ -36,6 +36,7 @@ const rows = [...seen.values()]
     `  ${q(c.id)}: { id: ${q(c.id)}, label: ${q(c.label)}, when: ${q(c.when)}, ` +
     `kind: ${q(c.kind)}, functions: ${lit(c.functions)}, manner: ${lit(c.manner)}, ` +
     `scale: ${q(c.scale)}, armDeg: ${Number(c.armDeg ?? 0)}, bodyDeg: ${Number(c.bodyDeg ?? 0)}, ` +
+    `gender: ${c.gender ? q(c.gender) : 'null'}, ` +
     `duration: ${Number(c.len ?? 0).toFixed(2)} },`)
   .join('\n')
 
@@ -99,6 +100,8 @@ export interface SituationalClip {
   armDeg:    number
   /** Max angular excursion of any hip/spine/head/neck bone, in degrees. */
   bodyDeg:   number
+  /** Author-marked gender presentation, or null when it suits anyone. */
+  gender:    ClipGender | null
   duration:  number
 }
 
@@ -108,6 +111,18 @@ export const CLIP_SCALES:    readonly ClipScale[]    = ${lit(mapping.scales)}
 
 /** Ascending motion size, for "prefer the smallest that fits" ordering. */
 export const SCALE_ORDER: Readonly<Record<ClipScale, number>> = { subtle: 0, moderate: 1, broad: 2 }
+
+/**
+ * Intended gender presentation, from the author's explicit \`*_feminine_*\` /
+ * \`*_masculine_*\` naming. null = suits any character, which is 111 of 130 clips.
+ *
+ * This BIASES selection; it never partitions the pack. A non-binary character, or a
+ * pack too thin to satisfy the bias, still draws from everything.
+ */
+export type ClipGender =
+${mapping.genders.map((g) => `  | '${g}'`).join('\n')}
+
+export const CLIP_GENDERS: readonly ClipGender[] = ${lit(mapping.genders)}
 
 export const SITUATIONAL_CLIPS: Record<string, SituationalClip> = {
 ${rows}
@@ -182,6 +197,20 @@ export function idlesForManner(allowed: readonly ClipManner[]): SituationalClip[
 export function isUncharacterisedClip(id: string): boolean {
   const c = SITUATIONAL_CLIPS[id]
   return !!c && c.manner.length === 0
+}
+
+/**
+ * Would this clip look wrong on a character of this gender?
+ *
+ * Only ever true for a clip the author explicitly marked for the OTHER gender.
+ * Unmarked clips (the large majority) and an unknown/non-binary character are always
+ * fine — the point is to stop a male avatar playing \`cc_feminine_head_up\`, not to
+ * halve either pack.
+ */
+export function isOffGenderClip(id: string, gender?: ClipGender | null): boolean {
+  if (!gender) return false
+  const c = SITUATIONAL_CLIPS[id]
+  return !!c && c.gender != null && c.gender !== gender
 }
 `
 fs.writeFileSync(outFile, out)

@@ -27,6 +27,7 @@ import {
   type VirtualDirectorConfig,
   type PerformanceData,
 } from './virtual-director'
+import type { ClipGender } from './situational-clips'
 import {
   SkeletalController,
 } from './skeletal-controller'
@@ -59,6 +60,16 @@ export interface AvatarEngineConfig {
 
   /** TTS adapter instance — caller constructs and passes in. */
   adapter: TTSAdapter
+
+  /**
+   * The character's gender presentation, when the product knows it.
+   *
+   * Biases clip selection away from clips the pack author explicitly marked for the
+   * other gender — a male avatar should not drop into `cc_feminine_head_up`. Only 19
+   * of 130 clips carry such a marker, so this narrows the pool slightly rather than
+   * halving it. Omit, or pass null, for a non-binary character or when unknown.
+   */
+  characterGender?: ClipGender | null
 }
 
 // ── Engine ────────────────────────────────────────────────────────────────────
@@ -89,6 +100,7 @@ export class AvatarEngine {
     this.dictionary   = defaultDictionary
     this.emotion      = defaultEmotion
     this.skeletal     = new SkeletalController(this.dictionary)
+    this.skeletal.setGenderBias(config.characterGender ?? null)
     this.fftFallback  = new FFTFallback()
     this.adapter      = config.adapter
 

@@ -42,8 +42,9 @@ import {
   isIdleClip as isRegisteredIdleClip,
   clipsForFunction,
   idlesForManner,
+  isOffGenderClip,
 } from './situational-clips'
-import type { ClipFunction, ClipManner } from './situational-clips'
+import type { ClipFunction, ClipManner, ClipGender } from './situational-clips'
 
 // ── Situational idle selection ───────────────────────────────────────────────
 //
@@ -301,6 +302,12 @@ export class SkeletalController {
   private currentIdleClipId: string       = ''
   /** Most-recently-played idles, newest first. See IDLE_HISTORY. */
   private recentIdleIds:     string[]     = []
+  /**
+   * The character's gender presentation, when the product knows it. Used only to
+   * keep an explicitly-marked opposite-gender clip out of rotation — a male avatar
+   * playing `cc_feminine_head_up`. null/undefined means no bias at all.
+   */
+  private genderBias:        ClipGender | null = null
   private idlePoolTimer:     number       = 0
   private idlePoolInterval:  number       = 22
   private isInGesture:       boolean      = false
@@ -546,7 +553,12 @@ export class SkeletalController {
    *   4. Anything the pack itself presents as an idle (unmapped legacy packs).
    */
   private _pickNextIdle(): string {
-    const inPack = (ids: string[]) => ids.filter(id => !!this.dictionary.get(id))
+    // In the pack, and not explicitly marked for the other gender. Applied at every
+    // widening step so the bias survives a fallback — a male avatar should not end up
+    // in `cc_feminine_head_up` just because the manner-permitted pool was thin.
+    // Never applied to the LAST resort: resting in an off-gender pose beats freezing.
+    const inPack = (ids: string[]) =>
+      ids.filter(id => !!this.dictionary.get(id) && !isOffGenderClip(id, this.genderBias))
 
     const allowed = [
       ...(EMOTION_IDLE_MANNERS[this.currentEmotion] ?? []),
@@ -559,6 +571,13 @@ export class SkeletalController {
     }
     if (available.length === 0) {
       available = inPack(clipsForFunction(REST_FUNCTION, 'idle').map(c => c.id))
+    }
+    // Drop the gender bias before the legacy-pack fallback: a pack with only
+    // off-gender idles must still rest rather than stand frozen.
+    if (available.length === 0) {
+      available = clipsForFunction(REST_FUNCTION, 'idle')
+        .map(c => c.id)
+        .filter(id => !!this.dictionary.get(id))
     }
     // A legacy or unmapped pack contributes no registry `rest` clips. Fall back to
     // anything the pack itself presents as an idle, so such packs still rest
@@ -844,6 +863,20 @@ export class SkeletalController {
    * gestures according to what is being said. Kept as a no-op for the body so the
    * public API and its callers are unchanged.
    */
+  /**
+   * Bias clip selection toward a gender presentation.
+   *
+   * Only clips the author explicitly marked (`*_feminine_*` / `*_masculine_*` — 19 of
+   * 130) are affected; the other 111 suit anyone. Pass null for a non-binary
+   * character or when the product does not know, and nothing is filtered.
+   *
+   * Safe to call before or after init: it only changes which clips the NEXT idle roll
+   * considers.
+   */
+  setGenderBias(gender: ClipGender | null): void {
+    this.genderBias = gender
+  }
+
   onEmotionChange(emotion: EmotionId): void {
     this.currentEmotion = emotion
   }
