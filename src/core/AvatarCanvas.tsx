@@ -347,7 +347,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.5.48'
+const ENGINE_BUILD = '0.6.3'
 let lightingFingerprintLogged = false
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
@@ -1036,12 +1036,37 @@ function AvatarScene({
     // v0.5.14 — restore v0.5.11 hair behaviour (CC4 default BLEND + scalp darken).
     // No depthWrite override, no renderOrder change. User will avoid fringed
     // hairstyles so the eyebrow ordering issue is a non-issue.
+    //
+    // v0.6.3 — deterministic hair-over-brow render order.
+    // Some characters DO have a fringe over the brow ridge (e.g. Camilla), which
+    // brings back the ordering bug the v0.5.14 note waved off. CC4 exports hair
+    // and eyebrows as separate BLEND meshes (transparent, depthWrite=false), and
+    // three sorts the transparent pass back-to-front by each object's
+    // bounding-box centre. The hair mesh wraps the whole head, so its centre sits
+    // BEHIND the face — three treats it as "far" and draws it before the brows,
+    // so a fringe hanging in front of the brow ridge gets painted over by the
+    // eyebrows. Hence "eyebrows render on top of the hair" while hair correctly
+    // sits over skin/eyes (those are opaque and depth-cull hair behind them).
+    //
+    // Fix is render order ONLY — no material, alpha, colour or geometry change,
+    // so the hair looks identical: pin the hair mesh to a higher renderOrder than
+    // the brows so it always draws last within the transparent pass, regardless
+    // of the centre-distance sort. depthTest is untouched, so hair still hides
+    // behind opaque geometry it genuinely sits behind; this decides the winner
+    // only where hair and brows overlap.
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
       const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
+        // Order the hair mesh AFTER the eyebrow mesh in the transparent pass.
+        // Hair (strands + scalp base) draws on top; brows draw beneath it.
+        if (/hair|scalp/i.test(matName)) {
+          obj.renderOrder = 2
+        } else if (/brow/i.test(matName)) {
+          obj.renderOrder = 1
+        }
         if (/^Scalp_Transparency/i.test(matName)) {
           const mat = m as THREE.MeshStandardMaterial
           if (mat.color && !(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened) {
