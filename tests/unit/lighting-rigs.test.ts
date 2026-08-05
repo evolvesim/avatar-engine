@@ -58,9 +58,9 @@ describe('per-product lighting rigs', () => {
     const rig = LIGHTING_RIGS['evolve-sim']
 
     it('carries the dialled-in values', () => {
-      expect(rig.ambientIntensity).toBeCloseTo(0.37, 5)
-      expect(rig.keyIntensity).toBeCloseTo(1.50, 5)
-      expect(rig.fillIntensity).toBeCloseTo(0.40, 5)
+      expect(rig.ambientIntensity).toBeCloseTo(0.54, 5)
+      expect(rig.keyIntensity).toBeCloseTo(1.55, 5)
+      expect(rig.fillIntensity).toBeCloseTo(0.68, 5)
       expect(rig.rimIntensity).toBeCloseTo(0.24, 5)
     })
 

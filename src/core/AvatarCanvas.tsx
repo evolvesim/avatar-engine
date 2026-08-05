@@ -347,8 +347,21 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.6.3'
+const ENGINE_BUILD = '0.6.6'
 let lightingFingerprintLogged = false
+
+/**
+ * Scalp-cap darkening (v0.6.6). The cap is a smooth dome under the hair, so when
+ * you see it through soft strands it reads as "bald scalp". Hair is left exactly as
+ * CC exported it (see the hair notes in the material pass), so instead of trying to
+ * make hair opaque we make what shows THROUGH it stop looking like scalp: multiply
+ * the cap down until it reads as shadow at the roots.
+ *
+ * Lower = darker cap, better hiding, but eventually a visible dark patch under
+ * light hair. Higher = closer to CC's own cap colour. 0.4 (v0.5.11–0.6.5) was too
+ * light and still read as a dome.
+ */
+const SCALP_DARKEN = 0.15
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
   const ref = useRef<THREE.RectAreaLight>(null)
@@ -401,10 +414,14 @@ export const LIGHTING_RIGS: Record<LightingProduct, {
   // Evolve Sim (B2B) — tuned on Kenji, a real CC5 character, in the playground.
   // Ambient well below main's 0.95 with the key carrying the frame: soft
   // directional rather than flat ambient.
+  // v0.6.6 — ambient/key/fill raised to read the face more clearly (the avatars
+  // were sitting too dark to judge). Rim intensity and the rim angle
+  // (RIM_AZIMUTH_DEFAULT -147, RIM_ELEVATION_DEFAULT -6) were already at the
+  // requested values and are unchanged.
   'evolve-sim': {
-    ambient: '#eef3f7', ambientIntensity: 0.37,
-    key:  '#fdfdff', keyIntensity:  1.50, keyPosition:  [2, 4, 3],
-    fill: '#dde4ea', fillIntensity: 0.40, fillPosition: [-2, 2, -1],
+    ambient: '#eef3f7', ambientIntensity: 0.54,
+    key:  '#fdfdff', keyIntensity:  1.55, keyPosition:  [2, 4, 3],
+    fill: '#dde4ea', fillIntensity: 0.68, fillPosition: [-2, 2, -1],
     rim:  '#eaf2ff', rimIntensity:  0.24,
     followFace: true,
   },
@@ -1060,17 +1077,46 @@ function AvatarScene({
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
-        // Order the hair mesh AFTER the eyebrow mesh in the transparent pass.
-        // Hair (strands + scalp base) draws on top; brows draw beneath it.
-        if (/hair|scalp/i.test(matName)) {
+        // Transparent-pass draw order (v0.6.6):
+        //   brows (1) → scalp cap (2) → hair (3)
+        // Hair draws LAST, so it composites over both the brows (the v0.6.3 fringe
+        // fix) and the scalp cap. The cap must draw BEFORE the hair now that hair
+        // writes no depth again — if the cap drew last it would blend on top of the
+        // strands, which is the artefact this ordering exists to prevent.
+        if (/hair/i.test(matName) && !/scalp/i.test(matName)) {
+          obj.renderOrder = 3
+        } else if (/scalp/i.test(matName)) {
           obj.renderOrder = 2
         } else if (/brow/i.test(matName)) {
           obj.renderOrder = 1
         }
-        if (/^Scalp_Transparency/i.test(matName)) {
+        // Hair transparency — why hair is left ALONE here (v0.6.6).
+        //
+        // CC/Avaturn export hair as alpha-BLEND with depthWrite=false, so hair
+        // occludes nothing and the scalp cap shows through any strand that isn't
+        // near-solid. Two attempts to make the hair itself opaque both failed on
+        // looks, and they failed in opposite directions:
+        //
+        //   v0.6.4  alpha CUTOUT (transparent=false, alphaTest=0.5). Killed the
+        //           see-through, but binary keep/discard chops strand alpha that is
+        //           soft nearly everywhere — curly hair came out as spiky clumps.
+        //   v0.6.5  BLEND + depthWrite=true + a small alpha floor. Kept soft edges,
+        //           but once hair writes depth it occludes ITSELF: a voluminous
+        //           style loses its overlapping layers and reads thin and stringy.
+        //           Short dense styles were fine; big curly ones were much worse.
+        //
+        // Those two are the same trade seen from both ends, and a single pass cannot
+        // split them — alphaTest discards a fragment outright, so the threshold that
+        // controls depth also controls whether the strand is drawn at all.
+        //
+        // So: leave hair exactly as CC exported it (full soft layered look, nothing
+        // to regress) and fix what is actually objectionable — not that hair is
+        // see-through, but that the thing seen through it looks like a bald dome.
+        // SCALP_DARKEN below takes the cap down to read as root shadow instead.
+        if (/scalp/i.test(matName)) {
           const mat = m as THREE.MeshStandardMaterial
           if (mat.color && !(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened) {
-            mat.color.multiplyScalar(0.4)
+            mat.color.multiplyScalar(SCALP_DARKEN)
             ;(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened = true
             mat.needsUpdate = true
           }
