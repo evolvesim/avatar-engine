@@ -347,8 +347,19 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.6.3'
+const ENGINE_BUILD = '0.6.5'
 let lightingFingerprintLogged = false
+
+/**
+ * Alpha floor for hair (v0.6.5). Hair stays alpha-BLENDED — soft strand edges are
+ * what makes hair read as hair — but it now writes depth, so the scalp cap behind
+ * it is culled instead of showing through. Fragments below this alpha are discarded
+ * outright so near-invisible texels can't write depth and punch invisible holes in
+ * whatever is behind them. Keep this LOW: it is a "is this texel essentially
+ * nothing" floor, NOT a keep/discard cutout (v0.6.4 tried 0.5 as a cutout and
+ * chopped curly hair into spiky clumps).
+ */
+const HAIR_ALPHA_FLOOR = 0.15
 
 function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: number; focusY: number }) {
   const ref = useRef<THREE.RectAreaLight>(null)
@@ -1060,12 +1071,48 @@ function AvatarScene({
       for (const m of materials) {
         if (!m) continue
         const matName = m.name ?? ''
-        // Order the hair mesh AFTER the eyebrow mesh in the transparent pass.
-        // Hair (strands + scalp base) draws on top; brows draw beneath it.
-        if (/hair|scalp/i.test(matName)) {
+        // Transparent-pass draw order (v0.6.5 refines the v0.6.3 ordering):
+        //   brows (1) → hair (2) → scalp cap (3)
+        // Brows before hair keeps the v0.6.3 fringe fix. Hair before the scalp cap
+        // is what makes the depth-write below work: the hair lays down depth first,
+        // so the scalp cap drawn afterwards is depth-culled wherever hair covers it
+        // and can never show through as a smooth bald dome.
+        if (/scalp/i.test(matName)) {
+          obj.renderOrder = 3
+        } else if (/hair/i.test(matName)) {
           obj.renderOrder = 2
         } else if (/brow/i.test(matName)) {
           obj.renderOrder = 1
+        }
+        // v0.6.5 — soft hair that still occludes the scalp.
+        //
+        // The problem: CC/Avaturn hair is alpha-BLEND with depthWrite=false, so it
+        // occludes nothing and you see the smooth scalp cap through any strand whose
+        // alpha isn't near-solid. Dense-alpha hairstyles look fine; wispy/curly ones
+        // look see-through.
+        //
+        // v0.6.4 tried the textbook answer — an alpha CUTOUT (transparent=false,
+        // alphaTest=0.5). It did kill the see-through, but binary keep/discard chops
+        // curly hair mid-strand and renders it as spiky clumps. Rejected on looks.
+        //
+        // This is the other half of that trade: keep the BLEND exactly as CC exported
+        // it — soft, feathered strand edges, identical shading — but turn depthWrite
+        // ON so hair still lays down depth and the scalp cap behind it is culled
+        // (see the renderOrder block above). A small alpha FLOOR discards only
+        // essentially-invisible texels, so they can't write depth and punch invisible
+        // holes in what's behind them. That floor is the one thing v0.5.5 was missing
+        // when it noted "force depthWrite=true"; v0.5.14 then reverted the whole idea
+        // because it broke eyebrow ordering — which v0.6.3 has since fixed
+        // deterministically, so the original blocker is gone.
+        if (/hair/i.test(matName) && !/scalp/i.test(matName)) {
+          const mat = m as THREE.Material & { __hairSoftOccluder?: boolean }
+          if (!mat.__hairSoftOccluder) {
+            mat.transparent = true
+            mat.depthWrite = true
+            mat.alphaTest = HAIR_ALPHA_FLOOR
+            mat.__hairSoftOccluder = true
+            mat.needsUpdate = true
+          }
         }
         if (/^Scalp_Transparency/i.test(matName)) {
           const mat = m as THREE.MeshStandardMaterial
