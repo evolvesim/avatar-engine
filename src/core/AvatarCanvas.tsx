@@ -416,17 +416,6 @@ function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: 
  */
 export const LIGHTING_RIGS: Record<LightingProduct, {
   ambient: string; ambientIntensity: number
-  /**
-   * When set, the ambient term is a HemisphereLight instead of a flat
-   * ambientLight: sky = `ambient` at full intensity, ground = `ambient` scaled
-   * by this ratio. Downward-facing surfaces — nostril interiors, the roof of
-   * the mouth, under the chin — then receive only this fraction of the ambient
-   * term, which is the cheap fix for "the inside of the nose/mouth is lit like
-   * the cheeks" (flat ambient is non-directional so it lights cavities at full
-   * strength; no shadow map can help because ambient casts none). Omit for the
-   * classic flat ambient (ACTS/RPG rigs untouched).
-   */
-  ambientGroundRatio?: number
   key: string; keyIntensity: number; keyPosition: [number, number, number]
   fill: string; fillIntensity: number; fillPosition: [number, number, number]
   rim: string; rimIntensity: number
@@ -439,12 +428,14 @@ export const LIGHTING_RIGS: Record<LightingProduct, {
   // were sitting too dark to judge). Rim intensity and the rim angle
   // (RIM_AZIMUTH_DEFAULT -147, RIM_ELEVATION_DEFAULT -6) were already at the
   // requested values and are unchanged.
-  // v0.6.7 — ambient becomes hemispheric so nostrils and the mouth interior
-  // fall into shadow naturally. Intensity/colour unchanged. Ground ratio 0.15:
-  // the first attempt (0.3) still left nostril interiors reading lighter than
-  // the surrounding skin.
+  // v0.6.7 — do NOT touch the FACE lighting to fix mouth/nostril brightness:
+  // a hemispheric ambient, a raised rim, and a downward-occlusion skin shader
+  // were all tried and all reverted — the face read worse and the nostril
+  // brightness never moved (it is baked into the head albedo, not a lighting
+  // artefact). The mouth interior is handled entirely inside the teeth/tongue
+  // materials (see the cavity shading in attachMouthInteriorAO).
   'evolve-sim': {
-    ambient: '#eef3f7', ambientIntensity: 0.54, ambientGroundRatio: 0.15,
+    ambient: '#eef3f7', ambientIntensity: 0.54,
     key:  '#fdfdff', keyIntensity:  1.55, keyPosition:  [2, 4, 3],
     fill: '#dde4ea', fillIntensity: 0.68, fillPosition: [-2, 2, -1],
     rim:  '#eaf2ff', rimIntensity:  0.24,
@@ -532,15 +523,12 @@ export interface LightingOverrides {
 // Rim placement. Defaults reproduce the previous hard-coded [-1.5, 2.5, -3]
 // exactly (verified by round-trip), so this is a pure refactor until overridden.
 const RIM_RADIUS            = 4.18
-// v0.5.43 — dialled in on a CC5 character. Elevation was NEGATIVE (-6): behind
-// and slightly below the face, skimming the jaw and neck.
-// v0.6.7 — raised to +4. Meshes cast no shadows, so a below-horizon light
-// shines THROUGH the head and up-lights every downward-facing cavity surface —
-// nostril interiors and the under-chin glowed brighter than the surrounding
-// skin. +4 keeps the low behind-the-jaw skim without the up-light. Tunable
-// live via lightingOverrides.rimElevation.
+// v0.5.43 — dialled in on a CC5 character. Elevation is NEGATIVE: the rim now
+// sits behind and slightly BELOW the face rather than above it, which skims the
+// jaw and neck instead of the top of the head. (v0.6.7 briefly raised this to
+// +4 chasing nostril brightness — reverted; see the note on the evolve-sim rig.)
 const RIM_AZIMUTH_DEFAULT   = -147
-const RIM_ELEVATION_DEFAULT = 4
+const RIM_ELEVATION_DEFAULT = -6
 
 function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
   const a = (azimuthDeg   * Math.PI) / 180
@@ -645,19 +633,8 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
       {/* ambient + directionals, no softbox and no environment map — main's
           arrangement, which is the one that read correctly. Positions come from
           the product's own rig; aimY is 0 unless that product opted into
-          face-relative aiming. Rigs with ambientGroundRatio swap the flat
-          ambient for a hemisphere so cavities (nostrils, mouth) sit in shadow. */}
-      {c.ambientGroundRatio != null ? (
-        <hemisphereLight
-          args={[
-            c.ambient,
-            new THREE.Color(c.ambient).multiplyScalar(c.ambientGroundRatio),
-            ambientI,
-          ]}
-        />
-      ) : (
-        <ambientLight color={c.ambient} intensity={ambientI} />
-      )}
+          face-relative aiming. */}
+      <ambientLight color={c.ambient} intensity={ambientI} />
       <AimedDirectionalLight
         color={c.key} intensity={keyI} focusY={aimY} castShadow
         position={[c.keyPosition[0], aimY + c.keyPosition[1], c.keyPosition[2]]}
@@ -872,30 +849,32 @@ function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): voi
 // the injected shader ZEROES the direct and indirect light terms and lights
 // the mouth interior deterministically —
 //
-//   brightness = albedo × MOUTH_CAVITY_LIGHT × gradient(front→back) × aperture
+//   brightness = albedo × MOUTH_CAVITY_LIGHT × gradient(front→back)
 //
 // with a small view-facing term for curvature. That is physically sane (a
 // mouth cavity is lit by diffuse bounce through the lip aperture, not by
 // studio lights) and makes the result rig- and preset-independent: front
-// teeth brightest, molars dark, everything darker as the mouth closes.
+// teeth lit, molars dark, always.
 //
-// APERTURE LINK: how much light enters a mouth is set by how open it is. The
-// gradient is scaled by the live jaw aperture each frame (uMouthAperture,
-// driven from the blended jawOpen weight in the render loop): closed ≈
-// everything at the back level, fully open ≈ the front-to-back gradient.
-// Teeth are dim in the slightly-open frames that dominate speech, and only
-// brighten — front first — on open vowels.
+// APERTURE LINK — deliberately WEAK (v0.6.7 final form). An earlier version
+// scaled the whole gradient by the jaw aperture (closed = everything at the
+// back level), which at the partial openings that dominate speech compressed
+// front and back to the same brightness — "all the teeth look the same". The
+// requirement is a gradient that ALWAYS reads: incisors lit, molars dark. So
+// the gradient itself is static, and the aperture only eases the front down a
+// little as the lips close (mix(0.6, 1.0, aperture) on the gradient's lit
+// end); the back stays at MOUTH_AO_BACK_* no matter what.
 /** Brightness the very back of the teeth arch falls to (1 = untouched). */
 const MOUTH_AO_BACK_TEETH  = 0.22
 /** Tongue root brightness — slightly higher; the tongue is already darker. */
 const MOUTH_AO_BACK_TONGUE = 0.30
 /**
- * Gradient bias. >1 pushes the falloff toward the back of the mouth. 1.1
- * starts the darkening just behind the incisors — with the aperture link the
- * front only reaches full brightness at a genuinely wide-open mouth, so the
- * gradient no longer needs to protect the front third.
+ * Gradient bias. >1 pushes the falloff toward the back of the mouth: the
+ * front teeth stay near full brightness and the darkening concentrates on
+ * the molar region, so the visible front arc still shows a clear falloff
+ * toward the canines.
  */
-const MOUTH_AO_CURVE = 1.1
+const MOUTH_AO_CURVE = 1.6
 /** jawOpen weight at which the mouth counts as fully open for lighting. */
 const MOUTH_APERTURE_FULL_JAW = 0.25
 /**
@@ -981,6 +960,15 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
       frontZ = zMin
       backZ  = zMax
     }
+    // One line per mouth material so a flat/misdirected gradient can be
+    // diagnosed from a console paste (extents reveal a wrong depth axis;
+    // spreads reveal a wrong front detection).
+    console.info(
+      `[AvatarCanvas] mouth AO '${mat.name || mesh.name}': ` +
+      `z ${zMin.toFixed(4)}..${zMax.toFixed(4)} x ${xMin.toFixed(4)}..${xMax.toFixed(4)} ` +
+      `spread@zMin ${spreadAtMin.toFixed(4)} spread@zMax ${spreadAtMax.toFixed(4)} ` +
+      `front at ${frontZ === zMax ? '+Z' : '-Z'}`,
+    )
   }
 
   mat.onBeforeCompile = (shader) => {
@@ -1027,8 +1015,10 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
         `#include <begin_vertex>
          {
            float tFront = clamp( ( position.z - uMouthZMin ) / ( uMouthZMax - uMouthZMin ), 0.0, 1.0 );
-           float graded = mix( uMouthAoBack, 1.0, pow( tFront, uMouthAoCurve ) );
-           vMouthAo = mix( uMouthAoBack, graded, uMouthAperture );
+           // Static front-to-back falloff; aperture only eases the LIT end
+           // down slightly as the mouth closes. The back never brightens.
+           float lit = pow( tFront, uMouthAoCurve ) * mix( 0.6, 1.0, uMouthAperture );
+           vMouthAo = mix( uMouthAoBack, 1.0, lit );
          }`,
       )
     shader.fragmentShader = shader.fragmentShader
@@ -1056,77 +1046,7 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
       )
   }
   // Distinct cache key so these programs never collide with un-patched materials.
-  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v3'
-  mat.needsUpdate = true
-}
-
-// ── Downward-cavity occlusion (nostrils) ─────────────────────────────────────
-//
-// Nostril interiors kept reading brighter than the surrounding skin no matter
-// how the lights were arranged, because with no shadow maps SOME term always
-// leaks into them (a light below the horizon shines through the head; flat
-// ambient is non-directional; sheen brightens grazing angles). Rather than
-// keep chasing light placement, shade the skin itself: scale the material's
-// total light response down for strongly DOWNWARD-facing surfaces — nostril
-// roofs point almost straight down, which almost nothing else on a face does
-// (pow(−n.y, 2) keeps mildly down-tilted areas like the underside of the nose
-// and chin nearly untouched). This is directional ambient occlusion in one
-// line of shader — no per-character textures, works on CC and Avaturn alike.
-/** Light multiplier for a surface facing straight down (nostril roof). */
-const DOWN_OCC_FLOOR = 0.3
-
-function attachDownOcclusion(mat: THREE.Material): void {
-  const flagged = mat as THREE.Material & { __downOcc?: boolean }
-  if (flagged.__downOcc) return
-  flagged.__downOcc = true
-  // Head skin materials already carry the detail-normal injection — chain, not
-  // replace, so both survive on one shader.
-  const prevOnBeforeCompile = mat.onBeforeCompile
-  const prevCacheKey = mat.customProgramCacheKey?.bind(mat)
-  mat.onBeforeCompile = (shader, renderer) => {
-    prevOnBeforeCompile?.call(mat, shader, renderer)
-    shader.uniforms.uDownOccFloor = { value: DOWN_OCC_FLOOR }
-    if (!shader.fragmentShader.includes('#include <lights_fragment_end>')) {
-      console.warn(
-        '[AvatarCanvas] down-occlusion: <lights_fragment_end> chunk not found — ' +
-        'three.js shader layout changed; nostril shading is inactive.',
-      )
-      return
-    }
-    // Sheen accumulates in its own variables, renamed across three versions —
-    // scale whichever set this build declares (it feeds outgoingLight
-    // separately from reflectedLight, and grazing-angle sheen is one of the
-    // nostril-glow contributors on CC skin).
-    const sheenLines = shader.fragmentShader.includes('sheenSpecularDirect')
-      ? `sheenSpecularDirect *= downOcc;
-         sheenSpecularIndirect *= downOcc;`
-      : shader.fragmentShader.includes('sheenSpecular')
-        ? 'sheenSpecular *= downOcc;'
-        : ''
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-         uniform float uDownOccFloor;`,
-      )
-      .replace(
-        '#include <lights_fragment_end>',
-        `#include <lights_fragment_end>
-         {
-           vec3 dOccWorldN = inverseTransformDirection( normal, viewMatrix );
-           float downAmt = pow( saturate( -dOccWorldN.y ), 2.0 );
-           float downOcc = mix( 1.0, uDownOccFloor, downAmt );
-           reflectedLight.directDiffuse    *= downOcc;
-           reflectedLight.directSpecular   *= downOcc;
-           reflectedLight.indirectDiffuse  *= downOcc;
-           reflectedLight.indirectSpecular *= downOcc;
-           #ifdef USE_SHEEN
-           ${sheenLines}
-           #endif
-         }`,
-      )
-  }
-  mat.customProgramCacheKey = () => `${prevCacheKey?.() ?? ''}|evolve-down-occ-v1`
+  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v4'
   mat.needsUpdate = true
 }
 
@@ -1584,24 +1504,6 @@ function AvatarScene({
             }
           }
         }
-      }
-    })
-
-    // Second material pass: nostril / downward-cavity occlusion on head skin.
-    // Runs AFTER the main pass because the skin-lifelike upgrade above may have
-    // REPLACED the material object (standard → physical); this pass must patch
-    // the final material. Matches the head skin on both rig families
-    // (CC: Std_Skin_Head, Avaturn donor: "Head") and skips hair-card materials
-    // that merely contain "head" in a name alongside hair/brow/lash/scalp.
-    scene.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
-      for (const m of mats) {
-        if (!m) continue
-        const name = m.name ?? ''
-        if (!/head/i.test(name)) continue
-        if (/hair|brow|lash|scalp|bang/i.test(name)) continue
-        attachDownOcclusion(m)
       }
     })
 
