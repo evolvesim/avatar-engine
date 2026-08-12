@@ -186,7 +186,12 @@ const JAW_DIPH = 0.25
 //   default vowels  : standard 0.6 (set in buildVisemeTargets)
 //   open vowel aa   : slightly eased so the mouth shape comes from jaw, not a
 //                     permanently stretched viseme_aa morph.
-const PRIMARY_PLOSIVE = 0.85
+// v0.6.7 — plosive eased 0.85 → 0.72. The full-strength seal was authored
+// when the mouth never relaxed between words, so a bilabial only ever flashed
+// for one frame before the next shape replaced it. Now that word-final P/B/M
+// actually HOLDS (silence relax / next-word gap), the overdriven stack read
+// as the bottom lip climbing over the top lip on both rig families.
+const PRIMARY_PLOSIVE = 0.72
 const PRIMARY_ROUNDED = 0.95
 const PRIMARY_OPEN_VOWEL = 0.52
 
@@ -261,12 +266,16 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   20: { support: {}, jaw: JAW_CONS, hold: 'consonant' },
 
   // ── 21 p b m — bilabial closure: lips meet firmly, jaw closed ────────────────
-  // The Oculus viseme_PP morph alone reads as a soft pout on Avaturn rigs. Layer
-  // a strong mouthClose + lip roll + bilateral press and drive the primary morph
-  // hard so the closure is unmistakable. jaw stays 0 (lips sealed). The fast
-  // attack lerp in the render loop snaps this closed quickly; the fast release
-  // (consonant hold) lets it part cleanly into the following vowel.
-  21: { support: { mouthClose: 0.45, mouthRollLower: 0.18, mouthRollUpper: 0.14, mouthPressLeft: 0.16, mouthPressRight: 0.16 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
+  // The Oculus viseme_PP morph alone reads as a soft pout on Avaturn rigs, so a
+  // mouthClose + lip roll + bilateral press are layered on top. jaw stays 0
+  // (lips sealed). The fast attack lerp in the render loop snaps this closed
+  // quickly; the fast release (closure hold) lets it part cleanly.
+  // v0.6.7 — the whole stack eased (mouthClose 0.45 → 0.28, rolls 0.18/0.14 →
+  // 0.10/0.06, press 0.16 → 0.12, primary 0.85 → 0.72): at full strength a
+  // HELD word-final P/M pushed the bottom lip up OVER the top lip. The old
+  // values predate the between-word relax, when a bilabial never lingered
+  // long enough to see the overshoot.
+  21: { support: { mouthClose: 0.28, mouthRollLower: 0.10, mouthRollUpper: 0.06, mouthPressLeft: 0.12, mouthPressRight: 0.12 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
 }
 
 /**

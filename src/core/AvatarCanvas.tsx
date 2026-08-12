@@ -868,6 +868,13 @@ function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): voi
 const MOUTH_AO_BACK_TEETH  = 0.22
 /** Tongue root brightness — slightly higher; the tongue is already darker. */
 const MOUTH_AO_BACK_TONGUE = 0.30
+// CC (Std_*) mouths run darker at the back than the Avaturn donor rig:
+// approved on Avaturn at 0.22/0.30, while the CC5 molars still read too
+// bright at those levels (different teeth albedo/geometry). Rig-specific
+// back levels, selected by the material-name convention (CC exports prefix
+// mouth materials with Std_; the donor rig's are plain "Teeth").
+const MOUTH_AO_BACK_TEETH_CC  = 0.14
+const MOUTH_AO_BACK_TONGUE_CC = 0.22
 /**
  * Gradient bias. >1 pushes the falloff toward the back of the mouth: the
  * front teeth stay near full brightness and the darkening concentrates on
@@ -1408,7 +1415,11 @@ function AvatarScene({
           if (isTeeth || isTongue) {
             const flagged = m as MouthAoMaterial
             if (!flagged.__mouthAo) {
-              attachMouthInteriorAO(obj, m, isTongue ? MOUTH_AO_BACK_TONGUE : MOUTH_AO_BACK_TEETH)
+              const isCCMouth = /^std_/i.test(matName)
+              const backLevel = isTongue
+                ? (isCCMouth ? MOUTH_AO_BACK_TONGUE_CC : MOUTH_AO_BACK_TONGUE)
+                : (isCCMouth ? MOUTH_AO_BACK_TEETH_CC : MOUTH_AO_BACK_TEETH)
+              attachMouthInteriorAO(obj, m, backLevel)
               flagged.__mouthAo = true
             }
             // Register with THIS mount's aperture drive. Registration must not

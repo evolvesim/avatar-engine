@@ -237,11 +237,17 @@ describe('buildVisemeTargets', () => {
     expect(hasClosure).toBe(true)
   })
 
-  it('bilabial p/b/m (id 21) drives a STRONG, visible lip seal', () => {
+  it('bilabial p/b/m (id 21) drives a visible but bounded lip seal', () => {
     const { weights } = buildVisemeTargets(21, 0.6)
-    expect(weights['mouthClose']).toBeGreaterThanOrEqual(0.4)
+    // Strong enough to read as a real closure…
+    expect(weights['mouthClose']).toBeGreaterThanOrEqual(0.2)
     expect(weights['viseme_PP']).toBeGreaterThan(0.6)
     expect(weights['mouthRollLower'] ?? 0).toBeGreaterThan(0)
+    // …but bounded: at full strength a HELD word-final P/M pushed the bottom
+    // lip over the top lip (regression guard for the v0.6.7 easing).
+    expect(weights['mouthClose']).toBeLessThanOrEqual(0.3)
+    expect(weights['mouthRollLower']).toBeLessThanOrEqual(0.12)
+    expect(weights['viseme_PP']).toBeLessThanOrEqual(0.75)
   })
 
   // ── F/V (id 18): lower-lip shaping ──────────────────────────────────────────
