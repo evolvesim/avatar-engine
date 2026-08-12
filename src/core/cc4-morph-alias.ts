@@ -137,14 +137,21 @@ export const ARKIT_TO_CC4: Readonly<Record<string, string>> = {
  * write a single scalar that CC4 splits into L+R shapes. This helper returns
  * BOTH the L and R names for a given ARKit key so the same value is applied
  * to each side, keeping the face symmetric.
+ *
+ * Funnel/pucker also list the UNIFIED CC names (v0.6.7): CC5 Headshot exports
+ * frequently ship `Mouth_Pucker` / `Mouth_Funnel` instead of the four-way
+ * Up/Down split, and with only the split names here the rounding supports
+ * silently no-opped on those rigs — O/U never puckered. resolveMorphIndices
+ * writes every name that exists, so rigs carrying both get the same value on
+ * each (consistent), and rigs with neither still fall through harmlessly.
  */
 export const ARKIT_TO_CC4_PAIRS: Readonly<Record<string, readonly string[]>> = {
   browInnerUp:     ['Brow_Raise_Inner_L', 'Brow_Raise_Inner_R'],
   cheekPuff:       ['Cheek_Puff_L', 'Cheek_Puff_R'],
-  mouthFunnel:     ['Mouth_Funnel_Up_L', 'Mouth_Funnel_Up_R', 'Mouth_Funnel_Down_L', 'Mouth_Funnel_Down_R'],
-  mouthPucker:     ['Mouth_Pucker_Up_L', 'Mouth_Pucker_Up_R', 'Mouth_Pucker_Down_L', 'Mouth_Pucker_Down_R'],
-  mouthRollLower:  ['Mouth_Roll_In_Lower_L', 'Mouth_Roll_In_Lower_R'],
-  mouthRollUpper:  ['Mouth_Roll_In_Upper_L', 'Mouth_Roll_In_Upper_R'],
+  mouthFunnel:     ['Mouth_Funnel_Up_L', 'Mouth_Funnel_Up_R', 'Mouth_Funnel_Down_L', 'Mouth_Funnel_Down_R', 'Mouth_Funnel'],
+  mouthPucker:     ['Mouth_Pucker_Up_L', 'Mouth_Pucker_Up_R', 'Mouth_Pucker_Down_L', 'Mouth_Pucker_Down_R', 'Mouth_Pucker'],
+  mouthRollLower:  ['Mouth_Roll_In_Lower_L', 'Mouth_Roll_In_Lower_R', 'Mouth_Roll_Lower'],
+  mouthRollUpper:  ['Mouth_Roll_In_Upper_L', 'Mouth_Roll_In_Upper_R', 'Mouth_Roll_Upper'],
   // "eyeBlink" (unified) — some code paths write a single value expecting
   // both eyes to close together. Left+Right individual keys are still
   // preferred where available.

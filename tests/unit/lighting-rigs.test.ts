@@ -73,5 +73,17 @@ describe('per-product lighting rigs', () => {
         .map(([, v]) => v.followFace)
       expect(others).toEqual([false, false])
     })
+
+    it('is the only product with hemispheric ambient (nostril/mouth shadowing)', () => {
+      // Ground ratio < 1 means downward-facing surfaces (nostril interiors,
+      // roof of the mouth) receive a fraction of the ambient term instead of
+      // being lit like the cheeks. ACTS/RPG keep classic flat ambient.
+      expect(rig.ambientGroundRatio).toBeGreaterThan(0)
+      expect(rig.ambientGroundRatio).toBeLessThan(1)
+      const others = Object.entries(LIGHTING_RIGS)
+        .filter(([k]) => k !== 'evolve-sim')
+        .map(([, v]) => v.ambientGroundRatio)
+      expect(others).toEqual([undefined, undefined])
+    })
   })
 })

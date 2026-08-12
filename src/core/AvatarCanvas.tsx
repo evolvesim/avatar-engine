@@ -416,6 +416,17 @@ function SoftKeyLight({ color, intensity, focusY }: { color: string; intensity: 
  */
 export const LIGHTING_RIGS: Record<LightingProduct, {
   ambient: string; ambientIntensity: number
+  /**
+   * When set, the ambient term is a HemisphereLight instead of a flat
+   * ambientLight: sky = `ambient` at full intensity, ground = `ambient` scaled
+   * by this ratio. Downward-facing surfaces — nostril interiors, the roof of
+   * the mouth, under the chin — then receive only this fraction of the ambient
+   * term, which is the cheap fix for "the inside of the nose/mouth is lit like
+   * the cheeks" (flat ambient is non-directional so it lights cavities at full
+   * strength; no shadow map can help because ambient casts none). Omit for the
+   * classic flat ambient (ACTS/RPG rigs untouched).
+   */
+  ambientGroundRatio?: number
   key: string; keyIntensity: number; keyPosition: [number, number, number]
   fill: string; fillIntensity: number; fillPosition: [number, number, number]
   rim: string; rimIntensity: number
@@ -428,8 +439,10 @@ export const LIGHTING_RIGS: Record<LightingProduct, {
   // were sitting too dark to judge). Rim intensity and the rim angle
   // (RIM_AZIMUTH_DEFAULT -147, RIM_ELEVATION_DEFAULT -6) were already at the
   // requested values and are unchanged.
+  // v0.6.7 — ambient becomes hemispheric (ground 0.3×) so nostrils and the
+  // mouth interior fall into shadow naturally. Intensity/colour unchanged.
   'evolve-sim': {
-    ambient: '#eef3f7', ambientIntensity: 0.54,
+    ambient: '#eef3f7', ambientIntensity: 0.54, ambientGroundRatio: 0.3,
     key:  '#fdfdff', keyIntensity:  1.55, keyPosition:  [2, 4, 3],
     fill: '#dde4ea', fillIntensity: 0.68, fillPosition: [-2, 2, -1],
     rim:  '#eaf2ff', rimIntensity:  0.24,
@@ -626,8 +639,19 @@ function Lighting({ preset, overrides, focusY }: { preset: LightingPreset; overr
       {/* ambient + directionals, no softbox and no environment map — main's
           arrangement, which is the one that read correctly. Positions come from
           the product's own rig; aimY is 0 unless that product opted into
-          face-relative aiming. */}
-      <ambientLight color={c.ambient} intensity={ambientI} />
+          face-relative aiming. Rigs with ambientGroundRatio swap the flat
+          ambient for a hemisphere so cavities (nostrils, mouth) sit in shadow. */}
+      {c.ambientGroundRatio != null ? (
+        <hemisphereLight
+          args={[
+            c.ambient,
+            new THREE.Color(c.ambient).multiplyScalar(c.ambientGroundRatio),
+            ambientI,
+          ]}
+        />
+      ) : (
+        <ambientLight color={c.ambient} intensity={ambientI} />
+      )}
       <AimedDirectionalLight
         color={c.key} intensity={keyI} focusY={aimY} castShadow
         position={[c.keyPosition[0], aimY + c.keyPosition[1], c.keyPosition[2]]}
@@ -656,22 +680,21 @@ const mergedBodies = new WeakSet<object>()
 const CAMERA_TARGET_Y = 0.1
 
 // CC4 bone-assisted jaw: radians of jaw-bone pitch per unit of `jawOpen` weight.
-// jawOpen peaks at ~0.27 for open vowels (v0.6.7 jaw tiers), so the bone
-// contributes ~7° of chin drop at full open — a natural speech jaw excursion
-// on top of the Jaw_Open morph, well short of a yawn.
-// v0.6.7 — 0.52 → 0.46. Morph-jaw + bone-jaw MULTIPLY on CC rigs, so the first
-// cut (0.40 alongside JAW_AA 0.30 → 0.24) collapsed peak chin travel to ~60%
-// of the original and CC5 mouths read as barely moving. 0.46 × 0.27 keeps
-// ~80% of the original excursion — open enough to be lively, closed enough
-// that the molar rows stay out of view.
-const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.46
+// jawOpen peaks at ~0.30 for open vowels, so the bone contributes ~9° of chin
+// drop at full open — a natural speech jaw excursion on top of the Jaw_Open
+// morph, well short of a yawn.
+// v0.6.7 briefly damped this (0.40, then 0.46) to hide the molars; testing
+// showed the mouth must move at full strength and teeth visibility is a
+// SHADING problem (see the mouth-interior AO + aperture dimming below), so
+// this is back at its original value. Do not quiet the jaw to hide teeth.
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
 
 // How hard the primary Oculus `viseme_*` morph is driven by the drain loop
 // (scaled per-viseme by primaryScale overrides, and per-product by the
-// `articulationIntensity` prop). v0.6.7 — 0.78 → 0.58: with no per-event
-// intensity signal in the viseme stream, every phoneme fired at 0.78 held the
-// lips at full extension for entire sentences.
-const VISEME_PRIMARY_SCALE = 0.58
+// `articulationIntensity` prop). Original full-articulation value — v0.6.7
+// briefly cut it to 0.58 to hide the teeth, which just made the mouth read as
+// barely moving. Teeth visibility is handled by shading, not smaller motion.
+const VISEME_PRIMARY_SCALE = 0.78
 
 // ── Procedural skin detail (v0.5.36) ──────────────────────────────────────────
 //
@@ -834,16 +857,36 @@ function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): voi
 // The multiply lands on diffuseColor (albedo), before lighting — so the
 // gradient shades correctly under every rig/preset and reads as occlusion
 // rather than a painted-on tint.
+//
+// APERTURE LINK (v0.6.7 second pass): the gradient alone left the front teeth
+// at full brightness whenever they were visible, and a slightly-parted mouth
+// with bright teeth is exactly the complaint. Physically, how much light gets
+// into a mouth is set by how open it is: nearly closed → almost none reaches
+// even the incisors; wide open → the front of the mouth catches real light
+// while the molars stay in shadow. So the whole gradient is scaled by the live
+// jaw aperture each frame (uMouthAperture, driven from the blended jawOpen
+// weight in the render loop): closed ≈ everything at the back level, fully
+// open ≈ the front-to-back gradient. Teeth are dim in the slightly-open frames
+// that dominate speech, and only brighten — front first — on open vowels.
 /** Brightness the very back of the teeth arch falls to (1 = untouched). */
-const MOUTH_AO_BACK_TEETH  = 0.25
+const MOUTH_AO_BACK_TEETH  = 0.22
 /** Tongue root brightness — slightly higher; the tongue is already darker. */
-const MOUTH_AO_BACK_TONGUE = 0.32
+const MOUTH_AO_BACK_TONGUE = 0.30
 /**
- * Gradient bias. >1 pushes the falloff toward the back of the mouth: the
- * front third stays near full brightness (incisors/tongue tip look natural)
- * and the darkening concentrates on the molar region.
+ * Gradient bias. >1 pushes the falloff toward the back of the mouth. 1.1
+ * starts the darkening just behind the incisors — with the aperture link the
+ * front only reaches full brightness at a genuinely wide-open mouth, so the
+ * gradient no longer needs to protect the front third.
  */
-const MOUTH_AO_CURVE = 1.6
+const MOUTH_AO_CURVE = 1.1
+/** jawOpen weight at which the mouth counts as fully open for lighting. */
+const MOUTH_APERTURE_FULL_JAW = 0.25
+
+/** Per-material handle for the live aperture uniform (set in onBeforeCompile). */
+interface MouthAoMaterial extends THREE.Material {
+  __mouthAo?: boolean
+  __mouthAoUniforms?: { uMouthAperture: { value: number } }
+}
 
 function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel: number): void {
   const geom = mesh.geometry
@@ -859,10 +902,13 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
   if (!(zMax - zMin > 1e-6)) return
 
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uMouthZMin    = { value: zMin }
-    shader.uniforms.uMouthZMax    = { value: zMax }
-    shader.uniforms.uMouthAoBack  = { value: backLevel }
-    shader.uniforms.uMouthAoCurve = { value: MOUTH_AO_CURVE }
+    shader.uniforms.uMouthZMin     = { value: zMin }
+    shader.uniforms.uMouthZMax     = { value: zMax }
+    shader.uniforms.uMouthAoBack   = { value: backLevel }
+    shader.uniforms.uMouthAoCurve  = { value: MOUTH_AO_CURVE }
+    // Live jaw aperture, written per frame by the render loop (see useFrame).
+    // Starts closed → teeth dark until the mouth actually opens.
+    shader.uniforms.uMouthAperture = { value: 0 }
     // A missing chunk name would make .replace() a silent no-op. Fail loudly.
     if (!shader.vertexShader.includes('#include <begin_vertex>') ||
         !shader.fragmentShader.includes('#include <color_fragment>')) {
@@ -872,6 +918,12 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
       )
       return
     }
+    // Expose the uniform set on the material so the render loop can drive the
+    // aperture — onBeforeCompile fires once per material compile, and cached
+    // materials keep this closure across remounts, so the handle must live ON
+    // the material rather than in any per-mount registry.
+    ;(mat as MouthAoMaterial).__mouthAoUniforms =
+      shader.uniforms as unknown as { uMouthAperture: { value: number } }
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -880,6 +932,7 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
          uniform float uMouthZMax;
          uniform float uMouthAoBack;
          uniform float uMouthAoCurve;
+         uniform float uMouthAperture;
          varying float vMouthAo;`,
       )
       .replace(
@@ -887,7 +940,8 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
         `#include <begin_vertex>
          {
            float tFront = clamp( ( position.z - uMouthZMin ) / ( uMouthZMax - uMouthZMin ), 0.0, 1.0 );
-           vMouthAo = mix( uMouthAoBack, 1.0, pow( tFront, uMouthAoCurve ) );
+           float graded = mix( uMouthAoBack, 1.0, pow( tFront, uMouthAoCurve ) );
+           vMouthAo = mix( uMouthAoBack, graded, uMouthAperture );
          }`,
       )
     shader.fragmentShader = shader.fragmentShader
@@ -903,8 +957,17 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
       )
   }
   // Distinct cache key so these programs never collide with un-patched materials.
-  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v1'
+  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v2'
   mat.needsUpdate = true
+
+  // Teeth/tongue de-glint: a wet specular hotspot on a bright tooth reads as a
+  // flashlight in the mouth under the key light. Diffuse darkening alone can't
+  // remove it, so tame the specular response too (kept subtle — teeth still
+  // read wet, just not glowing).
+  const std = mat as THREE.MeshStandardMaterial & { specularIntensity?: number }
+  if ('roughness' in std) std.roughness = Math.max(std.roughness ?? 0.5, 0.55)
+  if ('metalness' in std) std.metalness = 0
+  if (typeof std.specularIntensity === 'number') std.specularIntensity = 0.2
 }
 
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
@@ -1033,6 +1096,10 @@ function AvatarScene({
   const meshRefs = useRef<Record<string, THREE.SkinnedMesh | null>>(
     Object.fromEntries(AVATURN_MESH_NAMES.map(n => [n, null]))
   )
+
+  // Teeth/tongue materials carrying the mouth-interior AO shader — the render
+  // loop drives their uMouthAperture uniform from the live jawOpen weight.
+  const mouthAoMats = useRef<MouthAoMaterial[]>([])
 
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
@@ -1195,6 +1262,9 @@ function AvatarScene({
     // of the centre-distance sort. depthTest is untouched, so hair still hides
     // behind opaque geometry it genuinely sits behind; this decides the winner
     // only where hair and brows overlap.
+    // Fresh registry per scene — an avatar swap must drop the old avatar's
+    // teeth/tongue materials from the aperture drive.
+    mouthAoMats.current = []
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return
       const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
@@ -1245,18 +1315,27 @@ function AvatarScene({
             mat.needsUpdate = true
           }
         }
-        // Mouth interior AO (v0.6.7) — graded front-to-back darkening on teeth
-        // and tongue so molars fall into shadow while incisors stay bright.
-        // Matches CC material names (Std_Upper_Teeth / Std_Lower_Teeth /
-        // Std_Tongue) and Avaturn mesh names (Teeth_Mesh / Tongue_Mesh).
+        // Mouth interior AO (v0.6.7) — aperture-scaled, front-to-back graded
+        // darkening on teeth and tongue so the mouth interior only catches
+        // light as the mouth actually opens, front first. Matches CC material
+        // names (Std_Upper_Teeth / Std_Lower_Teeth / Std_Tongue) and Avaturn
+        // mesh names (Teeth_Mesh / Tongue_Mesh — the donor rig's tongue
+        // material is literally named "Teeth", hence the mesh-name check).
         // See attachMouthInteriorAO for the mechanism.
         {
           const isTongue = /tongue/i.test(matName) || /tongue/i.test(obj.name)
           const isTeeth  = /teeth/i.test(matName)  || /teeth/i.test(obj.name)
-          const flagged = m as unknown as { __mouthAo?: boolean }
-          if ((isTeeth || isTongue) && !flagged.__mouthAo) {
-            attachMouthInteriorAO(obj, m, isTongue ? MOUTH_AO_BACK_TONGUE : MOUTH_AO_BACK_TEETH)
-            flagged.__mouthAo = true
+          if (isTeeth || isTongue) {
+            const flagged = m as MouthAoMaterial
+            if (!flagged.__mouthAo) {
+              attachMouthInteriorAO(obj, m, isTongue ? MOUTH_AO_BACK_TONGUE : MOUTH_AO_BACK_TEETH)
+              flagged.__mouthAo = true
+            }
+            // Register with THIS mount's aperture drive. Registration must not
+            // hide behind the __mouthAo flag: loader-cached materials arrive
+            // already patched on remounts, but each mount still needs the
+            // handle to drive the uniform.
+            if (!mouthAoMats.current.includes(flagged)) mouthAoMats.current.push(flagged)
           }
         }
         // Skin de-shine / lifelike pass (v0.5.31). CC skin
@@ -1739,6 +1818,20 @@ function AvatarScene({
       currentWeights.current,
       meshRefs.current as Record<string, THREE.SkinnedMesh | null>
     )
+
+    // ── 10e. Mouth-interior AO aperture ─────────────────────────────────
+    // Scale the teeth/tongue darkening by how open the mouth actually is this
+    // frame (blended jawOpen: visemes + emotion + FFT fallback all included).
+    // Closed → interior fully dark; wide open → the front-to-back gradient.
+    {
+      const aperture = THREE.MathUtils.clamp(
+        (currentWeights.current['jawOpen'] ?? 0) / MOUTH_APERTURE_FULL_JAW, 0, 1,
+      )
+      for (const aoMat of mouthAoMats.current) {
+        const uniforms = aoMat.__mouthAoUniforms
+        if (uniforms) uniforms.uMouthAperture.value = aperture
+      }
+    }
 
     // ── 11. Apply position offset + rotation every frame ─────────────────
     // Set scene.position every frame — R3F reconciler resets it to [0,0,0]
