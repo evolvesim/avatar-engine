@@ -166,15 +166,18 @@ export const SILENCE_REST_WEIGHT = 0.30
 // Jaw tiers:
 //   open vowel aa : high   medium-open E/I : medium   rounded O/U : low-rounded
 //   consonants    : low / closed
-// v0.6.7 — all tiers eased (JAW_AA 0.30 → 0.24). Combined with the CC4 jaw
-// BONE assist, 0.30 gaped wide enough to expose both molar rows to the camera;
-// 0.24 still reads as a clearly open vowel without showing the back teeth.
-const JAW_AA = 0.24
-const JAW_EI = 0.17
+// v0.6.7 — eased from JAW_AA 0.30. Combined with the CC4 jaw BONE assist, 0.30
+// gaped wide enough to expose both molar rows to the camera. The first cut
+// (0.24, bone 0.52 → 0.40) over-corrected on CC rigs — jaw morph and jaw bone
+// multiply, so cutting both dropped peak chin travel to ~60% and the mouth
+// read as barely moving. 0.27 with bone 0.46 lands at ~80% of the original
+// excursion: clearly open vowels, molars still out of view.
+const JAW_AA = 0.27
+const JAW_EI = 0.18
 const JAW_OU = 0.14
 const JAW_CONS = 0.05
 // Diphthong jaw (open→glide ids 9/11) — between JAW_AA and JAW_EI.
-const JAW_DIPH = 0.19
+const JAW_DIPH = 0.21
 
 // Primary-morph drive tiers:
 //   plosive closure : hard (lips must visibly seal)

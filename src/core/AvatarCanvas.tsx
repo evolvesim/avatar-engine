@@ -656,12 +656,15 @@ const mergedBodies = new WeakSet<object>()
 const CAMERA_TARGET_Y = 0.1
 
 // CC4 bone-assisted jaw: radians of jaw-bone pitch per unit of `jawOpen` weight.
-// jawOpen peaks at ~0.24 for open vowels (v0.6.7 jaw tiers), so the bone
-// contributes ~5.5° of chin drop at full open — a natural speech jaw excursion
+// jawOpen peaks at ~0.27 for open vowels (v0.6.7 jaw tiers), so the bone
+// contributes ~7° of chin drop at full open — a natural speech jaw excursion
 // on top of the Jaw_Open morph, well short of a yawn.
-// v0.6.7 — 0.52 → 0.40. Morph-jaw + bone-jaw stacked wide enough to show the
-// molar rows straight into the camera; this plus the JAW_AA ease closes that.
-const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.40
+// v0.6.7 — 0.52 → 0.46. Morph-jaw + bone-jaw MULTIPLY on CC rigs, so the first
+// cut (0.40 alongside JAW_AA 0.30 → 0.24) collapsed peak chin travel to ~60%
+// of the original and CC5 mouths read as barely moving. 0.46 × 0.27 keeps
+// ~80% of the original excursion — open enough to be lively, closed enough
+// that the molar rows stay out of view.
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.46
 
 // How hard the primary Oculus `viseme_*` morph is driven by the drain loop
 // (scaled per-viseme by primaryScale overrides, and per-product by the
@@ -1484,7 +1487,12 @@ function AvatarScene({
         targetW.current[k] = 0
       }
       if (id === 0) {
+        // viseme_sil carries the rest on CC rigs (aliases to Mouth_Close) but
+        // is a near-invisible neutral morph on Avaturn/RPM rigs — layer a
+        // half-strength mouthClose so the relax reads on those too. On CC both
+        // alias to Mouth_Close and the max-per-index rule keeps the stronger.
         targetW.current['viseme_sil'] = SILENCE_REST_WEIGHT
+        targetW.current['mouthClose'] = SILENCE_REST_WEIGHT * 0.5
         targetW.current['jawOpen'] = 0
         lastApplyAt.current = nowMs
         lastVisemeAt.current = now
