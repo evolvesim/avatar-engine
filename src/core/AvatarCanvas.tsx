@@ -680,14 +680,15 @@ const mergedBodies = new WeakSet<object>()
 const CAMERA_TARGET_Y = 0.1
 
 // CC4 bone-assisted jaw: radians of jaw-bone pitch per unit of `jawOpen` weight.
-// jawOpen peaks at ~0.30 for open vowels, so the bone contributes ~9° of chin
-// drop at full open — a natural speech jaw excursion on top of the Jaw_Open
-// morph, well short of a yawn.
+// jawOpen peaks at ~0.34 for open vowels, so the bone contributes ~12° of chin
+// drop at full open — a strong, clearly visible speech jaw, still short of a
+// yawn.
 // v0.6.7 briefly damped this (0.40, then 0.46) to hide the molars; testing
-// showed the mouth must move at full strength and teeth visibility is a
-// SHADING problem (see the mouth-interior AO + aperture dimming below), so
-// this is back at its original value. Do not quiet the jaw to hide teeth.
-const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
+// showed the mouth must move at full strength — then RAISED above the
+// historical 0.52 because the CC5 jaw read as under-travelling vertically.
+// Teeth visibility is a SHADING problem (see the aperture-linked mouth AO
+// below). Do not quiet the jaw to hide teeth.
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.62
 
 // How hard the primary Oculus `viseme_*` morph is driven by the drain loop
 // (scaled per-viseme by primaryScale overrides, and per-product by the
@@ -901,9 +902,42 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
   const zMax = bb.max.z
   if (!(zMax - zMin > 1e-6)) return
 
+  // Which Z end is the FRONT of the mouth? Exporters disagree on bind-space
+  // handedness — the Avaturn donor rig turned out to run the OPPOSITE way to
+  // CC exports, which inverted the gradient (bright molars, dark incisors).
+  // So never assume: let anatomy decide. A teeth arch and a tongue are both
+  // NARROW at the front (incisors / tip sit near the centreline) and WIDE at
+  // the back (molar rows / tongue root sit out at ±X). Measure the lateral
+  // spread of vertices near each Z extreme; the wider end is the back. If the
+  // detection cannot run, fall back to front-at-+Z (the CC convention).
+  let frontZ = zMax
+  let backZ  = zMin
+  const posAttr = geom.getAttribute('position') as THREE.BufferAttribute | undefined
+  if (posAttr) {
+    const centerX = (bb.min.x + bb.max.x) / 2
+    const band = (zMax - zMin) * 0.2
+    let spreadAtMin = 0
+    let spreadAtMax = 0
+    for (let i = 0; i < posAttr.count; i++) {
+      const z = posAttr.getZ(i)
+      const lateral = Math.abs(posAttr.getX(i) - centerX)
+      if (z < zMin + band) spreadAtMin = Math.max(spreadAtMin, lateral)
+      if (z > zMax - band) spreadAtMax = Math.max(spreadAtMax, lateral)
+    }
+    if (spreadAtMax > spreadAtMin) {
+      // The +Z end is the wide end — that's the back. Flip the gradient.
+      frontZ = zMin
+      backZ  = zMax
+    }
+  }
+
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uMouthZMin     = { value: zMin }
-    shader.uniforms.uMouthZMax     = { value: zMax }
+    // tFront in the shader is (z - uMouthZMin) / (uMouthZMax - uMouthZMin),
+    // clamped: with a flipped (descending) range the division sign flips too,
+    // so passing back as "min" and front as "max" reverses the gradient with
+    // no shader change.
+    shader.uniforms.uMouthZMin     = { value: backZ }
+    shader.uniforms.uMouthZMax     = { value: frontZ }
     shader.uniforms.uMouthAoBack   = { value: backLevel }
     shader.uniforms.uMouthAoCurve  = { value: MOUTH_AO_CURVE }
     // Live jaw aperture, written per frame by the render loop (see useFrame).
