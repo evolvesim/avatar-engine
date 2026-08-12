@@ -914,39 +914,68 @@ interface MouthAoMaterial extends THREE.Material {
 
 function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel: number): void {
   const geom = mesh.geometry
-  if (!geom.boundingBox) geom.computeBoundingBox()
-  const bb = geom.boundingBox
-  if (!bb) return
-  // Bind-pose Z extent of this mesh — the gradient domain. The raw `position`
-  // attribute is pre-skinning/pre-morph, so the gradient stays anchored to the
-  // tooth row while the jaw bone animates (lower teeth don't brighten as they
-  // drop).
-  const zMin = bb.min.z
-  const zMax = bb.max.z
+  const posAttr = geom.getAttribute('position') as THREE.BufferAttribute | undefined
+  if (!posAttr) return
+
+  // Measure ONLY the vertices this mesh/material actually draws. CC bodies
+  // export as ONE multi-primitive mesh sharing a single vertex buffer, so
+  // geometry.boundingBox (computed over the whole position attribute,
+  // index ignored) spans the ENTIRE BODY — the teeth "gradient" degenerated
+  // to a near-constant on CC5 characters, which is why the cavity shading
+  // only read on Avaturn (whose Teeth_Mesh owns a dedicated geometry).
+  // Walk the index buffer, restricted to this material's group ranges when
+  // the mesh is multi-material; fall back to all vertices when non-indexed.
+  const index = geom.index
+  const ranges: Array<[number, number]> = []
+  const mats = Array.isArray(mesh.material) ? mesh.material : null
+  if (mats && geom.groups.length > 0) {
+    const matIdx = mats.indexOf(mat)
+    for (const g of geom.groups) {
+      if (g.materialIndex === matIdx) ranges.push([g.start, g.start + g.count])
+    }
+  }
+  if (ranges.length === 0) ranges.push([0, index ? index.count : posAttr.count])
+
+  // First pass: bind-pose bounds of the drawn vertices. Raw `position` is
+  // pre-skinning/pre-morph, so the gradient stays anchored to the tooth row
+  // while the jaw animates (lower teeth don't brighten as they drop).
+  let zMin = Infinity, zMax = -Infinity, xMin = Infinity, xMax = -Infinity
+  const forEachDrawnVertex = (fn: (vi: number) => void) => {
+    for (const [start, end] of ranges) {
+      for (let i = start; i < end; i++) {
+        fn(index ? index.getX(i) : i)
+      }
+    }
+  }
+  forEachDrawnVertex((vi) => {
+    const z = posAttr.getZ(vi)
+    const x = posAttr.getX(vi)
+    if (z < zMin) zMin = z
+    if (z > zMax) zMax = z
+    if (x < xMin) xMin = x
+    if (x > xMax) xMax = x
+  })
   if (!(zMax - zMin > 1e-6)) return
 
   // Which Z end is the FRONT of the mouth? Exporters disagree on bind-space
-  // handedness — the Avaturn donor rig turned out to run the OPPOSITE way to
-  // CC exports, which inverted the gradient (bright molars, dark incisors).
-  // So never assume: let anatomy decide. A teeth arch and a tongue are both
-  // NARROW at the front (incisors / tip sit near the centreline) and WIDE at
-  // the back (molar rows / tongue root sit out at ±X). Measure the lateral
-  // spread of vertices near each Z extreme; the wider end is the back. If the
-  // detection cannot run, fall back to front-at-+Z (the CC convention).
+  // handedness, so never assume: let anatomy decide. A teeth arch and a
+  // tongue are both NARROW at the front (incisors / tip sit near the
+  // centreline) and WIDE at the back (molar rows / tongue root sit out at
+  // ±X). Measure the lateral spread of drawn vertices near each Z extreme;
+  // the wider end is the back.
   let frontZ = zMax
   let backZ  = zMin
-  const posAttr = geom.getAttribute('position') as THREE.BufferAttribute | undefined
-  if (posAttr) {
-    const centerX = (bb.min.x + bb.max.x) / 2
+  {
+    const centerX = (xMin + xMax) / 2
     const band = (zMax - zMin) * 0.2
     let spreadAtMin = 0
     let spreadAtMax = 0
-    for (let i = 0; i < posAttr.count; i++) {
-      const z = posAttr.getZ(i)
-      const lateral = Math.abs(posAttr.getX(i) - centerX)
+    forEachDrawnVertex((vi) => {
+      const z = posAttr.getZ(vi)
+      const lateral = Math.abs(posAttr.getX(vi) - centerX)
       if (z < zMin + band) spreadAtMin = Math.max(spreadAtMin, lateral)
       if (z > zMax - band) spreadAtMax = Math.max(spreadAtMax, lateral)
-    }
+    })
     if (spreadAtMax > spreadAtMin) {
       // The +Z end is the wide end — that's the back. Flip the gradient.
       frontZ = zMin
@@ -1028,6 +1057,76 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
   }
   // Distinct cache key so these programs never collide with un-patched materials.
   mat.customProgramCacheKey = () => 'evolve-mouth-ao-v3'
+  mat.needsUpdate = true
+}
+
+// ── Downward-cavity occlusion (nostrils) ─────────────────────────────────────
+//
+// Nostril interiors kept reading brighter than the surrounding skin no matter
+// how the lights were arranged, because with no shadow maps SOME term always
+// leaks into them (a light below the horizon shines through the head; flat
+// ambient is non-directional; sheen brightens grazing angles). Rather than
+// keep chasing light placement, shade the skin itself: scale the material's
+// total light response down for strongly DOWNWARD-facing surfaces — nostril
+// roofs point almost straight down, which almost nothing else on a face does
+// (pow(−n.y, 2) keeps mildly down-tilted areas like the underside of the nose
+// and chin nearly untouched). This is directional ambient occlusion in one
+// line of shader — no per-character textures, works on CC and Avaturn alike.
+/** Light multiplier for a surface facing straight down (nostril roof). */
+const DOWN_OCC_FLOOR = 0.3
+
+function attachDownOcclusion(mat: THREE.Material): void {
+  const flagged = mat as THREE.Material & { __downOcc?: boolean }
+  if (flagged.__downOcc) return
+  flagged.__downOcc = true
+  // Head skin materials already carry the detail-normal injection — chain, not
+  // replace, so both survive on one shader.
+  const prevOnBeforeCompile = mat.onBeforeCompile
+  const prevCacheKey = mat.customProgramCacheKey?.bind(mat)
+  mat.onBeforeCompile = (shader, renderer) => {
+    prevOnBeforeCompile?.call(mat, shader, renderer)
+    shader.uniforms.uDownOccFloor = { value: DOWN_OCC_FLOOR }
+    if (!shader.fragmentShader.includes('#include <lights_fragment_end>')) {
+      console.warn(
+        '[AvatarCanvas] down-occlusion: <lights_fragment_end> chunk not found — ' +
+        'three.js shader layout changed; nostril shading is inactive.',
+      )
+      return
+    }
+    // Sheen accumulates in its own variables, renamed across three versions —
+    // scale whichever set this build declares (it feeds outgoingLight
+    // separately from reflectedLight, and grazing-angle sheen is one of the
+    // nostril-glow contributors on CC skin).
+    const sheenLines = shader.fragmentShader.includes('sheenSpecularDirect')
+      ? `sheenSpecularDirect *= downOcc;
+         sheenSpecularIndirect *= downOcc;`
+      : shader.fragmentShader.includes('sheenSpecular')
+        ? 'sheenSpecular *= downOcc;'
+        : ''
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uDownOccFloor;`,
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+         {
+           vec3 dOccWorldN = inverseTransformDirection( normal, viewMatrix );
+           float downAmt = pow( saturate( -dOccWorldN.y ), 2.0 );
+           float downOcc = mix( 1.0, uDownOccFloor, downAmt );
+           reflectedLight.directDiffuse    *= downOcc;
+           reflectedLight.directSpecular   *= downOcc;
+           reflectedLight.indirectDiffuse  *= downOcc;
+           reflectedLight.indirectSpecular *= downOcc;
+           #ifdef USE_SHEEN
+           ${sheenLines}
+           #endif
+         }`,
+      )
+  }
+  mat.customProgramCacheKey = () => `${prevCacheKey?.() ?? ''}|evolve-down-occ-v1`
   mat.needsUpdate = true
 }
 
@@ -1485,6 +1584,24 @@ function AvatarScene({
             }
           }
         }
+      }
+    })
+
+    // Second material pass: nostril / downward-cavity occlusion on head skin.
+    // Runs AFTER the main pass because the skin-lifelike upgrade above may have
+    // REPLACED the material object (standard → physical); this pass must patch
+    // the final material. Matches the head skin on both rig families
+    // (CC: Std_Skin_Head, Avaturn donor: "Head") and skips hair-card materials
+    // that merely contain "head" in a name alongside hair/brow/lash/scalp.
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const m of mats) {
+        if (!m) continue
+        const name = m.name ?? ''
+        if (!/head/i.test(name)) continue
+        if (/hair|brow|lash|scalp|bang/i.test(name)) continue
+        attachDownOcclusion(m)
       }
     })
 
