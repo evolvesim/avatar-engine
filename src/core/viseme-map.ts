@@ -150,7 +150,7 @@ export const ROUNDING_SHAPES = new Set(['mouthFunnel', 'mouthPucker'])
 /** Ceiling for expressive support shapes (cheeks, stretch, lower-lip…). */
 export const SUPPORT_CAP = 0.35
 /** Ceiling for lip-rounding shapes — higher so O/U corners visibly narrow. */
-export const ROUNDING_CAP = 0.65
+export const ROUNDING_CAP = 0.70
 /** Ceiling for closure/roll shapes — higher so plosive seals actually read. */
 export const CLOSURE_CAP = 0.55
 
@@ -187,7 +187,7 @@ const JAW_DIPH = 0.25
 //   open vowel aa   : slightly eased so the mouth shape comes from jaw, not a
 //                     permanently stretched viseme_aa morph.
 const PRIMARY_PLOSIVE = 0.85
-const PRIMARY_ROUNDED = 0.88
+const PRIMARY_ROUNDED = 0.95
 const PRIMARY_OPEN_VOWEL = 0.52
 
 export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
@@ -205,7 +205,7 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   2:  { support: { mouthOpen: 0.18, mouthClose: 0.10 }, jaw: JAW_AA, primaryScale: PRIMARY_OPEN_VOWEL, hold: 'vowel' },
 
   // ── 3  ɔ — open-mid rounded vowel (funnel, low jaw) ──────────────────────────
-  3:  { support: { mouthFunnel: 0.42, mouthPucker: 0.32 }, jaw: JAW_OU, primaryScale: 0.82, hold: 'vowel' },
+  3:  { support: { mouthFunnel: 0.46, mouthPucker: 0.36 }, jaw: JAW_OU, primaryScale: 0.86, hold: 'vowel' },
 
   // ── 4  ɛ ʊ — mid vowel, faint stretch (not a smile) ──────────────────────────
   4:  { support: { mouthOpen: 0.10, mouthClose: 0.08, mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_EI, hold: 'vowel' },
@@ -217,10 +217,10 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   6:  { support: { mouthClose: 0.06, mouthStretchLeft: 0.07, mouthStretchRight: 0.07 }, jaw: 0.12, hold: 'vowel' },
 
   // ── 7  w u — close back rounded vowel/glide, tight pucker ────────────────────
-  7:  { support: { mouthPucker: 0.60, mouthFunnel: 0.34 }, jaw: 0.10, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
+  7:  { support: { mouthPucker: 0.66, mouthFunnel: 0.40 }, jaw: 0.10, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
 
   // ── 8  o — close-mid rounded vowel (funnel + pucker) ─────────────────────────
-  8:  { support: { mouthFunnel: 0.50, mouthPucker: 0.42 }, jaw: JAW_OU, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
+  8:  { support: { mouthFunnel: 0.55, mouthPucker: 0.50 }, jaw: JAW_OU, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
 
   // ── 9  aʊ — diphthong open→round (open then funnel) ──────────────────────────
   9:  { support: { mouthOpen: 0.14, mouthClose: 0.08, mouthFunnel: 0.16 }, jaw: JAW_DIPH, hold: 'vowel' },

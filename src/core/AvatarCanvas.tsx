@@ -439,10 +439,12 @@ export const LIGHTING_RIGS: Record<LightingProduct, {
   // were sitting too dark to judge). Rim intensity and the rim angle
   // (RIM_AZIMUTH_DEFAULT -147, RIM_ELEVATION_DEFAULT -6) were already at the
   // requested values and are unchanged.
-  // v0.6.7 — ambient becomes hemispheric (ground 0.3×) so nostrils and the
-  // mouth interior fall into shadow naturally. Intensity/colour unchanged.
+  // v0.6.7 — ambient becomes hemispheric so nostrils and the mouth interior
+  // fall into shadow naturally. Intensity/colour unchanged. Ground ratio 0.15:
+  // the first attempt (0.3) still left nostril interiors reading lighter than
+  // the surrounding skin.
   'evolve-sim': {
-    ambient: '#eef3f7', ambientIntensity: 0.54, ambientGroundRatio: 0.3,
+    ambient: '#eef3f7', ambientIntensity: 0.54, ambientGroundRatio: 0.15,
     key:  '#fdfdff', keyIntensity:  1.55, keyPosition:  [2, 4, 3],
     fill: '#dde4ea', fillIntensity: 0.68, fillPosition: [-2, 2, -1],
     rim:  '#eaf2ff', rimIntensity:  0.24,
@@ -530,11 +532,15 @@ export interface LightingOverrides {
 // Rim placement. Defaults reproduce the previous hard-coded [-1.5, 2.5, -3]
 // exactly (verified by round-trip), so this is a pure refactor until overridden.
 const RIM_RADIUS            = 4.18
-// v0.5.43 — dialled in on a CC5 character. Elevation is NEGATIVE: the rim now
-// sits behind and slightly BELOW the face rather than above it, which skims the
-// jaw and neck instead of the top of the head.
+// v0.5.43 — dialled in on a CC5 character. Elevation was NEGATIVE (-6): behind
+// and slightly below the face, skimming the jaw and neck.
+// v0.6.7 — raised to +4. Meshes cast no shadows, so a below-horizon light
+// shines THROUGH the head and up-lights every downward-facing cavity surface —
+// nostril interiors and the under-chin glowed brighter than the surrounding
+// skin. +4 keeps the low behind-the-jaw skim without the up-light. Tunable
+// live via lightingOverrides.rimElevation.
 const RIM_AZIMUTH_DEFAULT   = -147
-const RIM_ELEVATION_DEFAULT = -6
+const RIM_ELEVATION_DEFAULT = 4
 
 function rimPosition(azimuthDeg: number, elevationDeg: number, focusY: number): [number, number, number] {
   const a = (azimuthDeg   * Math.PI) / 180
@@ -855,20 +861,30 @@ function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): voi
 // MOUTH_AO_BACK_* as they sit deeper in the mouth. Deliberately NOT a uniform
 // darken — that just makes the smile grey.
 //
-// The multiply lands on diffuseColor (albedo), before lighting — so the
-// gradient shades correctly under every rig/preset and reads as occlusion
-// rather than a painted-on tint.
+// CAVITY SHADING (v0.6.7 third pass — replaces the albedo-multiply approach):
+// darkening the albedo could not fix the "bright molars, dim incisors" report,
+// because the problem was never the albedo — it's that the meshes cast no
+// shadows, so the directional key shines THROUGH THE HEAD and lands on
+// whatever happens to face it: the upward-facing tops of the lower and back
+// teeth catch the full overhead key while the forward-facing incisors catch
+// almost nothing. No albedo gradient can invert an orientation-driven
+// irradiance difference. So scene lights are cut out of the mouth entirely:
+// the injected shader ZEROES the direct and indirect light terms and lights
+// the mouth interior deterministically —
 //
-// APERTURE LINK (v0.6.7 second pass): the gradient alone left the front teeth
-// at full brightness whenever they were visible, and a slightly-parted mouth
-// with bright teeth is exactly the complaint. Physically, how much light gets
-// into a mouth is set by how open it is: nearly closed → almost none reaches
-// even the incisors; wide open → the front of the mouth catches real light
-// while the molars stay in shadow. So the whole gradient is scaled by the live
-// jaw aperture each frame (uMouthAperture, driven from the blended jawOpen
-// weight in the render loop): closed ≈ everything at the back level, fully
-// open ≈ the front-to-back gradient. Teeth are dim in the slightly-open frames
-// that dominate speech, and only brighten — front first — on open vowels.
+//   brightness = albedo × MOUTH_CAVITY_LIGHT × gradient(front→back) × aperture
+//
+// with a small view-facing term for curvature. That is physically sane (a
+// mouth cavity is lit by diffuse bounce through the lip aperture, not by
+// studio lights) and makes the result rig- and preset-independent: front
+// teeth brightest, molars dark, everything darker as the mouth closes.
+//
+// APERTURE LINK: how much light enters a mouth is set by how open it is. The
+// gradient is scaled by the live jaw aperture each frame (uMouthAperture,
+// driven from the blended jawOpen weight in the render loop): closed ≈
+// everything at the back level, fully open ≈ the front-to-back gradient.
+// Teeth are dim in the slightly-open frames that dominate speech, and only
+// brighten — front first — on open vowels.
 /** Brightness the very back of the teeth arch falls to (1 = untouched). */
 const MOUTH_AO_BACK_TEETH  = 0.22
 /** Tongue root brightness — slightly higher; the tongue is already darker. */
@@ -882,6 +898,13 @@ const MOUTH_AO_BACK_TONGUE = 0.30
 const MOUTH_AO_CURVE = 1.1
 /** jawOpen weight at which the mouth counts as fully open for lighting. */
 const MOUTH_APERTURE_FULL_JAW = 0.25
+/**
+ * Flat luminance driving the cavity shading — the "bounce light" the mouth
+ * interior receives at a fully open aperture, before the gradient darkens it
+ * toward the back. The ONE brightness knob for everything inside the mouth:
+ * scene lights are zeroed on these materials (see the cavity-shading note).
+ */
+const MOUTH_CAVITY_LIGHT = 0.75
 
 /** Per-material handle for the live aperture uniform (set in onBeforeCompile). */
 interface MouthAoMaterial extends THREE.Material {
@@ -942,13 +965,14 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
     shader.uniforms.uMouthAoCurve  = { value: MOUTH_AO_CURVE }
     // Live jaw aperture, written per frame by the render loop (see useFrame).
     // Starts closed → teeth dark until the mouth actually opens.
-    shader.uniforms.uMouthAperture = { value: 0 }
+    shader.uniforms.uMouthAperture    = { value: 0 }
+    shader.uniforms.uMouthCavityLight = { value: MOUTH_CAVITY_LIGHT }
     // A missing chunk name would make .replace() a silent no-op. Fail loudly.
     if (!shader.vertexShader.includes('#include <begin_vertex>') ||
-        !shader.fragmentShader.includes('#include <color_fragment>')) {
+        !shader.fragmentShader.includes('#include <lights_fragment_end>')) {
       console.warn(
         '[AvatarCanvas] mouth interior AO: expected shader chunks not found — ' +
-        'three.js shader layout changed; teeth/tongue gradient is inactive.',
+        'three.js shader layout changed; teeth/tongue cavity shading is inactive.',
       )
       return
     }
@@ -982,26 +1006,29 @@ function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel:
       .replace(
         '#include <common>',
         `#include <common>
+         uniform float uMouthCavityLight;
          varying float vMouthAo;`,
       )
       .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-         diffuseColor.rgb *= vMouthAo;`,
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+         {
+           // Cavity shading: scene lights do not reach inside a mouth (and
+           // with no shadow maps they'd shine straight through the head), so
+           // zero every accumulated light term and substitute a deterministic
+           // bounce-light estimate. The view-facing term keeps a little
+           // curvature so teeth don't read as flat cards.
+           float mouthShape = 0.7 + 0.3 * saturate( dot( normalize( normal ), normalize( vViewPosition ) ) );
+           reflectedLight.directDiffuse    = vec3( 0.0 );
+           reflectedLight.directSpecular   = vec3( 0.0 );
+           reflectedLight.indirectDiffuse  = diffuseColor.rgb * uMouthCavityLight * vMouthAo * mouthShape;
+           reflectedLight.indirectSpecular = vec3( 0.0 );
+         }`,
       )
   }
   // Distinct cache key so these programs never collide with un-patched materials.
-  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v2'
+  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v3'
   mat.needsUpdate = true
-
-  // Teeth/tongue de-glint: a wet specular hotspot on a bright tooth reads as a
-  // flashlight in the mouth under the key light. Diffuse darkening alone can't
-  // remove it, so tame the specular response too (kept subtle — teeth still
-  // read wet, just not glowing).
-  const std = mat as THREE.MeshStandardMaterial & { specularIntensity?: number }
-  if ('roughness' in std) std.roughness = Math.max(std.roughness ?? 0.5, 0.55)
-  if ('metalness' in std) std.metalness = 0
-  if (typeof std.specularIntensity === 'number') std.specularIntensity = 0.2
 }
 
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
@@ -1460,6 +1487,22 @@ function AvatarScene({
         }
       }
     })
+
+    // Diagnostic: which mouth-shaping morphs does this avatar actually have?
+    // Logged once per load so "the pucker isn't working on X" reports can be
+    // matched against the rig's real inventory instead of guessed at (CC5
+    // upload profiles vary in which pucker/funnel names they carry).
+    {
+      const mouthMorphs = new Set<string>()
+      for (const mesh of Object.values(meshRefs.current)) {
+        const dict = mesh?.morphTargetDictionary
+        if (!dict) continue
+        for (const key of Object.keys(dict)) {
+          if (/pucker|funnel|tight|pout|roll|viseme|^v_|mouth/i.test(key)) mouthMorphs.add(key)
+        }
+      }
+      console.info('[AvatarCanvas] mouth-capable morphs:', [...mouthMorphs].sort().join(', '))
+    }
 
     // Collect bone refs
     headBone.current  = findBone(scene, 'Head')
