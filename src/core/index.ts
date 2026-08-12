@@ -98,6 +98,9 @@ export {
   AVATURN_MESH_NAMES,
   VISEME_SUPPORT,
   buildVisemeTargets,
+  ROUNDING_SHAPES,
+  ROUNDING_CAP,
+  SILENCE_REST_WEIGHT,
 }                                    from './viseme-map'
 export type { VisemeSupport }        from './viseme-map'
 

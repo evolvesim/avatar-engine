@@ -4,8 +4,11 @@ import {
   VISEME_SUPPORT,
   buildVisemeTargets,
   CLOSURE_SHAPES,
+  ROUNDING_SHAPES,
   SUPPORT_CAP,
+  ROUNDING_CAP,
   CLOSURE_CAP,
+  SILENCE_REST_WEIGHT,
 } from '../../src/core/viseme-map'
 
 // Canonical ARKit (52) blendshape names used for support shapes, plus the
@@ -136,19 +139,21 @@ describe('viseme-map enrichment', () => {
     }
   })
 
-  it('keeps support conservative — expressive shapes ≤ SUPPORT_CAP, closures ≤ CLOSURE_CAP', () => {
+  it('keeps support bounded — expressive ≤ SUPPORT_CAP, rounding ≤ ROUNDING_CAP, closures ≤ CLOSURE_CAP', () => {
     for (const [id, entry] of Object.entries(VISEME_SUPPORT)) {
       for (const [key, val] of Object.entries(entry.support)) {
-        const cap = CLOSURE_SHAPES.has(key) ? CLOSURE_CAP : SUPPORT_CAP
+        const cap = CLOSURE_SHAPES.has(key) ? CLOSURE_CAP
+          : ROUNDING_SHAPES.has(key) ? ROUNDING_CAP
+          : SUPPORT_CAP
         expect(val, `id ${id} ${key} too strong (cap ${cap})`).toBeLessThanOrEqual(cap)
       }
     }
   })
 
-  it('expressive (non-closure) support shapes never exceed SUPPORT_CAP', () => {
+  it('expressive (non-closure, non-rounding) support shapes never exceed SUPPORT_CAP', () => {
     for (const [id, entry] of Object.entries(VISEME_SUPPORT)) {
       for (const [key, val] of Object.entries(entry.support)) {
-        if (CLOSURE_SHAPES.has(key)) continue
+        if (CLOSURE_SHAPES.has(key) || ROUNDING_SHAPES.has(key)) continue
         expect(val, `id ${id} expressive ${key} too strong`).toBeLessThanOrEqual(SUPPORT_CAP)
       }
     }
@@ -266,6 +271,52 @@ describe('buildVisemeTargets', () => {
     const u = buildVisemeTargets(7).weights
     const o = buildVisemeTargets(3).weights
     expect(u['mouthPucker']).toBeGreaterThan(o['mouthPucker'] ?? 0)
+  })
+
+  // ── v0.6.7 — rounding must be strong enough to visibly narrow the corners ───
+  it('rounded vowels drive pucker/funnel above the generic support cap', () => {
+    expect(buildVisemeTargets(7).weights['mouthPucker']).toBeGreaterThanOrEqual(0.4)
+    expect(buildVisemeTargets(8).weights['mouthFunnel']).toBeGreaterThanOrEqual(0.36)
+  })
+
+  // ── v0.6.7 — lip tension over open vowels (keeps the molar rows covered) ────
+  it('open/mid vowels carry a small mouthClose lip-tension baseline', () => {
+    for (const id of [1, 2, 4]) {
+      const close = buildVisemeTargets(id).weights['mouthClose'] ?? 0
+      expect(close, `id ${id} mouthClose`).toBeGreaterThan(0)
+      expect(close, `id ${id} mouthClose`).toBeLessThanOrEqual(0.15)
+    }
+  })
+
+  // ── v0.6.7 — articulation driveScale ─────────────────────────────────────────
+  it('driveScale scales the primary morph even through per-viseme overrides', () => {
+    // id 1 overrides primaryScale (open vowel); id 21 overrides it (plosive).
+    const aaFull = buildVisemeTargets(1, 0.6, 1).weights['viseme_aa']!
+    const aaSoft = buildVisemeTargets(1, 0.6, 0.8).weights['viseme_aa']!
+    expect(aaSoft).toBeCloseTo(aaFull * 0.8, 5)
+    const ppFull = buildVisemeTargets(21, 0.6, 1).weights['viseme_PP']!
+    const ppSoft = buildVisemeTargets(21, 0.6, 0.8).weights['viseme_PP']!
+    expect(ppSoft).toBeCloseTo(ppFull * 0.8, 5)
+  })
+
+  it('driveScale does not scale support shapes or exceed 1', () => {
+    const soft = buildVisemeTargets(21, 0.6, 0.8).weights
+    const full = buildVisemeTargets(21, 0.6, 1).weights
+    expect(soft['mouthClose']).toBeCloseTo(full['mouthClose']!, 5)
+    const hot = buildVisemeTargets(21, 0.6, 1.5).weights
+    expect(hot['viseme_PP']).toBeLessThanOrEqual(1)
+  })
+
+  it('default driveScale (1) is behaviour-identical to the two-arg call', () => {
+    for (let id = 0; id <= 21; id++) {
+      expect(buildVisemeTargets(id, 0.6, 1)).toEqual(buildVisemeTargets(id, 0.6))
+    }
+  })
+
+  // ── v0.6.7 — silence rest target used by the drain loop ─────────────────────
+  it('SILENCE_REST_WEIGHT is a partial rest, not a hard mouth-shut', () => {
+    expect(SILENCE_REST_WEIGHT).toBeGreaterThan(0)
+    expect(SILENCE_REST_WEIGHT).toBeLessThanOrEqual(0.5)
   })
 
   it('open vowels æ/ə/ʌ (id 1) and ɑ (id 2) are jaw-driven, not gaping morphs', () => {

@@ -66,7 +66,7 @@ import type {
   DirectorConfig,
 } from './types'
 import { CAMERA_PRESETS }        from './types'
-import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES, buildVisemeTargets } from './viseme-map'
+import { VISEME_TO_ARKIT, AVATURN_MESH_NAMES, buildVisemeTargets, SILENCE_REST_WEIGHT } from './viseme-map'
 import {
   additiveBlend,
   lerpWeightMap,
@@ -220,6 +220,16 @@ export interface AvatarCanvasProps {
    */
   animationPackUrl?: string
   /**
+   * Global scale on how hard visemes articulate: multiplies the primary
+   * mouth-morph drive AND the jawOpen target (which also drives the CC4 jaw
+   * bone). 1 = engine default. Use <1 for voices/viseme streams that read as
+   * over-articulated (e.g. letter-derived ElevenLabs timelines with no
+   * intensity signal), >1 for timid streams. Clamped to [0.25, 1.5].
+   * Support shapes (rounding, closures, lip tension) are NOT scaled — a
+   * quieter mouth should still seal its plosives and round its O/U.
+   */
+  articulationIntensity?: number
+  /**
    * Overrides for the eye-contact gaze system, merged over the engine defaults.
    * Use to tune how readily the eyes hand over to the head — e.g. a tighter
    * `lockConePitch` releases sooner when the head pitches up or down, and
@@ -347,7 +357,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.6.6'
+const ENGINE_BUILD = '0.6.7'
 let lightingFingerprintLogged = false
 
 /**
@@ -646,10 +656,19 @@ const mergedBodies = new WeakSet<object>()
 const CAMERA_TARGET_Y = 0.1
 
 // CC4 bone-assisted jaw: radians of jaw-bone pitch per unit of `jawOpen` weight.
-// jawOpen peaks at ~0.30 for open vowels, so the bone contributes ~6° of chin
-// drop at full open — a natural speech jaw excursion on top of the Jaw_Open
-// morph, well short of a yawn.
-const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.52
+// jawOpen peaks at ~0.24 for open vowels (v0.6.7 jaw tiers), so the bone
+// contributes ~5.5° of chin drop at full open — a natural speech jaw excursion
+// on top of the Jaw_Open morph, well short of a yawn.
+// v0.6.7 — 0.52 → 0.40. Morph-jaw + bone-jaw stacked wide enough to show the
+// molar rows straight into the camera; this plus the JAW_AA ease closes that.
+const CC4_JAW_BONE_RAD_PER_WEIGHT = 0.40
+
+// How hard the primary Oculus `viseme_*` morph is driven by the drain loop
+// (scaled per-viseme by primaryScale overrides, and per-product by the
+// `articulationIntensity` prop). v0.6.7 — 0.78 → 0.58: with no per-event
+// intensity signal in the viseme stream, every phoneme fired at 0.78 held the
+// lips at full extension for entire sentences.
+const VISEME_PRIMARY_SCALE = 0.58
 
 // ── Procedural skin detail (v0.5.36) ──────────────────────────────────────────
 //
@@ -792,6 +811,99 @@ function attachSkinDetailNormal(mat: THREE.Material, detail: THREE.Texture): voi
   mat.customProgramCacheKey = () => 'evolve-skin-detail-v1'
 }
 
+// ── Mouth interior AO (v0.6.7) ────────────────────────────────────────────────
+//
+// The mouth interior is lit like the outside of the face: ambient light is
+// non-directional, the meshes neither cast nor receive shadows, and CC/Avaturn
+// exports ship no AO map inside the mouth — so the molars catch exactly as much
+// light as the cheeks and the whole tooth row glows whenever the jaw opens.
+// Real mouths are dark because almost no light reaches past the lip aperture,
+// and the falloff is GRADED: incisors bright, molars in shadow.
+//
+// Reproduce that with a front-to-back darkening gradient injected into the
+// teeth and tongue materials (same onBeforeCompile technique as the skin
+// detail-normal above). The gradient is anchored to each mesh's bind-pose
+// bounding box along local +Z (both CC and Avaturn rigs face +Z), so the front
+// teeth / tongue tip stay at full brightness and fragments fall toward
+// MOUTH_AO_BACK_* as they sit deeper in the mouth. Deliberately NOT a uniform
+// darken — that just makes the smile grey.
+//
+// The multiply lands on diffuseColor (albedo), before lighting — so the
+// gradient shades correctly under every rig/preset and reads as occlusion
+// rather than a painted-on tint.
+/** Brightness the very back of the teeth arch falls to (1 = untouched). */
+const MOUTH_AO_BACK_TEETH  = 0.25
+/** Tongue root brightness — slightly higher; the tongue is already darker. */
+const MOUTH_AO_BACK_TONGUE = 0.32
+/**
+ * Gradient bias. >1 pushes the falloff toward the back of the mouth: the
+ * front third stays near full brightness (incisors/tongue tip look natural)
+ * and the darkening concentrates on the molar region.
+ */
+const MOUTH_AO_CURVE = 1.6
+
+function attachMouthInteriorAO(mesh: THREE.Mesh, mat: THREE.Material, backLevel: number): void {
+  const geom = mesh.geometry
+  if (!geom.boundingBox) geom.computeBoundingBox()
+  const bb = geom.boundingBox
+  if (!bb) return
+  // Bind-pose Z extent of this mesh — the gradient domain. The raw `position`
+  // attribute is pre-skinning/pre-morph, so the gradient stays anchored to the
+  // tooth row while the jaw bone animates (lower teeth don't brighten as they
+  // drop).
+  const zMin = bb.min.z
+  const zMax = bb.max.z
+  if (!(zMax - zMin > 1e-6)) return
+
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uMouthZMin    = { value: zMin }
+    shader.uniforms.uMouthZMax    = { value: zMax }
+    shader.uniforms.uMouthAoBack  = { value: backLevel }
+    shader.uniforms.uMouthAoCurve = { value: MOUTH_AO_CURVE }
+    // A missing chunk name would make .replace() a silent no-op. Fail loudly.
+    if (!shader.vertexShader.includes('#include <begin_vertex>') ||
+        !shader.fragmentShader.includes('#include <color_fragment>')) {
+      console.warn(
+        '[AvatarCanvas] mouth interior AO: expected shader chunks not found — ' +
+        'three.js shader layout changed; teeth/tongue gradient is inactive.',
+      )
+      return
+    }
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uMouthZMin;
+         uniform float uMouthZMax;
+         uniform float uMouthAoBack;
+         uniform float uMouthAoCurve;
+         varying float vMouthAo;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         {
+           float tFront = clamp( ( position.z - uMouthZMin ) / ( uMouthZMax - uMouthZMin ), 0.0, 1.0 );
+           vMouthAo = mix( uMouthAoBack, 1.0, pow( tFront, uMouthAoCurve ) );
+         }`,
+      )
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         varying float vMouthAo;`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         diffuseColor.rgb *= vMouthAo;`,
+      )
+  }
+  // Distinct cache key so these programs never collide with un-patched materials.
+  mat.customProgramCacheKey = () => 'evolve-mouth-ao-v1'
+  mat.needsUpdate = true
+}
+
 function findHeadBoneByNames(root: THREE.Object3D): THREE.Object3D | null {
   let found: THREE.Object3D | null = null
   root.traverse((obj) => {
@@ -815,6 +927,7 @@ function AvatarScene({
   autoCalibrate,
   gazeConfig,
   envIntensity,
+  articulationIntensity,
 }: {
   engine:           AvatarEngine
   glbUrl:           string
@@ -827,6 +940,7 @@ function AvatarScene({
   autoCalibrate:    boolean
   gazeConfig?:      GazeConfig
   envIntensity?:    number
+  articulationIntensity?: number
 }) {
   // Decide up-front whether we need the donor face rig. When `mergeFaceRigMode`
   // is explicitly false the donor URL is omitted from the loader call so the
@@ -985,6 +1099,13 @@ function AvatarScene({
   const gazeState   = useRef(createGazeState())
   const cameraPosRef = useRef(new THREE.Vector3())
 
+  // ── Viseme articulation drive ──────────────────────────────────────────────
+  // Product-tunable openness: scales the primary morph drive and the jaw
+  // (morph + CC4 bone, which follows jawOpen). Support shapes are unscaled so
+  // closures/rounding survive a quieter mouth. Clamped so a bad prop value
+  // can never freeze or dislocate the jaw.
+  const articulationDrive = THREE.MathUtils.clamp(articulationIntensity ?? 1, 0.25, 1.5)
+
   // ── Viseme timing ──────────────────────────────────────────────────────────
   const lastVisemeAt = useRef<number>(0)
   // Hold class of the most recently fired viseme. Drives how long the mouth holds
@@ -1119,6 +1240,20 @@ function AvatarScene({
             mat.color.multiplyScalar(SCALP_DARKEN)
             ;(mat as unknown as { __scalpDarkened?: boolean }).__scalpDarkened = true
             mat.needsUpdate = true
+          }
+        }
+        // Mouth interior AO (v0.6.7) — graded front-to-back darkening on teeth
+        // and tongue so molars fall into shadow while incisors stay bright.
+        // Matches CC material names (Std_Upper_Teeth / Std_Lower_Teeth /
+        // Std_Tongue) and Avaturn mesh names (Teeth_Mesh / Tongue_Mesh).
+        // See attachMouthInteriorAO for the mechanism.
+        {
+          const isTongue = /tongue/i.test(matName) || /tongue/i.test(obj.name)
+          const isTeeth  = /teeth/i.test(matName)  || /teeth/i.test(obj.name)
+          const flagged = m as unknown as { __mouthAo?: boolean }
+          if ((isTeeth || isTongue) && !flagged.__mouthAo) {
+            attachMouthInteriorAO(obj, m, isTongue ? MOUTH_AO_BACK_TONGUE : MOUTH_AO_BACK_TEETH)
+            flagged.__mouthAo = true
           }
         }
         // Skin de-shine / lifelike pass (v0.5.31). CC skin
@@ -1328,26 +1463,45 @@ function AvatarScene({
 
     // ── 1. Drain viseme queue (targetW/currentW pattern with recentlyFired guard)
     // applyViseme: zeros all viseme shapes, then sets only the fired one.
-    // Skip id=0 (silence) — it would snap the mouth shut mid-sentence.
     // Word boundary estimation: every VISEMES_PER_WORD non-silence visemes drained
     // we call engine.skeletal.onWordBoundary() to advance gesture cue timing.
+    //
+    // Silence (id 0) — v0.6.7. Previously skipped outright ("it would snap the
+    // mouth shut mid-sentence" — true back when weights applied unlerped).
+    // Skipping it meant the mouth could NEVER relax mid-utterance: the zeroing
+    // gate below requires an empty queue, so every shape held at full target
+    // until the next non-silence viseme — lips at full extension for whole
+    // sentences. The portal's ElevenLabs timeline deliberately emits id 0 for
+    // every space/punctuation mark precisely so the mouth settles between
+    // words. Honour it as a PARTIAL relax: zero the viseme targets and drive a
+    // soft viseme_sil (CC4: Mouth_Close) rest — the per-frame attack/release
+    // lerp makes this a settle, not a snap.
     const applyViseme = (id: number) => {
-      if (id === 0) return
       const arkit = VISEME_TO_ARKIT[id]
       if (!arkit) return
       // Zero all viseme shapes first
       for (const k of Object.keys(targetW.current)) {
         targetW.current[k] = 0
       }
-      // Primary Oculus mouth shape(s) at 0.6 + conservative ARKit support shapes
+      if (id === 0) {
+        targetW.current['viseme_sil'] = SILENCE_REST_WEIGHT
+        targetW.current['jawOpen'] = 0
+        lastApplyAt.current = nowMs
+        lastVisemeAt.current = now
+        lastHold.current = 'closure'
+        // Not a phoneme: does not advance the word-boundary estimate.
+        return
+      }
+      // Primary Oculus mouth shape(s) + conservative ARKit support shapes
       // (cheeks / funnel / pucker / press / lower-lip) layered per viseme.
       // Support shapes the GLB lacks are ignored harmlessly in applyWeightsToMeshes.
-      const { weights, jaw, hold } = buildVisemeTargets(id, 0.78)
+      // Primary drive and jaw scale with articulationDrive (see prop docs).
+      const { weights, jaw, hold } = buildVisemeTargets(id, VISEME_PRIMARY_SCALE, articulationDrive)
       for (const [shapeName, value] of Object.entries(weights)) {
         targetW.current[shapeName] = value
       }
       // jawOpen differentiated per viseme (aa high, E/I medium, O/U low, consonants closed)
-      targetW.current['jawOpen'] = jaw
+      targetW.current['jawOpen'] = jaw * articulationDrive
       lastApplyAt.current = nowMs
       lastVisemeAt.current = now
       lastHold.current = hold
@@ -1616,6 +1770,7 @@ export function AvatarCanvas({
   cameraTarget,
   animationPackUrl,
   gazeConfig,
+  articulationIntensity = 1,
   className      = 'w-full h-full',
 }: AvatarCanvasProps) {
   // For conversational-mode adapters, open the WS on mount and tear it down on unmount.
@@ -1674,6 +1829,7 @@ export function AvatarCanvas({
             applyTPoseFix={applyTPoseFix}
             autoCalibrate={autoCalibrate}
             gazeConfig={gazeConfig}
+            articulationIntensity={articulationIntensity}
           />
         </Suspense>
       </Canvas>
