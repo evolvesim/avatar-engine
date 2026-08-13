@@ -73,5 +73,6 @@ describe('per-product lighting rigs', () => {
         .map(([, v]) => v.followFace)
       expect(others).toEqual([false, false])
     })
+
   })
 })

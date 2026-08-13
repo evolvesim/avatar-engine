@@ -138,25 +138,61 @@ export const CLOSURE_SHAPES = new Set([
   'mouthPressLeft', 'mouthPressRight',
 ])
 
-/** Ceiling for expressive support shapes (cheeks, stretch, funnel, pucker…). */
+/**
+ * Lip-rounding shapes (funnel/pucker). Given their own ceiling above
+ * SUPPORT_CAP (v0.6.7): at ≤0.35 the rounded vowels never visually beat the
+ * wide primaries (viseme_aa/E/I run 0.5+), so the mouth corners read as
+ * permanently spread — "lips always at full extension". Rounding needs to be
+ * driven hard enough to actually pull the corners together on O/U/CH.
+ */
+export const ROUNDING_SHAPES = new Set(['mouthFunnel', 'mouthPucker'])
+
+/** Ceiling for expressive support shapes (cheeks, stretch, lower-lip…). */
 export const SUPPORT_CAP = 0.35
+/** Ceiling for lip-rounding shapes — higher so O/U corners visibly narrow. */
+export const ROUNDING_CAP = 0.70
 /** Ceiling for closure/roll shapes — higher so plosive seals actually read. */
 export const CLOSURE_CAP = 0.55
 
-// Jaw tiers (kept ≤0.32 — higher reads as a yawn on Avaturn rigs):
+/**
+ * Soft rest target driven when a silence viseme (id 0) fires mid-utterance.
+ * The drain loop maps it onto `viseme_sil` (CC4: Mouth_Close) so the lips
+ * settle toward a relaxed near-closed pose between words instead of holding
+ * the previous vowel at full extension. Deliberately partial — a full 1.0
+ * would read as the mouth clapping shut on every word gap.
+ */
+export const SILENCE_REST_WEIGHT = 0.30
+
+// Jaw tiers:
 //   open vowel aa : high   medium-open E/I : medium   rounded O/U : low-rounded
 //   consonants    : low / closed
-const JAW_AA = 0.30
-const JAW_EI = 0.20
-const JAW_OU = 0.16
+// v0.6.7 tried damping these to hide the molars; verdict from testing was that
+// articulation must stay strong and teeth visibility is handled by SHADING
+// instead (aperture-linked mouth AO + hemispheric ambient in AvatarCanvas).
+// Raised ABOVE the historical 0.30 on request — the jaw should read as
+// clearly travelling up and down during speech. Do not quiet the mouth to
+// solve a lighting problem.
+const JAW_AA = 0.34
+const JAW_EI = 0.22
+const JAW_OU = 0.17
 const JAW_CONS = 0.05
+// Diphthong jaw (open→glide ids 9/11) — between JAW_AA and JAW_EI.
+const JAW_DIPH = 0.25
 
 // Primary-morph drive tiers:
 //   plosive closure : hard (lips must visibly seal)
+//   rounded vowels  : hard (the primary IS the pucker on both rig families —
+//                     V_Tight_O on CC, viseme_O/U on Avaturn/RPM)
 //   default vowels  : standard 0.6 (set in buildVisemeTargets)
 //   open vowel aa   : slightly eased so the mouth shape comes from jaw, not a
 //                     permanently stretched viseme_aa morph.
-const PRIMARY_PLOSIVE = 0.85
+// v0.6.7 — plosive eased 0.85 → 0.72. The full-strength seal was authored
+// when the mouth never relaxed between words, so a bilabial only ever flashed
+// for one frame before the next shape replaced it. Now that word-final P/B/M
+// actually HOLDS (silence relax / next-word gap), the overdriven stack read
+// as the bottom lip climbing over the top lip on both rig families.
+const PRIMARY_PLOSIVE = 0.72
+const PRIMARY_ROUNDED = 0.95
 const PRIMARY_OPEN_VOWEL = 0.52
 
 export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
@@ -165,44 +201,46 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
 
   // ── 1  æ ə ʌ — open-mid front/central vowel, jaw-driven open ─────────────────
   // Drive the primary viseme_aa a touch softer and let jawOpen carry the opening
-  // so the mouth does not read as a permanently stretched morph.
-  1:  { support: { mouthOpen: 0.16, cheekSquintLeft: 0.05, cheekSquintRight: 0.05 }, jaw: JAW_AA, primaryScale: PRIMARY_OPEN_VOWEL, hold: 'vowel' },
+  // so the mouth does not read as a permanently stretched morph. The small
+  // mouthClose keeps lip tension over the teeth so the open vowel shows the
+  // incisor edge, not the whole upper row (v0.6.7).
+  1:  { support: { mouthOpen: 0.16, mouthClose: 0.10, cheekSquintLeft: 0.05, cheekSquintRight: 0.05 }, jaw: JAW_AA, primaryScale: PRIMARY_OPEN_VOWEL, hold: 'vowel' },
 
   // ── 2  ɑ — fully open back vowel, widest jaw ─────────────────────────────────
-  2:  { support: { mouthOpen: 0.18 }, jaw: JAW_AA, primaryScale: PRIMARY_OPEN_VOWEL, hold: 'vowel' },
+  2:  { support: { mouthOpen: 0.18, mouthClose: 0.10 }, jaw: JAW_AA, primaryScale: PRIMARY_OPEN_VOWEL, hold: 'vowel' },
 
   // ── 3  ɔ — open-mid rounded vowel (funnel, low jaw) ──────────────────────────
-  3:  { support: { mouthFunnel: 0.26, mouthPucker: 0.14 }, jaw: JAW_OU, hold: 'vowel' },
+  3:  { support: { mouthFunnel: 0.46, mouthPucker: 0.36 }, jaw: JAW_OU, primaryScale: 0.86, hold: 'vowel' },
 
   // ── 4  ɛ ʊ — mid vowel, faint stretch (not a smile) ──────────────────────────
-  4:  { support: { mouthOpen: 0.10, mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_EI, hold: 'vowel' },
+  4:  { support: { mouthOpen: 0.10, mouthClose: 0.08, mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_EI, hold: 'vowel' },
 
   // ── 5  ɝ — r-coloured central vowel, light rounding ──────────────────────────
-  5:  { support: { mouthFunnel: 0.12, mouthPucker: 0.08 }, jaw: 0.10, hold: 'vowel' },
+  5:  { support: { mouthFunnel: 0.20, mouthPucker: 0.16 }, jaw: 0.10, hold: 'vowel' },
 
   // ── 6  j i ɪ — close front vowel/glide, spread, light stretch ────────────────
-  6:  { support: { mouthStretchLeft: 0.07, mouthStretchRight: 0.07 }, jaw: 0.12, hold: 'vowel' },
+  6:  { support: { mouthClose: 0.06, mouthStretchLeft: 0.07, mouthStretchRight: 0.07 }, jaw: 0.12, hold: 'vowel' },
 
   // ── 7  w u — close back rounded vowel/glide, tight pucker ────────────────────
-  7:  { support: { mouthPucker: 0.32, mouthFunnel: 0.16 }, jaw: 0.10, hold: 'vowel' },
+  7:  { support: { mouthPucker: 0.66, mouthFunnel: 0.40 }, jaw: 0.10, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
 
   // ── 8  o — close-mid rounded vowel (funnel + pucker) ─────────────────────────
-  8:  { support: { mouthFunnel: 0.30, mouthPucker: 0.18 }, jaw: JAW_OU, hold: 'vowel' },
+  8:  { support: { mouthFunnel: 0.55, mouthPucker: 0.50 }, jaw: JAW_OU, primaryScale: PRIMARY_ROUNDED, hold: 'vowel' },
 
   // ── 9  aʊ — diphthong open→round (open then funnel) ──────────────────────────
-  9:  { support: { mouthOpen: 0.14, mouthFunnel: 0.16 }, jaw: 0.22, hold: 'vowel' },
+  9:  { support: { mouthOpen: 0.14, mouthClose: 0.08, mouthFunnel: 0.16 }, jaw: JAW_DIPH, hold: 'vowel' },
 
   // ── 10 ɔɪ — diphthong round→front (funnel then spread) ───────────────────────
-  10: { support: { mouthFunnel: 0.16, mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_OU, hold: 'vowel' },
+  10: { support: { mouthFunnel: 0.20, mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_OU, hold: 'vowel' },
 
   // ── 11 aɪ — diphthong open→front (open then spread) ──────────────────────────
-  11: { support: { mouthOpen: 0.14, mouthStretchLeft: 0.06, mouthStretchRight: 0.06 }, jaw: 0.22, hold: 'vowel' },
+  11: { support: { mouthOpen: 0.14, mouthClose: 0.08, mouthStretchLeft: 0.06, mouthStretchRight: 0.06 }, jaw: JAW_DIPH, hold: 'vowel' },
 
   // ── 12 h — breath, neutral slightly-open mouth ───────────────────────────────
   12: { support: { mouthOpen: 0.08 }, jaw: 0.12, hold: 'vowel' },
 
   // ── 13 ɹ — r approximant, light rounding ─────────────────────────────────────
-  13: { support: { mouthFunnel: 0.10, mouthPucker: 0.06 }, jaw: 0.08, hold: 'consonant' },
+  13: { support: { mouthFunnel: 0.18, mouthPucker: 0.14 }, jaw: 0.08, hold: 'consonant' },
 
   // ── 14 l — alveolar lateral (tongue up, low jaw) ─────────────────────────────
   14: { support: {}, jaw: JAW_CONS, hold: 'consonant' },
@@ -211,7 +249,7 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   15: { support: { mouthStretchLeft: 0.05, mouthStretchRight: 0.05 }, jaw: JAW_CONS, hold: 'consonant' },
 
   // ── 16 ʃ tʃ dʒ ʒ — post-alveolar, protruded + rounded (pucker + funnel) ──────
-  16: { support: { mouthFunnel: 0.16, mouthPucker: 0.12 }, jaw: 0.08, hold: 'consonant' },
+  16: { support: { mouthFunnel: 0.30, mouthPucker: 0.24 }, jaw: 0.08, hold: 'consonant' },
 
   // ── 17 ð — dental, tongue tip to teeth, very light open ──────────────────────
   17: { support: { mouthLowerDownLeft: 0.10, mouthLowerDownRight: 0.10, mouthUpperUpLeft: 0.06, mouthUpperUpRight: 0.06 }, jaw: 0.08, hold: 'consonant' },
@@ -228,17 +266,27 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
   20: { support: {}, jaw: JAW_CONS, hold: 'consonant' },
 
   // ── 21 p b m — bilabial closure: lips meet firmly, jaw closed ────────────────
-  // The Oculus viseme_PP morph alone reads as a soft pout on Avaturn rigs. Layer
-  // a strong mouthClose + lip roll + bilateral press and drive the primary morph
-  // hard so the closure is unmistakable. jaw stays 0 (lips sealed). The fast
-  // attack lerp in the render loop snaps this closed quickly; the fast release
-  // (consonant hold) lets it part cleanly into the following vowel.
-  21: { support: { mouthClose: 0.45, mouthRollLower: 0.18, mouthRollUpper: 0.14, mouthPressLeft: 0.16, mouthPressRight: 0.16 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
+  // The Oculus viseme_PP morph alone reads as a soft pout on Avaturn rigs, so a
+  // mouthClose + lip roll + bilateral press are layered on top. jaw stays 0
+  // (lips sealed). The fast attack lerp in the render loop snaps this closed
+  // quickly; the fast release (closure hold) lets it part cleanly.
+  // v0.6.7 — the whole stack eased (mouthClose 0.45 → 0.28, rolls 0.18/0.14 →
+  // 0.10/0.06, press 0.16 → 0.12, primary 0.85 → 0.72): at full strength a
+  // HELD word-final P/M pushed the bottom lip up OVER the top lip. The old
+  // values predate the between-word relax, when a bilabial never lingered
+  // long enough to see the overshoot.
+  21: { support: { mouthClose: 0.28, mouthRollLower: 0.10, mouthRollUpper: 0.06, mouthPressLeft: 0.12, mouthPressRight: 0.12 }, jaw: 0, primaryScale: PRIMARY_PLOSIVE, hold: 'closure' },
 }
 
 /**
  * Build the full target-weight map for a viseme: the primary Oculus mouth
  * shape(s) at `primaryScale`, plus conservative ARKit support shapes.
+ *
+ * `driveScale` (v0.6.7) multiplies the RESOLVED primary scale — including
+ * per-viseme `primaryScale` overrides, which otherwise replace the caller's
+ * scale outright — so a product-level articulation knob softens plosives and
+ * open vowels alike. Support shapes are deliberately NOT scaled: a quieter
+ * mouth should still seal its closures and round its O/U.
  *
  * Returns `{ weights, jaw, hold }`. `weights` excludes jawOpen (the caller owns
  * the jaw key so it can be zeroed independently by the recentlyFired gate).
@@ -249,7 +297,8 @@ export const VISEME_SUPPORT: Record<number, VisemeSupport> = {
  */
 export function buildVisemeTargets(
   id: number,
-  primaryScale = 0.6
+  primaryScale = 0.6,
+  driveScale = 1
 ): { weights: Record<string, number>; jaw: number; hold: 'vowel' | 'consonant' | 'closure' } {
   const primary = VISEME_TO_ARKIT[id]
   if (!primary) return { weights: {}, jaw: 0, hold: 'vowel' }
@@ -257,7 +306,7 @@ export function buildVisemeTargets(
   const support = VISEME_SUPPORT[id]
   // A viseme may override how hard its primary Oculus morph is driven (plosive
   // closures harder, open vowels softer). Falls back to the caller's scale.
-  const effectiveScale = support?.primaryScale ?? primaryScale
+  const effectiveScale = Math.min(1, (support?.primaryScale ?? primaryScale) * driveScale)
 
   const weights: Record<string, number> = {}
   const w = effectiveScale / primary.length

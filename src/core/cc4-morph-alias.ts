@@ -137,14 +137,53 @@ export const ARKIT_TO_CC4: Readonly<Record<string, string>> = {
  * write a single scalar that CC4 splits into L+R shapes. This helper returns
  * BOTH the L and R names for a given ARKit key so the same value is applied
  * to each side, keeping the face symmetric.
+ *
+ * Each list carries every naming CC has shipped for that muscle (v0.6.7):
+ * CC4 Extended four-way splits (`Mouth_Pucker_Up_L`…), unified CC names
+ * (`Mouth_Pucker`), AND the CC5 extended facial profile — verified against a
+ * real CC5 upload's morph inventory — which renames nearly everything:
+ * purse (`Mouth_Lips_Purse_UL/UR/DL/DR`) instead of pucker,
+ * `Mouth_Funnel_UL/…` instead of `Mouth_Funnel_Up_L/…`,
+ * `Mouth_Lips_Together_*` instead of `Mouth_Close`,
+ * `Mouth_*Lip_RollIn_*` instead of `Mouth_Roll_In_*`, plus
+ * `Mouth_Corner_Narrow_L/R` (real corner narrowing, folded into pucker).
+ * resolveMorphIndices writes every name that exists, so rigs carrying several
+ * variants get the same value on each, and absent names fall through
+ * harmlessly. Without the CC5 names, rounding silently no-opped on CC5 —
+ * O/U never puckered.
  */
 export const ARKIT_TO_CC4_PAIRS: Readonly<Record<string, readonly string[]>> = {
   browInnerUp:     ['Brow_Raise_Inner_L', 'Brow_Raise_Inner_R'],
-  cheekPuff:       ['Cheek_Puff_L', 'Cheek_Puff_R'],
-  mouthFunnel:     ['Mouth_Funnel_Up_L', 'Mouth_Funnel_Up_R', 'Mouth_Funnel_Down_L', 'Mouth_Funnel_Down_R'],
-  mouthPucker:     ['Mouth_Pucker_Up_L', 'Mouth_Pucker_Up_R', 'Mouth_Pucker_Down_L', 'Mouth_Pucker_Down_R'],
-  mouthRollLower:  ['Mouth_Roll_In_Lower_L', 'Mouth_Roll_In_Lower_R'],
-  mouthRollUpper:  ['Mouth_Roll_In_Upper_L', 'Mouth_Roll_In_Upper_R'],
+  cheekPuff:       ['Cheek_Puff_L', 'Cheek_Puff_R', 'Mouth_Cheek_Blow_L', 'Mouth_Cheek_Blow_R'],
+  mouthFunnel:     [
+    'Mouth_Funnel_Up_L', 'Mouth_Funnel_Up_R', 'Mouth_Funnel_Down_L', 'Mouth_Funnel_Down_R', 'Mouth_Funnel',
+    'Mouth_Funnel_UL', 'Mouth_Funnel_UR', 'Mouth_Funnel_DL', 'Mouth_Funnel_DR',
+  ],
+  mouthPucker:     [
+    'Mouth_Pucker_Up_L', 'Mouth_Pucker_Up_R', 'Mouth_Pucker_Down_L', 'Mouth_Pucker_Down_R', 'Mouth_Pucker',
+    'Mouth_Lips_Purse_UL', 'Mouth_Lips_Purse_UR', 'Mouth_Lips_Purse_DL', 'Mouth_Lips_Purse_DR',
+    'Mouth_Corner_Narrow_L', 'Mouth_Corner_Narrow_R',
+  ],
+  mouthClose:      [
+    'Mouth_Close',
+    'Mouth_Lips_Together_UL', 'Mouth_Lips_Together_UR', 'Mouth_Lips_Together_DL', 'Mouth_Lips_Together_DR',
+  ],
+  viseme_sil:      [
+    'Mouth_Close',
+    'Mouth_Lips_Together_UL', 'Mouth_Lips_Together_UR', 'Mouth_Lips_Together_DL', 'Mouth_Lips_Together_DR',
+  ],
+  mouthPressLeft:  ['Mouth_Press_L', 'Mouth_Lips_Press_L'],
+  mouthPressRight: ['Mouth_Press_R', 'Mouth_Lips_Press_R'],
+  mouthLowerDownLeft:  ['Mouth_Down_Lower_L', 'Mouth_LowerLip_Depress_L'],
+  mouthLowerDownRight: ['Mouth_Down_Lower_R', 'Mouth_LowerLip_Depress_R'],
+  mouthUpperUpLeft:    ['Mouth_Up_Upper_L', 'Mouth_UpperLip_Raise_L'],
+  mouthUpperUpRight:   ['Mouth_Up_Upper_R', 'Mouth_UpperLip_Raise_R'],
+  mouthSmileLeft:  ['Mouth_Smile_L', 'Mouth_Corner_Pull_L'],
+  mouthSmileRight: ['Mouth_Smile_R', 'Mouth_Corner_Pull_R'],
+  mouthFrownLeft:  ['Mouth_Frown_L', 'Mouth_Corner_Depress_L'],
+  mouthFrownRight: ['Mouth_Frown_R', 'Mouth_Corner_Depress_R'],
+  mouthRollLower:  ['Mouth_Roll_In_Lower_L', 'Mouth_Roll_In_Lower_R', 'Mouth_Roll_Lower', 'Mouth_LowerLip_RollIn_L', 'Mouth_LowerLip_RollIn_R'],
+  mouthRollUpper:  ['Mouth_Roll_In_Upper_L', 'Mouth_Roll_In_Upper_R', 'Mouth_Roll_Upper', 'Mouth_UpperLip_RollIn_L', 'Mouth_UpperLip_RollIn_R'],
   // "eyeBlink" (unified) — some code paths write a single value expecting
   // both eyes to close together. Left+Right individual keys are still
   // preferred where available.
