@@ -95,10 +95,24 @@ for (const { file } of SOURCE_FILES) {
 
 const bySource = new Map()
 for (const [packKey, pack] of Object.entries(mapping.packs)) {
+  // Pieces are ordered by their cut range where there is one, and by the _pN
+  // suffix otherwise. Two notations because the original slicing happened in the
+  // portal and only reached this repo as pre-cut clips named _p1.._pN, whereas a
+  // cut made here records the range it took and keeps the take's own name.
+  const cutOrder = new Map()
+  for (const c of pack.clips.filter((c) => c.cut)) {
+    if (!cutOrder.has(c.source)) cutOrder.set(c.source, [])
+    cutOrder.get(c.source).push(c)
+  }
+  for (const list of cutOrder.values()) {
+    list.sort((a, b) => a.cut.from - b.cut.from)
+    list.forEach((c, i) => { c._piece = i + 1 })
+  }
+
   for (const clip of pack.clips) {
     const m = /^(.*)_p(\d+)$/.exec(clip.source ?? '')
     const origin = m ? m[1] : clip.source
-    const piece  = m ? Number(m[2]) : 1
+    const piece  = m ? Number(m[2]) : (clip._piece ?? 1)
     if (!originals.has(origin)) continue          // Mixamo/CC5 clips, never sliced
     if (!bySource.has(origin)) bySource.set(origin, [])
     bySource.get(origin).push({
@@ -112,6 +126,23 @@ for (const [packKey, pack] of Object.entries(mapping.packs)) {
 const q   = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 const lit = (arr) => `[${arr.map(q).join(', ')}]`
 const num = (n) => Number(n).toFixed(2)
+
+/**
+ * Clips added to a shipped pack by build-pack-additions.mjs.
+ *
+ * They are in the pack and in the engine registry, but a product only sees the
+ * registry through its VENDORED copy of the engine — which lags until someone
+ * runs sync-vendor. Emitting the rows here lets the playground list them without
+ * dragging an unrelated engine version bump along with them.
+ */
+const additionRows = Object.entries(mapping.packs).flatMap(([packKey, pack]) =>
+  pack.clips.filter((c) => c.add === 'originals').map((c) =>
+    `  { id: ${q(c.id)}, pack: ${q(`pack-${packKey}`)}, label: ${q(c.label)}, when: ${q(c.when)}, ` +
+    `loop: ${q(c.kind === 'idle' ? 'loop' : 'once')}, functions: ${lit(c.functions ?? [])}, ` +
+    `manner: ${lit(c.manner ?? [])}, scale: ${q(c.scale)}, armDeg: ${Number(c.armDeg ?? 0)}, ` +
+    `gender: ${c.gender ? q(c.gender) : 'null'}, duration: ${num(c.len ?? 0)}, ` +
+    `origin: ${q(c.source)} },`))
+  .join('\n')
 
 /**
  * A readable name for an original take. These are the authored source names, so
@@ -147,11 +178,12 @@ const originalRows = [...originals.entries()]
     const slices = bySource.get(origin) ?? []
     const kept   = slices.reduce((a, s) => a + s.len, 0)
     const genders = uniq(slices.map((s) => s.gender).filter(Boolean))
+    const whole = slices.length === 1 && Math.abs(slices[0].len - duration) < 0.25
     const when = slices.length === 0
       ? 'Original take — never shipped in any pack'
-      : slices.length === 1
+      : whole
         ? `Original take — shipped whole as ${slices[0].id}`
-        : `Original take — cut into ${slices.length} clips, ${kept.toFixed(2)}s of ${duration.toFixed(2)}s kept`
+        : `Original take — cut into ${slices.length} clip${slices.length === 1 ? '' : 's'}, ${kept.toFixed(2)}s of ${duration.toFixed(2)}s kept`
     const amp = amplitude.get(origin)
     return `  { id: ${q(origin)}, label: ${q(prettyLabel(origin))}, file: ${q(file)}, ` +
       `duration: ${num(duration)}, sliceCount: ${slices.length}, ` +
@@ -269,6 +301,31 @@ export interface OriginalClip {
 
 export const ORIGINAL_CLIPS: OriginalClip[] = [
 ${originalRows}
+]
+
+/**
+ * Clips this repo added to a shipped pack, with the manifest data a consumer
+ * needs to list them. They are in the engine registry too, but a product reads
+ * that through its vendored engine copy, which lags until sync-vendor runs.
+ */
+export interface PackAddition {
+  id:        string
+  pack:      string
+  label:     string
+  when:      string
+  loop:      'loop' | 'once'
+  functions: string[]
+  manner:    string[]
+  scale:     'subtle' | 'moderate' | 'broad'
+  armDeg:    number
+  gender:    string | null
+  duration:  number
+  /** The original take it was cut from. */
+  origin:    string
+}
+
+export const PACK_ADDITIONS: PackAddition[] = [
+${additionRows}
 ]
 
 /** Reverse lookup: shipped clip id -> the original it was cut from. */

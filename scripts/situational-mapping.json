@@ -2270,6 +2270,212 @@
           "bodyDeg": 31,
           "scale": "broad",
           "gender": null
+        },
+        {
+          "id": "cc_chat_relax_1",
+          "source": "cc4_m_chat_relax",
+          "label": "Chat relax 1 of 5",
+          "when": "UNREVIEWED — piece 1 of the chat_relax take (0.00-5.79s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 5.79,
+          "armDeg": 94,
+          "bodyDeg": 12,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 0,
+            "to": 5.79
+          }
+        },
+        {
+          "id": "cc_chat_relax_2",
+          "source": "cc4_m_chat_relax",
+          "label": "Chat relax 2 of 5",
+          "when": "UNREVIEWED — piece 2 of the chat_relax take (5.79-9.67s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.88,
+          "armDeg": 78,
+          "bodyDeg": 20,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 5.79,
+            "to": 9.67
+          }
+        },
+        {
+          "id": "cc_chat_relax_3",
+          "source": "cc4_m_chat_relax",
+          "label": "Chat relax 3 of 5",
+          "when": "UNREVIEWED — piece 3 of the chat_relax take (9.67-12.71s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.04,
+          "armDeg": 81,
+          "bodyDeg": 16,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 9.67,
+            "to": 12.71
+          }
+        },
+        {
+          "id": "cc_chat_relax_4",
+          "source": "cc4_m_chat_relax",
+          "label": "Chat relax 4 of 5",
+          "when": "UNREVIEWED — piece 4 of the chat_relax take (12.71-17.33s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.62,
+          "armDeg": 45,
+          "bodyDeg": 23,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 12.71,
+            "to": 17.33
+          }
+        },
+        {
+          "id": "cc_chat_relax_5",
+          "source": "cc4_m_chat_relax",
+          "label": "Chat relax 5 of 5",
+          "when": "UNREVIEWED — piece 5 of the chat_relax take (17.33-20.63s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.3,
+          "armDeg": 93,
+          "bodyDeg": 11,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 17.33,
+            "to": 20.63
+          }
+        },
+        {
+          "id": "cc_chat_listen_1",
+          "source": "cc4_f_chat_listen",
+          "label": "Chat listen 1 of 4",
+          "when": "UNREVIEWED — piece 1 of the chat_listen take (0.00-3.38s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 3.38,
+          "armDeg": 67,
+          "bodyDeg": 11,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 0,
+            "to": 3.38
+          }
+        },
+        {
+          "id": "cc_chat_listen_2",
+          "source": "cc4_f_chat_listen",
+          "label": "Chat listen 2 of 4",
+          "when": "UNREVIEWED — piece 2 of the chat_listen take (3.38-8.00s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 4.62,
+          "armDeg": 58,
+          "bodyDeg": 14,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 3.38,
+            "to": 8
+          }
+        },
+        {
+          "id": "cc_chat_listen_3",
+          "source": "cc4_f_chat_listen",
+          "label": "Chat listen 3 of 4",
+          "when": "UNREVIEWED — piece 3 of the chat_listen take (8.00-11.88s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 3.88,
+          "armDeg": 102,
+          "bodyDeg": 13,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 8,
+            "to": 11.88
+          }
+        },
+        {
+          "id": "cc_chat_listen_4",
+          "source": "cc4_f_chat_listen",
+          "label": "Chat listen 4 of 4",
+          "when": "UNREVIEWED — piece 4 of the chat_listen take (11.88-18.33s). Watch it, then name and tag it.",
+          "kind": "gesture",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 6.45,
+          "armDeg": 66,
+          "bodyDeg": 16,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 11.88,
+            "to": 18.33
+          }
+        },
+        {
+          "id": "cc_idle_378963",
+          "source": "cc4_c_idle_378963",
+          "label": "Idle 378963",
+          "when": "A full-length standing idle. Brought in uncut.",
+          "kind": "idle",
+          "functions": [
+            "rest"
+          ],
+          "manner": [],
+          "len": 15.29,
+          "armDeg": 13,
+          "bodyDeg": 14,
+          "scale": "subtle",
+          "gender": null,
+          "add": "originals"
         }
       ]
     }
