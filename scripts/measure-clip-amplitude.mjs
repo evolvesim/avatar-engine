@@ -27,6 +27,7 @@
 
 import fs   from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { NodeIO } from '@gltf-transform/core'
 
 const argv = process.argv.slice(2)
@@ -39,10 +40,12 @@ const PLAYGROUND = path.resolve(import.meta.dirname, '../../avatar-playground/pu
 const srcDir  = pick('--src', PLAYGROUND)
 const jsonOut = pick('--json', null)
 
-const PACKS = [
+const DEFAULT_PACKS = [
   'animations-pack-avaturn-default.glb',
   'animations-pack-cc5-default.glb',
 ]
+
+const PACKS = (pick('--packs', null)?.split(',').map((s) => s.trim()).filter(Boolean)) ?? DEFAULT_PACKS
 
 // Bone-name fragments per group, covering both skeletons (CC_Base_L_Upperarm /
 // LeftArm, etc.). Matched case-insensitively against the node name.
@@ -75,15 +78,17 @@ function quatAngleDeg(a, b) {
 }
 
 const io = new NodeIO()
-const rows = []
 
-for (const file of PACKS) {
-  const full = path.join(srcDir, file)
-  if (!fs.existsSync(full)) {
-    console.error(`missing source: ${full}`)
-    continue
-  }
-  const doc = await io.read(full)
+/**
+ * Measure every clip in one pack. Exported so other generators can ask this
+ * question without re-deriving the bone groups or the excursion definition —
+ * two answers to "how big is this motion" is one too many.
+ *
+ * @returns {Promise<Array<{id: string, arm: number, body: number}>>}
+ */
+export async function measurePack(file) {
+  const rows = []
+  const doc = await io.read(file)
 
   for (const anim of doc.getRoot().listAnimations()) {
     const maxByGroup = { arm: 0, body: 0 }
@@ -115,22 +120,37 @@ for (const file of PACKS) {
       body: Math.round(maxByGroup.body),
     })
   }
+  return rows
 }
 
-rows.sort((a, b) => b.arm - a.arm || b.body - a.body)
+// ── CLI ───────────────────────────────────────────────────────────────────────
 
-console.log('id'.padEnd(44) + 'arm°'.padStart(6) + 'body°'.padStart(7))
-for (const r of rows) {
-  console.log(r.id.padEnd(44) + String(r.arm).padStart(6) + String(r.body).padStart(7))
-}
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const rows = []
+  for (const file of PACKS) {
+    const full = path.join(srcDir, file)
+    if (!fs.existsSync(full)) {
+      console.error(`missing source: ${full}`)
+      continue
+    }
+    rows.push(...await measurePack(full))
+  }
 
-// Distribution, to pick thresholds from the data rather than by feel.
-const arms = rows.map((r) => r.arm).sort((a, b) => a - b)
-const pct = (p) => arms[Math.min(arms.length - 1, Math.floor((p / 100) * arms.length))]
-console.log(`\nn=${rows.length}  arm° percentiles: ` +
-  `p10=${pct(10)} p25=${pct(25)} p50=${pct(50)} p75=${pct(75)} p90=${pct(90)} max=${arms[arms.length - 1]}`)
+  rows.sort((a, b) => b.arm - a.arm || b.body - a.body)
 
-if (jsonOut) {
-  fs.writeFileSync(jsonOut, JSON.stringify(rows, null, 2))
-  console.log(`\nwrote ${jsonOut}`)
+  console.log('id'.padEnd(44) + 'arm°'.padStart(6) + 'body°'.padStart(7))
+  for (const r of rows) {
+    console.log(r.id.padEnd(44) + String(r.arm).padStart(6) + String(r.body).padStart(7))
+  }
+
+  // Distribution, to pick thresholds from the data rather than by feel.
+  const arms = rows.map((r) => r.arm).sort((a, b) => a - b)
+  const pct = (p) => arms[Math.min(arms.length - 1, Math.floor((p / 100) * arms.length))]
+  console.log(`\nn=${rows.length}  arm° percentiles: ` +
+    `p10=${pct(10)} p25=${pct(25)} p50=${pct(50)} p75=${pct(75)} p90=${pct(90)} max=${arms[arms.length - 1]}`)
+
+  if (jsonOut) {
+    fs.writeFileSync(jsonOut, JSON.stringify(rows, null, 2))
+    console.log(`\nwrote ${jsonOut}`)
+  }
 }

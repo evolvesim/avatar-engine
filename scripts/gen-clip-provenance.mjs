@@ -25,6 +25,7 @@
 
 import fs   from 'node:fs'
 import path from 'node:path'
+import { measurePack } from './measure-clip-amplitude.mjs'
 
 const here   = import.meta.dirname
 const argv   = process.argv.slice(2)
@@ -100,12 +101,67 @@ for (const [packKey, pack] of Object.entries(mapping.packs)) {
     const piece  = m ? Number(m[2]) : 1
     if (!originals.has(origin)) continue          // Mixamo/CC5 clips, never sliced
     if (!bySource.has(origin)) bySource.set(origin, [])
-    bySource.get(origin).push({ id: clip.id, label: clip.label, piece, len: clip.len ?? 0, pack: packKey })
+    bySource.get(origin).push({
+      id: clip.id, label: clip.label, piece, len: clip.len ?? 0, pack: packKey,
+      kind: clip.kind, functions: clip.functions ?? [], manner: clip.manner ?? [],
+      gender: clip.gender ?? null,
+    })
   }
 }
 
 const q   = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+const lit = (arr) => `[${arr.map(q).join(', ')}]`
 const num = (n) => Number(n).toFixed(2)
+
+/**
+ * A readable name for an original take. These are the authored source names, so
+ * the honest label is the name itself tidied up — inventing a descriptive one
+ * would just be a second, competing vocabulary for the same clip.
+ */
+function prettyLabel(origin) {
+  const bare = origin.replace(/^cc4_[cmf]_/, '').replace(/_/g, ' ')
+  return bare.charAt(0).toUpperCase() + bare.slice(1)
+}
+
+const uniq = (xs) => [...new Set(xs)].sort()
+
+// Motion size is MEASURED, never inferred from the clip name — guessing from
+// names is how 37 arm-throwing clips came to be advertised as restrained head
+// beats. If the merged pack has not been built yet the fields are omitted rather
+// than defaulted, so nothing downstream can show a number that was never taken.
+const ORIGINALS_PACK = path.join(srcDir, 'animations-pack-cc4-originals.glb')
+const amplitude = new Map()
+if (fs.existsSync(ORIGINALS_PACK)) {
+  for (const r of await measurePack(ORIGINALS_PACK)) amplitude.set(r.id, r)
+} else {
+  console.warn(`! ${path.basename(ORIGINALS_PACK)} not built — scale/armDeg omitted; run build-originals-pack.mjs first`)
+}
+
+const { subtleMax, moderateMax } = mapping.scaleThresholds
+const bandOf = (armDeg) => (armDeg <= subtleMax ? 'subtle' : armDeg <= moderateMax ? 'moderate' : 'broad')
+
+/** Every original, longest first — the long takes are what this pack is for. */
+const originalRows = [...originals.entries()]
+  .sort((a, b) => b[1].duration - a[1].duration)
+  .map(([origin, { file, duration }]) => {
+    const slices = bySource.get(origin) ?? []
+    const kept   = slices.reduce((a, s) => a + s.len, 0)
+    const genders = uniq(slices.map((s) => s.gender).filter(Boolean))
+    const when = slices.length === 0
+      ? 'Original take — never shipped in any pack'
+      : slices.length === 1
+        ? `Original take — shipped whole as ${slices[0].id}`
+        : `Original take — cut into ${slices.length} clips, ${kept.toFixed(2)}s of ${duration.toFixed(2)}s kept`
+    const amp = amplitude.get(origin)
+    return `  { id: ${q(origin)}, label: ${q(prettyLabel(origin))}, file: ${q(file)}, ` +
+      `duration: ${num(duration)}, sliceCount: ${slices.length}, ` +
+      `scale: ${amp ? q(bandOf(amp.arm)) : 'null'}, armDeg: ${amp ? amp.arm : 0}, bodyDeg: ${amp ? amp.body : 0}, ` +
+      `loop: ${q(slices.length > 0 && slices.every((s) => s.kind === 'idle') ? 'loop' : 'once')}, ` +
+      `functions: ${lit(uniq(slices.flatMap((s) => s.functions)))}, ` +
+      `manner: ${lit(uniq(slices.flatMap((s) => s.manner)))}, ` +
+      `gender: ${genders.length === 1 ? q(genders[0]) : 'null'}, ` +
+      `when: ${q(when)} },`
+  }).join('\n')
 
 const rows = [...bySource.keys()].sort().map((origin) => {
   const { file, duration } = originals.get(origin)
@@ -180,6 +236,39 @@ ${rows}
  */
 export const UNUSED_ORIGINALS: readonly string[] = [
 ${unused.map((u) => `  ${q(u)},`).join('\n')}
+]
+
+/**
+ * Every original take, longest first — the contents of animations-pack-cc4-originals.glb.
+ *
+ * Clip ids are the ORIGINAL authored names, deliberately: this pack IS the source
+ * material, and renaming it to something descriptive is exactly the step that made
+ * the slices unrecognisable in the first place.
+ */
+export interface OriginalClip {
+  /** Clip id in the pack — the original authored name. */
+  id:         string
+  label:      string
+  /** Which restored source GLB it came from. */
+  file:       string
+  duration:   number
+  /** How many shipped clips were cut from it. 0 means it never reached a pack. */
+  sliceCount: number
+  /** MEASURED motion size, banded from armDeg. Null if the pack was not measured. */
+  scale:      'subtle' | 'moderate' | 'broad' | null
+  /** Measured max arm excursion in degrees. */
+  armDeg:     number
+  /** Measured max hip/spine/head excursion in degrees. */
+  bodyDeg:    number
+  loop:       'loop' | 'once'
+  functions:  string[]
+  manner:     string[]
+  gender:     string | null
+  when:       string
+}
+
+export const ORIGINAL_CLIPS: OriginalClip[] = [
+${originalRows}
 ]
 
 /** Reverse lookup: shipped clip id -> the original it was cut from. */
