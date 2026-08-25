@@ -61,31 +61,26 @@ const deg = (a, b) => {
 }
 
 /**
- * The editorial columns, which are decisions rather than measurements. Both
- * source takes were marked "Delete" in this sheet as IDLES, because they swing
- * their arms 105-115° and read as nothing like a resting pose. Cut into gesture
- * pieces they are usable, which is what these rows record.
+ * The editorial columns — name, function, type — are decisions, and the mapping
+ * is where those decisions live. Reading them from it rather than repeating them
+ * here means a rename cannot leave this script emitting the old name.
  */
-const SHEET_META = {
-  cc_chat_relax_1:  { newName: 'Chat relax 1 of 5',  pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_relax_2:  { newName: 'Chat relax 2 of 5',  pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_relax_3:  { newName: 'Chat relax 3 of 5',  pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_relax_4:  { newName: 'Chat relax 4 of 5',  pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_relax_5:  { newName: 'Chat relax 5 of 5',  pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_listen_1: { newName: 'Chat listen 1 of 4', pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_listen_2: { newName: 'Chat listen 2 of 4', pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_listen_3: { newName: 'Chat listen 3 of 4', pack: 'CC5 Default', type: 'Gesture' },
-  cc_chat_listen_4: { newName: 'Chat listen 4 of 4', pack: 'CC5 Default', type: 'Gesture' },
-  cc_idle_378963:   { newName: 'Idle 378963',        pack: 'CC5 Default', type: 'Idle' },
-}
-for (const [id, m] of Object.entries(SHEET_META)) {
-  const cut = id.startsWith('cc_idle') ? '' : ' — piece of a take marked Delete as an idle; usable as a gesture'
-  m.fn = id.startsWith('cc_chat_listen') ? 'When listening (UNREVIEWED — watch and rename)'
-       : id.startsWith('cc_chat_relax')  ? 'When explaining (UNREVIEWED — watch and rename)'
-       : 'When at rest'
-  m.flags = id.startsWith('cc_idle') ? 'height normalised +7.2cm to the shipped band'
-          : `NEEDS NAMING: placeholder name and function${cut}`
-  m.bucket = 'not offered yet'
+import fs from 'node:fs'
+const mapping = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'situational-mapping.json'), 'utf8'))
+const SHEET_META = {}
+for (const [packKey, pack] of Object.entries(mapping.packs)) {
+  for (const c of pack.clips) {
+    SHEET_META[c.id] = {
+      newName: c.label,
+      fn:      c.when,
+      pack:    pack.label,
+      type:    c.kind === 'idle' ? 'Idle' : 'Gesture',
+      bucket:  '',
+      flags:   c.add === 'originals'
+        ? `added from ${c.source}${c.cut ? ` [${c.cut.from}-${c.cut.to}s]` : ' (whole)'}; height normalised to the shipped band`
+        : '',
+    }
+  }
 }
 
 const io = new NodeIO()

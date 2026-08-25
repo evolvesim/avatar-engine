@@ -2272,13 +2272,13 @@
           "gender": null
         },
         {
-          "id": "cc_chat_relax_1",
+          "id": "cc_nodding_with_hand_gestures",
           "source": "cc4_m_chat_relax",
-          "label": "Chat relax 1 of 5",
-          "when": "UNREVIEWED — piece 1 of the chat_relax take (0.00-5.79s). Watch it, then name and tag it.",
+          "label": "Nodding with hand gestures",
+          "when": "When agreeing",
           "kind": "gesture",
           "functions": [
-            "explaining"
+            "agreeing"
           ],
           "manner": [],
           "len": 5.79,
@@ -2293,10 +2293,10 @@
           }
         },
         {
-          "id": "cc_chat_relax_2",
+          "id": "cc_hands_front_then_fist_pump",
           "source": "cc4_m_chat_relax",
-          "label": "Chat relax 2 of 5",
-          "when": "UNREVIEWED — piece 2 of the chat_relax take (5.79-9.67s). Watch it, then name and tag it.",
+          "label": "Hands front then fist pump",
+          "when": "When explaining",
           "kind": "gesture",
           "functions": [
             "explaining"
@@ -2314,13 +2314,13 @@
           }
         },
         {
-          "id": "cc_chat_relax_3",
+          "id": "cc_fist_pump_and_hand_to_the_sides",
           "source": "cc4_m_chat_relax",
-          "label": "Chat relax 3 of 5",
-          "when": "UNREVIEWED — piece 3 of the chat_relax take (9.67-12.71s). Watch it, then name and tag it.",
+          "label": "Fist pump and hand to the sides",
+          "when": "When confirming",
           "kind": "gesture",
           "functions": [
-            "explaining"
+            "agreeing"
           ],
           "manner": [],
           "len": 3.04,
@@ -2335,10 +2335,10 @@
           }
         },
         {
-          "id": "cc_chat_relax_4",
+          "id": "cc_many_movements_of_hands",
           "source": "cc4_m_chat_relax",
-          "label": "Chat relax 4 of 5",
-          "when": "UNREVIEWED — piece 4 of the chat_relax take (12.71-17.33s). Watch it, then name and tag it.",
+          "label": "Many movements of hands",
+          "when": "When telling",
           "kind": "gesture",
           "functions": [
             "explaining"
@@ -2356,31 +2356,10 @@
           }
         },
         {
-          "id": "cc_chat_relax_5",
-          "source": "cc4_m_chat_relax",
-          "label": "Chat relax 5 of 5",
-          "when": "UNREVIEWED — piece 5 of the chat_relax take (17.33-20.63s). Watch it, then name and tag it.",
-          "kind": "gesture",
-          "functions": [
-            "explaining"
-          ],
-          "manner": [],
-          "len": 3.3,
-          "armDeg": 93,
-          "bodyDeg": 11,
-          "scale": "broad",
-          "gender": null,
-          "add": "originals",
-          "cut": {
-            "from": 17.33,
-            "to": 20.63
-          }
-        },
-        {
-          "id": "cc_chat_listen_1",
+          "id": "cc_short_nod",
           "source": "cc4_f_chat_listen",
-          "label": "Chat listen 1 of 4",
-          "when": "UNREVIEWED — piece 1 of the chat_listen take (0.00-3.38s). Watch it, then name and tag it.",
+          "label": "Short nod",
+          "when": "When listening",
           "kind": "gesture",
           "functions": [
             "listening"
@@ -2398,13 +2377,14 @@
           }
         },
         {
-          "id": "cc_chat_listen_2",
+          "id": "cc_nodding",
           "source": "cc4_f_chat_listen",
-          "label": "Chat listen 2 of 4",
-          "when": "UNREVIEWED — piece 2 of the chat_listen take (3.38-8.00s). Watch it, then name and tag it.",
+          "label": "Nodding",
+          "when": "When listening and agreeing",
           "kind": "gesture",
           "functions": [
-            "listening"
+            "listening",
+            "agreeing"
           ],
           "manner": [],
           "len": 4.62,
@@ -2419,13 +2399,13 @@
           }
         },
         {
-          "id": "cc_chat_listen_3",
+          "id": "cc_large_nodding",
           "source": "cc4_f_chat_listen",
-          "label": "Chat listen 3 of 4",
-          "when": "UNREVIEWED — piece 3 of the chat_listen take (8.00-11.88s). Watch it, then name and tag it.",
+          "label": "Large nodding",
+          "when": "When agreeing",
           "kind": "gesture",
           "functions": [
-            "listening"
+            "agreeing"
           ],
           "manner": [],
           "len": 3.88,
@@ -2440,13 +2420,14 @@
           }
         },
         {
-          "id": "cc_chat_listen_4",
+          "id": "cc_big_final_nod",
           "source": "cc4_f_chat_listen",
-          "label": "Chat listen 4 of 4",
-          "when": "UNREVIEWED — piece 4 of the chat_listen take (11.88-18.33s). Watch it, then name and tag it.",
+          "label": "Big final nod",
+          "when": "When listening and understanding",
           "kind": "gesture",
           "functions": [
-            "listening"
+            "listening",
+            "agreeing"
           ],
           "manner": [],
           "len": 6.45,
@@ -2459,23 +2440,6 @@
             "from": 11.88,
             "to": 18.33
           }
-        },
-        {
-          "id": "cc_idle_378963",
-          "source": "cc4_c_idle_378963",
-          "label": "Idle 378963",
-          "when": "A full-length standing idle. Brought in uncut.",
-          "kind": "idle",
-          "functions": [
-            "rest"
-          ],
-          "manner": [],
-          "len": 15.29,
-          "armDeg": 13,
-          "bodyDeg": 14,
-          "scale": "subtle",
-          "gender": null,
-          "add": "originals"
         }
       ]
     }
