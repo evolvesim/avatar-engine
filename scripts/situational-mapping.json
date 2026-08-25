@@ -2270,6 +2270,176 @@
           "bodyDeg": 31,
           "scale": "broad",
           "gender": null
+        },
+        {
+          "id": "cc_nodding_with_hand_gestures",
+          "source": "cc4_m_chat_relax",
+          "label": "Nodding with hand gestures",
+          "when": "When agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 5.79,
+          "armDeg": 94,
+          "bodyDeg": 12,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 0,
+            "to": 5.79
+          }
+        },
+        {
+          "id": "cc_hands_front_then_fist_pump",
+          "source": "cc4_m_chat_relax",
+          "label": "Hands front then fist pump",
+          "when": "When explaining",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 3.88,
+          "armDeg": 78,
+          "bodyDeg": 20,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 5.79,
+            "to": 9.67
+          }
+        },
+        {
+          "id": "cc_fist_pump_and_hand_to_the_sides",
+          "source": "cc4_m_chat_relax",
+          "label": "Fist pump and hand to the sides",
+          "when": "When confirming",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.04,
+          "armDeg": 81,
+          "bodyDeg": 16,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 9.67,
+            "to": 12.71
+          }
+        },
+        {
+          "id": "cc_many_movements_of_hands",
+          "source": "cc4_m_chat_relax",
+          "label": "Many movements of hands",
+          "when": "When telling",
+          "kind": "gesture",
+          "functions": [
+            "explaining"
+          ],
+          "manner": [],
+          "len": 4.62,
+          "armDeg": 45,
+          "bodyDeg": 23,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 12.71,
+            "to": 17.33
+          }
+        },
+        {
+          "id": "cc_short_nod",
+          "source": "cc4_f_chat_listen",
+          "label": "Short nod",
+          "when": "When listening",
+          "kind": "gesture",
+          "functions": [
+            "listening"
+          ],
+          "manner": [],
+          "len": 3.38,
+          "armDeg": 67,
+          "bodyDeg": 11,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 0,
+            "to": 3.38
+          }
+        },
+        {
+          "id": "cc_nodding",
+          "source": "cc4_f_chat_listen",
+          "label": "Nodding",
+          "when": "When listening and agreeing",
+          "kind": "gesture",
+          "functions": [
+            "listening",
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 4.62,
+          "armDeg": 58,
+          "bodyDeg": 14,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 3.38,
+            "to": 8
+          }
+        },
+        {
+          "id": "cc_large_nodding",
+          "source": "cc4_f_chat_listen",
+          "label": "Large nodding",
+          "when": "When agreeing",
+          "kind": "gesture",
+          "functions": [
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 3.88,
+          "armDeg": 102,
+          "bodyDeg": 13,
+          "scale": "broad",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 8,
+            "to": 11.88
+          }
+        },
+        {
+          "id": "cc_big_final_nod",
+          "source": "cc4_f_chat_listen",
+          "label": "Big final nod",
+          "when": "When listening and understanding",
+          "kind": "gesture",
+          "functions": [
+            "listening",
+            "agreeing"
+          ],
+          "manner": [],
+          "len": 6.45,
+          "armDeg": 66,
+          "bodyDeg": 16,
+          "scale": "moderate",
+          "gender": null,
+          "add": "originals",
+          "cut": {
+            "from": 11.88,
+            "to": 18.33
+          }
         }
       ]
     }
