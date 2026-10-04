@@ -358,7 +358,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.6.7'
+const ENGINE_BUILD = '0.6.9'
 let lightingFingerprintLogged = false
 
 /**
@@ -1191,7 +1191,7 @@ function AvatarScene({
 
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
-  const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven working scene bone
+  const headBoneOriginal = useRef<THREE.Object3D | null>(null)  // mixer-driven working scene head
   const leftEyeBone  = useRef<THREE.Bone | null>(null)      // eye-contact gaze (CC4 + RPM)
   const rightEyeBone = useRef<THREE.Bone | null>(null)
   const neckBone   = useRef<THREE.Bone | null>(null)
