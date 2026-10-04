@@ -322,7 +322,7 @@ export function createGazeState(): GazeState {
  * @param cameraPos  Camera world position (THREE.Vector3)
  */
 function computeEyeTargetLocal(
-  headBone: THREE.Bone,
+  headBone: THREE.Object3D,
   cameraPos: THREE.Vector3,
 ): { yaw: number; pitch: number } {
   // Head world position
@@ -372,7 +372,7 @@ function computeEyeTargetLocal(
 export function tickGaze(
   state:     GazeState,
   delta:     number,
-  headBone:  THREE.Bone | null,
+  headBone:  THREE.Object3D | null,
   cameraPos: THREE.Vector3,
   saccadeX:  number,
   saccadeY:  number,
@@ -497,6 +497,19 @@ export function findBone(scene: THREE.Object3D, name: string): THREE.Bone | null
     }
   })
   return found
+}
+
+/**
+ * The head node gaze reads its frame from: RPM/Avaturn `Head`, else CC `CC_Base_Head`.
+ *
+ * Falls back to a non-Bone node of the same name. Some CC exports leave the head
+ * out of every skin's joint list, so GLTFLoader loads it as a plain Object3D,
+ * but the mixer still animates it by name. GLTFLoader makes node names unique,
+ * so getObjectByName returns the same node the mixer binds that name to.
+ */
+export function findGazeHead(scene: THREE.Object3D): THREE.Object3D | null {
+  return findBone(scene, 'Head') ?? findBone(scene, 'CC_Base_Head')
+    ?? scene.getObjectByName('Head') ?? scene.getObjectByName('CC_Base_Head') ?? null
 }
 
 // ── 4b. Eye-contact gaze (eye-bone-derived frame) — robust for CC4 ─────────────

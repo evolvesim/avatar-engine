@@ -84,6 +84,7 @@ import {
   tickGazeEyeContact,
   fixTPose,
   findBone,
+  findGazeHead,
 } from './procedural-animations'
 import type { GazeConfig } from './procedural-animations'
 import type { ARKitWeights } from './emotion-state'
@@ -357,7 +358,7 @@ let rectAreaLibReady = false
  * the only way to tell "this lighting change looks wrong" apart from "this build
  * is not the code you think it is", which cost several release cycles once.
  */
-const ENGINE_BUILD = '0.6.7'
+const ENGINE_BUILD = '0.6.9'
 let lightingFingerprintLogged = false
 
 /**
@@ -1190,7 +1191,7 @@ function AvatarScene({
 
   // ── Bone refs ──────────────────────────────────────────────────────────────
   const headBone         = useRef<THREE.Bone | null>(null)
-  const headBoneOriginal = useRef<THREE.Bone | null>(null)  // mixer-driven working scene bone
+  const headBoneOriginal = useRef<THREE.Object3D | null>(null)  // mixer-driven working scene head
   const leftEyeBone  = useRef<THREE.Bone | null>(null)      // eye-contact gaze (CC4 + RPM)
   const rightEyeBone = useRef<THREE.Bone | null>(null)
   const neckBone   = useRef<THREE.Bone | null>(null)
@@ -1559,7 +1560,7 @@ function AvatarScene({
     // world matrices never update — gaze must read from workingScene. Fall back
     // to the CC4 (`CC_Base_*`) names so eye contact works on CC4 avatars too,
     // whose head bone is `CC_Base_Head` rather than `Head`.
-    headBoneOriginal.current = findBone(workingScene, 'Head') ?? findBone(workingScene, 'CC_Base_Head')
+    headBoneOriginal.current = findGazeHead(workingScene)
     leftEyeBone.current = findBone(workingScene, 'LeftEye') ?? findBone(workingScene, 'CC_Base_L_Eye')
     rightEyeBone.current = findBone(workingScene, 'RightEye') ?? findBone(workingScene, 'CC_Base_R_Eye')
     console.info('[AvatarCanvas] gaze bones:', {
