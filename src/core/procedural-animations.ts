@@ -499,6 +499,11 @@ export function findBone(scene: THREE.Object3D, name: string): THREE.Bone | null
   return found
 }
 
+/** The head node gaze reads its frame from: RPM/Avaturn `Head`, else CC `CC_Base_Head`. */
+export function findGazeHead(scene: THREE.Object3D): THREE.Bone | null {
+  return findBone(scene, 'Head') ?? findBone(scene, 'CC_Base_Head')
+}
+
 // ── 4b. Eye-contact gaze (eye-bone-derived frame) — robust for CC4 ─────────────
 /**
  * Camera-locking gaze that keeps the eyes on the viewer, tuned for rigs (CC4)
